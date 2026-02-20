@@ -53,7 +53,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func application(_ application: NSApplication, open urls: [URL]) {
         guard let url = urls.first else { return }
-        BrowserManager.shared.currentURL = url
+        let manager = BrowserManager.shared
+        manager.currentURL = url
+
+        if let route = manager.resolvedRoute(for: url) {
+            manager.currentURL = nil
+            manager.open(url: url, withBrowserBundleID: route.browser.bundleId)
+            return
+        }
+
         showPicker()
     }
     
@@ -209,6 +217,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.styleMask.remove(.miniaturizable)
+        window.isMovableByWindowBackground = true
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        // The picker card draws its own shadow; disable window shadow/chrome artifacts.
+        window.hasShadow = false
+        if #available(macOS 15.0, *) {
+            window.toolbar = nil
+            window.styleMask.remove(.titled)
+            window.styleMask.remove(.fullSizeContentView)
+        } else {
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarSeparatorStyle = .none
+        }
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true

@@ -10,11 +10,21 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var shortcutKey: String // "1", "2", etc
 }
 
+struct BrowserRoutingRule: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var name: String
+    var hostPattern: String
+    var pathPrefix: String?
+    var browserBundleId: String
+    var isEnabled: Bool = true
+}
+
 @MainActor
 @Observable final class BrowserManager {
     private enum Constants {
         static let defaultsKey = "configuredBrowsers"
         static let onboardingCompletedKey = "onboardingCompleted"
+        static let routingRulesKey = "routingRules"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     }
 
@@ -23,6 +33,13 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
             save()
+            removeRoutingRulesWithMissingBrowsers()
+        }
+    }
+
+    var routingRules: [BrowserRoutingRule] = [] {
+        didSet {
+            saveRoutingRules()
         }
     }
 
@@ -52,9 +69,12 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
 
         if AppEnvironment.shouldClearDataOnLaunch {
             clearPersistedBrowserList()
+            clearPersistedRoutingRules()
         }
 
         load()
+        loadRoutingRules()
+        removeRoutingRulesWithMissingBrowsers()
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {
@@ -93,8 +113,24 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
         }
     }
 
+    func loadRoutingRules() {
+        if let data = defaults.data(forKey: Constants.routingRulesKey),
+           let decoded = try? JSONDecoder().decode([BrowserRoutingRule].self, from: data) {
+            routingRules = decoded
+        } else {
+            routingRules = []
+        }
+    }
+
+    func saveRoutingRules() {
+        if let encoded = try? JSONEncoder().encode(routingRules) {
+            defaults.set(encoded, forKey: Constants.routingRulesKey)
+        }
+    }
+
     func resetToFreshSetup() {
         restoreDefaultBrowserList()
+        restoreDefaultRoutingRules()
         currentURL = nil
         hasCompletedOnboarding = false
 
@@ -110,6 +146,11 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     func restoreDefaultBrowserList() {
         clearPersistedBrowserList()
         configuredBrowsers = Self.freshSetupBrowsers()
+    }
+
+    func restoreDefaultRoutingRules() {
+        clearPersistedRoutingRules()
+        routingRules = []
     }
 
     func addBrowser(name: String, bundleId: String, shortcutKey: String? = nil) {
@@ -172,6 +213,127 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
         }
 
         return Constants.supportedShortcutKeys.last ?? "9"
+    }
+
+    // MARK: - Routing Rules
+
+    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String) {
+        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId }) else { return }
+
+        let normalizedHost = normalizedHostPattern(hostPattern)
+        guard isValidHostPattern(normalizedHost) else { return }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
+
+        routingRules.append(
+            BrowserRoutingRule(
+                name: ruleName,
+                hostPattern: normalizedHost,
+                pathPrefix: normalizedPathPrefix(pathPrefix),
+                browserBundleId: browserBundleId
+            )
+        )
+    }
+
+    func removeRoutingRule(id: UUID) {
+        routingRules.removeAll { $0.id == id }
+    }
+
+    func removeRoutingRules(at offsets: IndexSet) {
+        routingRules.remove(atOffsets: offsets)
+    }
+
+    func moveRoutingRules(from offsets: IndexSet, to destination: Int) {
+        routingRules.move(fromOffsets: offsets, toOffset: destination)
+    }
+
+    func duplicateRoutingRule(id: UUID) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+
+        let original = routingRules[index]
+        let duplicate = BrowserRoutingRule(
+            name: "\(original.name) Copy",
+            hostPattern: original.hostPattern,
+            pathPrefix: original.pathPrefix,
+            browserBundleId: original.browserBundleId,
+            isEnabled: original.isEnabled
+        )
+        routingRules.insert(duplicate, at: index + 1)
+    }
+
+    func routingRuleName(for id: UUID) -> String {
+        routingRules.first(where: { $0.id == id })?.name ?? ""
+    }
+
+    func routingRuleHostPattern(for id: UUID) -> String {
+        routingRules.first(where: { $0.id == id })?.hostPattern ?? ""
+    }
+
+    func routingRulePathPrefix(for id: UUID) -> String {
+        routingRules.first(where: { $0.id == id })?.pathPrefix ?? ""
+    }
+
+    func routingRuleBrowserBundleID(for id: UUID) -> String {
+        routingRules.first(where: { $0.id == id })?.browserBundleId ?? ""
+    }
+
+    func routingRuleIsEnabled(for id: UUID) -> Bool {
+        routingRules.first(where: { $0.id == id })?.isEnabled ?? false
+    }
+
+    func updateRoutingRuleName(id: UUID, to name: String) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        routingRules[index].name = trimmedName.isEmpty ? routingRules[index].hostPattern : trimmedName
+    }
+
+    func updateRoutingRuleHostPattern(id: UUID, to hostPattern: String) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        let normalizedHost = normalizedHostPattern(hostPattern)
+        guard !normalizedHost.isEmpty else { return }
+        routingRules[index].hostPattern = normalizedHost
+
+        if routingRules[index].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            routingRules[index].name = normalizedHost
+        }
+    }
+
+    func updateRoutingRulePathPrefix(id: UUID, to pathPrefix: String) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        routingRules[index].pathPrefix = normalizedPathPrefix(pathPrefix)
+    }
+
+    func updateRoutingRuleBrowser(id: UUID, to browserBundleId: String) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId }) else { return }
+        routingRules[index].browserBundleId = browserBundleId
+    }
+
+    func updateRoutingRuleIsEnabled(id: UUID, to isEnabled: Bool) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        routingRules[index].isEnabled = isEnabled
+    }
+
+    func resolvedRoute(for url: URL) -> (rule: BrowserRoutingRule, browser: BrowserConfig)? {
+        let host = (url.host ?? "").lowercased()
+        guard !host.isEmpty else { return nil }
+
+        let path = url.path.isEmpty ? "/" : url.path
+
+        for rule in routingRules where rule.isEnabled {
+            guard hostMatches(host, pattern: rule.hostPattern) else { continue }
+            guard pathMatches(path, prefix: rule.pathPrefix) else { continue }
+            guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId }) else { continue }
+
+            return (rule, browser)
+        }
+
+        return nil
+    }
+
+    func resolvedBrowser(for url: URL) -> BrowserConfig? {
+        resolvedRoute(for: url)?.browser
     }
 
     // MARK: - Launch at Login
@@ -288,8 +450,44 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
         return NSImage(size: NSSize(width: 64, height: 64))
     }
 
+    func open(url: URL, withBrowserBundleID bundleId: String) {
+        if AppEnvironment.shouldDisableExternalURLOpen {
+            lastOpenedBrowserBundleIDForTesting = bundleId
+            return
+        }
+
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
+            if let error {
+                print("Failed to open URL: \(error)")
+            }
+        }
+    }
+
+    func isValidRoutingHostPattern(_ hostPattern: String) -> Bool {
+        let normalizedPattern = normalizedHostPattern(hostPattern)
+        return isValidHostPattern(normalizedPattern)
+    }
+
     private func clearPersistedBrowserList() {
         defaults.removeObject(forKey: defaultsKey)
+    }
+
+    private func clearPersistedRoutingRules() {
+        defaults.removeObject(forKey: Constants.routingRulesKey)
+    }
+
+    private func removeRoutingRulesWithMissingBrowsers() {
+        let validBundleIDs = Set(configuredBrowsers.map(\.bundleId))
+        let filteredRules = routingRules.filter { validBundleIDs.contains($0.browserBundleId) }
+
+        if filteredRules.count != routingRules.count {
+            routingRules = filteredRules
+        }
     }
 
     private func normalizedShortcut(_ key: String) -> String? {
@@ -299,5 +497,105 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
         }
 
         return trimmed
+    }
+
+    private func normalizedHostPattern(_ hostPattern: String) -> String {
+        var normalized = hostPattern
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard !normalized.isEmpty else { return "" }
+
+        if let schemeRange = normalized.range(of: "://") {
+            normalized = String(normalized[schemeRange.upperBound...])
+        }
+
+        if let slashIndex = normalized.firstIndex(of: "/") {
+            normalized = String(normalized[..<slashIndex])
+        }
+
+        if normalized.hasPrefix("*.") {
+            var suffix = String(normalized.dropFirst(2))
+            if let colonIndex = suffix.firstIndex(of: ":") {
+                suffix = String(suffix[..<colonIndex])
+            }
+            while suffix.hasSuffix(".") {
+                suffix.removeLast()
+            }
+
+            return suffix.isEmpty ? "" : "*.\(suffix)"
+        }
+
+        if let colonIndex = normalized.firstIndex(of: ":") {
+            normalized = String(normalized[..<colonIndex])
+        }
+
+        while normalized.hasSuffix(".") {
+            normalized.removeLast()
+        }
+
+        return normalized
+    }
+
+    private func isValidHostPattern(_ hostPattern: String) -> Bool {
+        guard !hostPattern.isEmpty else { return false }
+        guard !hostPattern.contains(" ") else { return false }
+        guard !hostPattern.contains("/") else { return false }
+
+        if hostPattern.hasPrefix("*.") {
+            let suffix = String(hostPattern.dropFirst(2))
+            return !suffix.isEmpty && !suffix.contains("*") && isValidHostName(suffix)
+        }
+
+        return !hostPattern.contains("*") && isValidHostName(hostPattern)
+    }
+
+    private func isValidHostName(_ host: String) -> Bool {
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard !labels.isEmpty else { return false }
+
+        for label in labels {
+            guard !label.isEmpty else { return false }
+            guard label.first != "-", label.last != "-" else { return false }
+            guard label.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func normalizedPathPrefix(_ pathPrefix: String?) -> String? {
+        guard let pathPrefix else { return nil }
+
+        let trimmed = pathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.hasPrefix("/") {
+            return trimmed
+        }
+
+        return "/\(trimmed)"
+    }
+
+    private func hostMatches(_ host: String, pattern: String) -> Bool {
+        let normalizedPattern = normalizedHostPattern(pattern)
+        guard !normalizedPattern.isEmpty else { return false }
+
+        if normalizedPattern.hasPrefix("*.") {
+            let suffix = String(normalizedPattern.dropFirst(2))
+            guard !suffix.isEmpty else { return false }
+            return host == suffix || host.hasSuffix(".\(suffix)")
+        }
+
+        return host == normalizedPattern
+    }
+
+    private func pathMatches(_ path: String, prefix: String?) -> Bool {
+        guard let normalizedPrefix = normalizedPathPrefix(prefix) else {
+            return true
+        }
+
+        return path.hasPrefix(normalizedPrefix)
     }
 }

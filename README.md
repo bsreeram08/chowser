@@ -18,11 +18,12 @@ Chowser lives in your menu bar and uses zero resources when idle.
 ## Features
 
 - **Browser Picker** — Choose from your configured browsers with a single click
-- **Keyboard Shortcuts** — ⌘⇧1 through ⌘⇧9 for instant selection
+- **Keyboard Shortcuts** — Press `1` through `9` (plus `↑/↓` + Return) for instant selection
 - **Menu Bar App** — Runs silently in the background, no Dock icon
 - **Guided Onboarding** — First-run setup for installation checks and default-browser setup
 - **Launch at Login** — Start automatically when you log in
 - **Configurable** — Add, remove, and reorder browsers in Settings
+- **Smart Routing Rules** — Auto-open matching domains/paths in a chosen browser
 - **Fresh Setup Reset** — Reset settings to first-launch state for repeatable testing
 - **UI End-to-End Tests** — XCTest-based flow coverage for picker and settings
 
@@ -49,14 +50,14 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a DMG (bumps version automatically)
-./scripts/release.sh 1.1.0
+./scripts/release.sh 1.2.0
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
 # 3. Create a DMG with create-dmg
-# 4. Create a git tag v1.1.0
-# 5. Output the DMG to release/Chowser-1.1.0.dmg
+# 4. Create a git tag v1.2.0
+# 5. Output the DMG to release/Chowser-1.2.0.dmg
 ```
 
 ## Testing

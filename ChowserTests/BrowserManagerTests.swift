@@ -224,6 +224,12 @@ struct BrowserManagerTests {
             BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
             BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "3"),
         ]
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome"
+        )
         manager.completeOnboarding()
 
         manager.resetToFreshSetup()
@@ -232,6 +238,7 @@ struct BrowserManagerTests {
         #expect(manager.configuredBrowsers[0].name == "Safari")
         #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
         #expect(manager.configuredBrowsers[0].shortcutKey == "1")
+        #expect(manager.routingRules.isEmpty)
         #expect(manager.hasCompletedOnboarding == false)
     }
 
@@ -265,6 +272,184 @@ struct BrowserManagerTests {
 
         #expect(updatedSafari?.shortcutKey == "2")
         #expect(updatedChrome?.shortcutKey == "1")
+    }
+
+    // MARK: - Routing Rules
+
+    @Test("Routing rules match exact host and optional path prefix")
+    @MainActor
+    func routingRuleExactMatch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub Orgs",
+            hostPattern: "github.com",
+            pathPrefix: "/orgs",
+            browserBundleId: "company.thebrowser.Browser"
+        )
+
+        let matchingURL = URL(string: "https://github.com/orgs/openai")!
+        let nonMatchingURL = URL(string: "https://github.com/settings")!
+
+        #expect(manager.resolvedBrowser(for: matchingURL)?.bundleId == "company.thebrowser.Browser")
+        #expect(manager.resolvedBrowser(for: nonMatchingURL) == nil)
+    }
+
+    @Test("Routing rules support wildcard host patterns")
+    @MainActor
+    func routingRuleWildcardHostMatch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "Google Workspace",
+            hostPattern: "*.google.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome"
+        )
+
+        let subdomainURL = URL(string: "https://mail.google.com/mail/u/0/#inbox")!
+        let rootURL = URL(string: "https://google.com/search?q=swift")!
+        let differentDomainURL = URL(string: "https://duckduckgo.com")!
+
+        #expect(manager.resolvedBrowser(for: subdomainURL)?.bundleId == "com.google.Chrome")
+        #expect(manager.resolvedBrowser(for: rootURL)?.bundleId == "com.google.Chrome")
+        #expect(manager.resolvedBrowser(for: differentDomainURL) == nil)
+    }
+
+    @Test("Routing rules persist across manager instances")
+    @MainActor
+    func routingRulesPersist() {
+        let defaults = makeTestDefaults()
+        let manager1 = BrowserManager(defaults: defaults)
+        manager1.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "2"),
+        ]
+
+        manager1.addRoutingRule(
+            name: "Mozilla",
+            hostPattern: "mozilla.org",
+            pathPrefix: "/en-US",
+            browserBundleId: "org.mozilla.firefox"
+        )
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.routingRules.count == 1)
+        #expect(manager2.routingRules[0].name == "Mozilla")
+        #expect(manager2.routingRules[0].hostPattern == "mozilla.org")
+        #expect(manager2.routingRules[0].pathPrefix == "/en-US")
+        #expect(manager2.routingRules[0].browserBundleId == "org.mozilla.firefox")
+    }
+
+    @Test("Removing a browser removes rules targeting that browser")
+    @MainActor
+    func removingBrowserPrunesRules() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let safari = BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1")
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2")
+        manager.configuredBrowsers = [safari, chrome]
+
+        manager.addRoutingRule(
+            name: "Chrome Route",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome"
+        )
+        #expect(manager.routingRules.count == 1)
+
+        manager.removeBrowser(id: chrome.id)
+
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.routingRules.isEmpty)
+    }
+
+    @Test("resolvedRoute returns both matching rule and browser")
+    @MainActor
+    func resolvedRouteIncludesRuleAndBrowser() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "company.thebrowser.Browser"
+        )
+
+        let url = URL(string: "https://github.com/openai")!
+        let route = manager.resolvedRoute(for: url)
+
+        #expect(route?.rule.name == "GitHub")
+        #expect(route?.browser.bundleId == "company.thebrowser.Browser")
+    }
+
+    @Test("Routing host normalization accepts pasted full URLs")
+    @MainActor
+    func routingRuleHostNormalizationFromURL() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "https://github.com/orgs/openai",
+            pathPrefix: nil,
+            browserBundleId: "company.thebrowser.Browser"
+        )
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].hostPattern == "github.com")
+        #expect(manager.resolvedBrowser(for: URL(string: "https://github.com/openai")!)?.bundleId == "company.thebrowser.Browser")
+    }
+
+    @Test("Duplicating a routing rule inserts a copy below the source")
+    @MainActor
+    func duplicateRoutingRule() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: "/orgs",
+            browserBundleId: "company.thebrowser.Browser"
+        )
+
+        guard let originalID = manager.routingRules.first?.id else {
+            Issue.record("Expected a source rule to duplicate")
+            return
+        }
+
+        manager.duplicateRoutingRule(id: originalID)
+
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.routingRules[0].name == "GitHub")
+        #expect(manager.routingRules[1].name == "GitHub Copy")
+        #expect(manager.routingRules[1].hostPattern == "github.com")
+        #expect(manager.routingRules[1].pathPrefix == "/orgs")
     }
     
     // MARK: - Installed Browsers Discovery

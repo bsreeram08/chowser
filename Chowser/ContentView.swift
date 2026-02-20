@@ -12,9 +12,11 @@ struct ContentView: View {
     var browserManager = BrowserManager.shared
     @Environment(\.openWindow) var openWindow
     @State private var hoveredBrowserId: UUID?
+    @State private var keyboardSelectedBrowserId: UUID?
     @State private var appeared = false
     @State private var dismissTask: DispatchWorkItem?
     @State private var focusObserver: NSObjectProtocol?
+    @State private var keyEventMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +34,10 @@ struct ContentView: View {
             // Browser list
             browserList
 
+            if !browserManager.configuredBrowsers.isEmpty {
+                pickerHintBar
+            }
+
             if AppEnvironment.isUITesting {
                 Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
                     .font(.system(size: 1))
@@ -45,6 +51,10 @@ struct ContentView: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 appeared = true
             }
+
+            syncKeyboardSelection(with: browserManager.configuredBrowsers)
+            installKeyEventMonitor()
+
             if !AppEnvironment.isUITesting {
                 // Close when the picker window itself loses focus (click outside).
                 // Use DispatchQueue.main.async so the window is available.
@@ -53,7 +63,7 @@ struct ContentView: View {
                         $0.isVisible && $0.identifier?.rawValue == "picker"
                         && $0.contentView != nil
                     }) else { return }
-
+                    
                     focusObserver = NotificationCenter.default.addObserver(
                         forName: NSWindow.didResignKeyNotification,
                         object: window,
@@ -81,8 +91,12 @@ struct ContentView: View {
                 NotificationCenter.default.removeObserver(observer)
                 focusObserver = nil
             }
+            removeKeyEventMonitor()
             dismissTask?.cancel()
             dismissTask = nil
+        }
+        .onChange(of: browserManager.configuredBrowsers) {
+            syncKeyboardSelection(with: browserManager.configuredBrowsers)
         }
         .scaleEffect(appeared ? 1.0 : 0.9)
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("openSettingsWindow"))) { _ in
@@ -134,7 +148,7 @@ struct ContentView: View {
             .accessibilityLabel("Close browser picker")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
     
     // MARK: - URL Display
@@ -161,7 +175,7 @@ struct ContentView: View {
             Spacer()
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(.white.opacity(0.03))
         .accessibilityIdentifier("picker.urlDisplay")
         .accessibilityElement(children: .combine)
@@ -205,9 +219,27 @@ struct ContentView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 6)
     }
+
+    private var pickerHintBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "keyboard")
+                .font(.system(size: 9))
+                .foregroundStyle(.quaternary)
+
+            Text("1–9 select • ↑/↓ navigate • Return open • Esc close")
+                .font(.system(size: 10))
+                .foregroundStyle(.quaternary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Keyboard shortcuts: one to nine select, arrows navigate, return opens, escape closes.")
+    }
     
     private func browserRow(browser: BrowserConfig, index: Int) -> some View {
         let isHovered = hoveredBrowserId == browser.id
+        let isKeyboardSelected = keyboardSelectedBrowserId == browser.id
+        let isHighlighted = isHovered || isKeyboardSelected
         
         return Button(action: {
             openUrl(with: browser)
@@ -235,7 +267,7 @@ struct ContentView: View {
                 Spacer()
                 
                 // Keyboard shortcut badge
-                Text("⌘ ⇧ \(browser.shortcutKey)")
+                Text(browser.shortcutKey)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 5)
@@ -247,7 +279,7 @@ struct ContentView: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isHovered ? .white.opacity(0.1) : .clear)
+                    .fill(isHighlighted ? .white.opacity(0.1) : .clear)
             )
             .contentShape(.rect(cornerRadius: 10))
         }
@@ -256,11 +288,14 @@ struct ContentView: View {
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 hoveredBrowserId = hovering ? browser.id : nil
+                if hovering {
+                    keyboardSelectedBrowserId = browser.id
+                }
             }
         }
-        .keyboardShortcut(KeyEquivalent(browser.shortcutKey.first ?? "1"), modifiers: [.command, .shift])
         .accessibilityLabel("Open in \(browser.name)")
-        .accessibilityHint("Opens the link in \(browser.name). Shortcut: Command + Shift + \(browser.shortcutKey)")
+        .accessibilityHint("Opens the link in \(browser.name). Shortcut key: \(browser.shortcutKey)")
+        .accessibilityAddTraits(isKeyboardSelected ? .isSelected : [])
         .transition(.opacity.combined(with: .move(edge: .top)))
         .animation(.spring(response: 0.3, dampingFraction: 0.7).delay(Double(index) * 0.03), value: appeared)
     }
@@ -287,21 +322,126 @@ struct ContentView: View {
         
         // Dismiss immediately — don't wait for the browser to open
         dismissPicker()
+        browserManager.open(url: url, withBrowserBundleID: browser.bundleId)
+    }
 
-        if AppEnvironment.shouldDisableExternalURLOpen {
-            browserManager.lastOpenedBrowserBundleIDForTesting = browser.bundleId
+    private func syncKeyboardSelection(with browsers: [BrowserConfig]) {
+        guard !browsers.isEmpty else {
+            keyboardSelectedBrowserId = nil
             return
         }
-        
-        let workspace = NSWorkspace.shared
-        if let appUrl = workspace.urlForApplication(withBundleIdentifier: browser.bundleId) {
-            let configuration = NSWorkspace.OpenConfiguration()
-            workspace.open([url], withApplicationAt: appUrl, configuration: configuration) { _, error in
-                if let error = error {
-                    print("Failed to open URL: \(error)")
-                }
-            }
+
+        if let selectedId = keyboardSelectedBrowserId,
+           browsers.contains(where: { $0.id == selectedId }) {
+            return
         }
+
+        keyboardSelectedBrowserId = browsers.first?.id
+    }
+
+    private func installKeyEventMonitor() {
+        removeKeyEventMonitor()
+
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if handlePickerKeyDown(event) {
+                return nil
+            }
+            return event
+        }
+    }
+
+    private func removeKeyEventMonitor() {
+        if let monitor = keyEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyEventMonitor = nil
+        }
+    }
+
+    private func handlePickerKeyDown(_ event: NSEvent) -> Bool {
+        guard NSApp.keyWindow?.identifier?.rawValue == "picker" else {
+            return false
+        }
+
+        let blockedModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .function, .shift]
+        if !event.modifierFlags.intersection(blockedModifiers).isEmpty {
+            return false
+        }
+
+        if let shortcutKey = normalizedKey(from: event) {
+            return openBrowser(matchingShortcutKey: shortcutKey)
+        }
+
+        switch event.keyCode {
+        case 125: // down arrow
+            moveSelection(by: 1)
+            return true
+        case 126: // up arrow
+            moveSelection(by: -1)
+            return true
+        case 36, 76, 49: // return, keypad enter, space
+            return openSelectedBrowser()
+        case 53: // escape
+            dismissPicker()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func normalizedKey(from event: NSEvent) -> String? {
+        guard let characters = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
+              characters.count == 1,
+              let character = characters.first,
+              character.isNumber else {
+            return nil
+        }
+
+        return String(character)
+    }
+
+    private func openBrowser(matchingShortcutKey shortcutKey: String) -> Bool {
+        guard let browser = browserManager.configuredBrowsers.first(where: { $0.shortcutKey == shortcutKey }) else {
+            return false
+        }
+
+        keyboardSelectedBrowserId = browser.id
+        openUrl(with: browser)
+        return true
+    }
+
+    private func moveSelection(by delta: Int) {
+        let browsers = browserManager.configuredBrowsers
+        guard !browsers.isEmpty else {
+            keyboardSelectedBrowserId = nil
+            return
+        }
+
+        guard let currentId = keyboardSelectedBrowserId,
+              let currentIndex = browsers.firstIndex(where: { $0.id == currentId }) else {
+            keyboardSelectedBrowserId = browsers.first?.id
+            return
+        }
+
+        let nextIndex = (currentIndex + delta + browsers.count) % browsers.count
+        keyboardSelectedBrowserId = browsers[nextIndex].id
+    }
+
+    private func openSelectedBrowser() -> Bool {
+        let browsers = browserManager.configuredBrowsers
+        guard !browsers.isEmpty else { return false }
+
+        guard let selectedId = keyboardSelectedBrowserId,
+              let browser = browsers.first(where: { $0.id == selectedId }) else {
+            if let first = browsers.first {
+                keyboardSelectedBrowserId = first.id
+                openUrl(with: first)
+                return true
+            }
+            return false
+        }
+
+        openUrl(with: browser)
+        return true
     }
 }
 
@@ -313,19 +453,30 @@ struct ContentView: View {
 }
 
 private struct PickerSurfaceModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     @ViewBuilder
     func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(Color(nsColor: .windowBackgroundColor))
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+                .padding(1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.separator.opacity(0.5), lineWidth: 1)
+                )
+        } else
         if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 0) {
-                content
-                    .padding(1)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(.white.opacity(0.1), lineWidth: 0.8)
-                    )
-            }
+            content
+                .padding(1)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.1), lineWidth: 0.8)
+                )
         } else {
             content
                 .background(.ultraThinMaterial)
@@ -341,8 +492,15 @@ private struct PickerSurfaceModifier: ViewModifier {
 }
 
 private struct PickerCircleButtonBackgroundModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     @ViewBuilder
     func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(Circle())
+        } else
         if #available(macOS 26.0, *) {
             content
                 .glassEffect(.regular.interactive(), in: Circle())
@@ -355,8 +513,18 @@ private struct PickerCircleButtonBackgroundModifier: ViewModifier {
 }
 
 private struct PickerShortcutBadgeBackgroundModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     @ViewBuilder
     func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .stroke(.separator.opacity(0.5), lineWidth: 1)
+                )
+        } else
         if #available(macOS 26.0, *) {
             content
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 5, style: .continuous))

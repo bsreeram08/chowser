@@ -236,7 +236,7 @@ struct OnboardingView: View {
                 stepStatusBadge(title: browserManager.configuredBrowsers.isEmpty ? "Required" : "Done", color: browserManager.configuredBrowsers.isEmpty ? .orange : .green)
             }
 
-            Text("Add, remove, and reorder browsers. Shortcuts are Command + Shift + 1...9.")
+            Text("Add, remove, and reorder browsers. In the picker, shortcuts are keys 1...9. You can also set Rules in Settings for automatic routing.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 

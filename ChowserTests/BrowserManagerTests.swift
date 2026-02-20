@@ -30,6 +30,7 @@ struct BrowserManagerTests {
         #expect(manager.configuredBrowsers[0].name == "Safari")
         #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
         #expect(manager.configuredBrowsers[0].shortcutKey == "1")
+        #expect(manager.hasCompletedOnboarding == false)
     }
     
     // MARK: - Persistence (Save & Load)
@@ -209,6 +210,61 @@ struct BrowserManagerTests {
         // Should fall back to default
         #expect(manager.configuredBrowsers.count == 1)
         #expect(manager.configuredBrowsers[0].name == "Safari")
+    }
+
+    // MARK: - Fresh Setup Reset
+
+    @Test("Reset to fresh setup restores default Safari browser")
+    @MainActor
+    func resetToFreshSetupRestoresDefaults() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "3"),
+        ]
+        manager.completeOnboarding()
+
+        manager.resetToFreshSetup()
+
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.configuredBrowsers[0].name == "Safari")
+        #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
+        #expect(manager.configuredBrowsers[0].shortcutKey == "1")
+        #expect(manager.hasCompletedOnboarding == false)
+    }
+
+    @Test("Completing onboarding persists across manager instances")
+    @MainActor
+    func completeOnboardingPersists() {
+        let defaults = makeTestDefaults()
+        let manager1 = BrowserManager(defaults: defaults)
+        manager1.completeOnboarding()
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.hasCompletedOnboarding == true)
+    }
+
+    // MARK: - Shortcut Conflict Handling
+
+    @Test("Updating a shortcut swaps conflicting assignments")
+    @MainActor
+    func shortcutSwapOnConflict() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let safari = BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1")
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2")
+        manager.configuredBrowsers = [safari, chrome]
+
+        manager.updateShortcutKey(id: safari.id, to: "2")
+
+        let updatedSafari = manager.configuredBrowsers.first { $0.id == safari.id }
+        let updatedChrome = manager.configuredBrowsers.first { $0.id == chrome.id }
+
+        #expect(updatedSafari?.shortcutKey == "2")
+        #expect(updatedChrome?.shortcutKey == "1")
     }
     
     // MARK: - Installed Browsers Discovery

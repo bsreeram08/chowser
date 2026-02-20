@@ -31,46 +31,47 @@ struct ContentView: View {
             
             // Browser list
             browserList
+
+            if AppEnvironment.isUITesting {
+                Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
+                    .font(.system(size: 1))
+                    .foregroundStyle(.clear)
+                    .accessibilityIdentifier("picker.lastOpenedBrowser")
+            }
         }
-        .frame(width: 380)
-        .background(.ultraThinMaterial)
-        .clipShape(.rect(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
-        .padding(1)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.white.opacity(0.15), lineWidth: 1)
-        )
+        .frame(width: 364)
+        .modifier(PickerSurfaceModifier())
         .onAppear {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 appeared = true
             }
-            // Close when the picker window itself loses focus (click outside)
-            // Use DispatchQueue.main.async so the window is available
-            DispatchQueue.main.async {
-                guard let window = NSApp.windows.first(where: {
-                    $0.isVisible && $0.identifier?.rawValue == "picker"
-                    && $0.contentView != nil
-                }) else { return }
+            if !AppEnvironment.isUITesting {
+                // Close when the picker window itself loses focus (click outside).
+                // Use DispatchQueue.main.async so the window is available.
+                DispatchQueue.main.async {
+                    guard let window = NSApp.windows.first(where: {
+                        $0.isVisible && $0.identifier?.rawValue == "picker"
+                        && $0.contentView != nil
+                    }) else { return }
 
-                focusObserver = NotificationCenter.default.addObserver(
-                    forName: NSWindow.didResignKeyNotification,
-                    object: window,
-                    queue: .main
-                ) { _ in
-                    // Debounce: tolerate transient focus losses
-                    // (system dialogs, notifications, menu bar interactions)
-                    dismissTask?.cancel()
-                    let work = DispatchWorkItem {
-                        // Only dismiss if the picker window is still not key
-                        if let w = NSApp.windows.first(where: {
-                            $0.identifier?.rawValue == "picker" && $0.isVisible
-                        }), !w.isKeyWindow {
-                            dismissPicker()
+                    focusObserver = NotificationCenter.default.addObserver(
+                        forName: NSWindow.didResignKeyNotification,
+                        object: window,
+                        queue: .main
+                    ) { _ in
+                        // Debounce: tolerate transient focus losses.
+                        dismissTask?.cancel()
+                        let work = DispatchWorkItem {
+                            // Only dismiss if the picker window is still not key.
+                            if let w = NSApp.windows.first(where: {
+                                $0.identifier?.rawValue == "picker" && $0.isVisible
+                            }), !w.isKeyWindow {
+                                dismissPicker()
+                            }
                         }
+                        dismissTask = work
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
                     }
-                    dismissTask = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
                 }
             }
         }
@@ -93,7 +94,7 @@ struct ContentView: View {
     // MARK: - Header
     
     private var headerSection: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             Image(systemName: "arrow.triangle.branch")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -112,14 +113,27 @@ struct ContentView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 24, height: 24)
-                    .background(.white.opacity(0.05))
-                    .clipShape(Circle())
+                    .modifier(PickerCircleButtonBackgroundModifier())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("picker.openSettingsButton")
             .accessibilityLabel("Open Settings")
             .accessibilityHint("Opens the Chowser settings window")
+            
+
+            Button(action: dismissPicker) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .modifier(PickerCircleButtonBackgroundModifier())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .accessibilityIdentifier("picker.closeButton")
+            .accessibilityLabel("Close browser picker")
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }
     
@@ -146,9 +160,10 @@ struct ContentView: View {
             
             Spacer()
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.white.opacity(0.03))
+        .accessibilityIdentifier("picker.urlDisplay")
         .accessibilityElement(children: .combine)
         .accessibilityLabel("URL: \(url.absoluteString)")
     }
@@ -156,13 +171,39 @@ struct ContentView: View {
     // MARK: - Browser List
     
     private var browserList: some View {
-        VStack(spacing: 4) {
-            ForEach(Array(browserManager.configuredBrowsers.enumerated()), id: \.element.id) { index, browser in
-                browserRow(browser: browser, index: index)
+        Group {
+            if browserManager.configuredBrowsers.isEmpty {
+                VStack(spacing: 10) {
+                    Image(nsImage: BrowserManager.currentAppIcon())
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 42, height: 42)
+                        .opacity(0.9)
+                    Text("No browsers configured")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("Open Settings to add at least one browser.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Button("Open Settings") {
+                        openWindow(id: "settings")
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("picker.emptyState.openSettingsButton")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(Array(browserManager.configuredBrowsers.enumerated()), id: \.element.id) { index, browser in
+                        browserRow(browser: browser, index: index)
+                    }
+                }
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
     }
     
     private func browserRow(browser: BrowserConfig, index: Int) -> some View {
@@ -171,7 +212,7 @@ struct ContentView: View {
         return Button(action: {
             openUrl(with: browser)
         }) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 // App icon
                 Group {
                     if let icon = getAppIcon(bundleId: browser.bundleId) {
@@ -194,18 +235,15 @@ struct ContentView: View {
                 Spacer()
                 
                 // Keyboard shortcut badge
-                Text("⌘⇧\(browser.shortcutKey)")
+                Text("⌘ ⇧ \(browser.shortcutKey)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 5)
                     .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(.white.opacity(0.06))
-                            .stroke(.white.opacity(0.08), lineWidth: 0.5)
-                    )
+                    .modifier(PickerShortcutBadgeBackgroundModifier())
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -214,6 +252,7 @@ struct ContentView: View {
             .contentShape(.rect(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("picker.browserRow")
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 hoveredBrowserId = hovering ? browser.id : nil
@@ -221,7 +260,7 @@ struct ContentView: View {
         }
         .keyboardShortcut(KeyEquivalent(browser.shortcutKey.first ?? "1"), modifiers: [.command, .shift])
         .accessibilityLabel("Open in \(browser.name)")
-        .accessibilityHint("Opens the link in \(browser.name). Shortcut: Command Shift \(browser.shortcutKey)")
+        .accessibilityHint("Opens the link in \(browser.name). Shortcut: Command + Shift + \(browser.shortcutKey)")
         .transition(.opacity.combined(with: .move(edge: .top)))
         .animation(.spring(response: 0.3, dampingFraction: 0.7).delay(Double(index) * 0.03), value: appeared)
     }
@@ -240,10 +279,7 @@ struct ContentView: View {
     // MARK: - Helpers
     
     private func getAppIcon(bundleId: String) -> NSImage? {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return nil
+        BrowserManager.icon(forBrowserBundleID: bundleId)
     }
 
     private func openUrl(with browser: BrowserConfig) {
@@ -251,6 +287,11 @@ struct ContentView: View {
         
         // Dismiss immediately — don't wait for the browser to open
         dismissPicker()
+
+        if AppEnvironment.shouldDisableExternalURLOpen {
+            browserManager.lastOpenedBrowserBundleIDForTesting = browser.bundleId
+            return
+        }
         
         let workspace = NSWorkspace.shared
         if let appUrl = workspace.urlForApplication(withBundleIdentifier: browser.bundleId) {
@@ -269,4 +310,63 @@ struct ContentView: View {
         .onAppear {
             BrowserManager.shared.currentURL = URL(string: "https://sreerams.in")
         }
+}
+
+private struct PickerSurfaceModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 0) {
+                content
+                    .padding(1)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(.white.opacity(0.1), lineWidth: 0.8)
+                    )
+            }
+        } else {
+            content
+                .background(.ultraThinMaterial)
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+                .padding(1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                )
+        }
+    }
+}
+
+private struct PickerCircleButtonBackgroundModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            content
+                .background(.white.opacity(0.05))
+                .clipShape(Circle())
+        }
+    }
+}
+
+private struct PickerShortcutBadgeBackgroundModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(.white.opacity(0.06))
+                        .stroke(.white.opacity(0.08), lineWidth: 0.5)
+                )
+        }
+    }
 }

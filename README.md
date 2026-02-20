@@ -20,8 +20,11 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Browser Picker** — Choose from your configured browsers with a single click
 - **Keyboard Shortcuts** — ⌘⇧1 through ⌘⇧9 for instant selection
 - **Menu Bar App** — Runs silently in the background, no Dock icon
+- **Guided Onboarding** — First-run setup for installation checks and default-browser setup
 - **Launch at Login** — Start automatically when you log in
 - **Configurable** — Add, remove, and reorder browsers in Settings
+- **Fresh Setup Reset** — Reset settings to first-launch state for repeatable testing
+- **UI End-to-End Tests** — XCTest-based flow coverage for picker and settings
 
 ## Installation
 
@@ -31,7 +34,8 @@ Chowser lives in your menu bar and uses zero resources when idle.
 2. Open the DMG and drag Chowser to Applications
 3. Launch Chowser — it appears in the menu bar
 4. Right-click → Open if macOS shows a security warning (first time only)
-5. Click the menu bar icon → **Set as Default Browser**
+5. Complete the in-app onboarding
+6. Click the menu bar icon → **Set as Default Browser** (if not already done)
 
 ### From Source
 
@@ -45,14 +49,24 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a DMG (bumps version automatically)
-./scripts/release.sh 1.0.9
+./scripts/release.sh 1.1.0
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
 # 3. Create a DMG with create-dmg
-# 4. Create a git tag v1.0.9
-# 5. Output the DMG to release/Chowser-1.0.9.dmg
+# 4. Create a git tag v1.1.0
+# 5. Output the DMG to release/Chowser-1.1.0.dmg
+```
+
+## Testing
+
+```bash
+# Unit tests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+
+# UI end-to-end tests
+xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 ```
 
 ## Tech Stack

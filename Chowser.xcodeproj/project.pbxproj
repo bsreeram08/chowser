@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1FF76C046FBE3D0C66C38124 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4256289010C5E6B965D7B730 /* Foundation.framework */; };
+		25AA97349CB4FAEB8479D3CA /* ChowserUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59D2406EC8317E26EF49F70 /* ChowserUITests.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		CFC3E7415FCB405E9A35AE14 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -17,8 +22,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0835040E4AFBA041A2260392 /* ChowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		30E5E9EF2F4847CD00E18455 /* Chowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4256289010C5E6B965D7B730 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		97B7470017E24968B7459B57 /* ChowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C59D2406EC8317E26EF49F70 /* ChowserUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChowserUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -48,6 +56,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		29D3269148DF758835FF9510 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FF76C046FBE3D0C66C38124 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		30E5E9EC2F4847CD00E18455 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -71,6 +87,8 @@
 				30E5E9F12F4847CD00E18455 /* Chowser */,
 				B2664C3112464B0CB7F91A42 /* ChowserTests */,
 				30E5E9F02F4847CD00E18455 /* Products */,
+				AC5C1A2A235C60E8E1E5D638 /* Frameworks */,
+				3319B9B7684339E4554F64B9 /* ChowserUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -79,8 +97,33 @@
 			children = (
 				30E5E9EF2F4847CD00E18455 /* Chowser.app */,
 				97B7470017E24968B7459B57 /* ChowserTests.xctest */,
+				0835040E4AFBA041A2260392 /* ChowserUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		3319B9B7684339E4554F64B9 /* ChowserUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C59D2406EC8317E26EF49F70 /* ChowserUITests.swift */,
+			);
+			path = ChowserUITests;
+			sourceTree = "<group>";
+		};
+		AC5C1A2A235C60E8E1E5D638 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				EA1012DBE79FE64486575617 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		EA1012DBE79FE64486575617 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				4256289010C5E6B965D7B730 /* Foundation.framework */,
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,8 +145,6 @@
 				30E5E9F12F4847CD00E18455 /* Chowser */,
 			);
 			name = Chowser;
-			packageProductDependencies = (
-			);
 			productName = Chowser;
 			productReference = 30E5E9EF2F4847CD00E18455 /* Chowser.app */;
 			productType = "com.apple.product-type.application";
@@ -125,11 +166,26 @@
 				B2664C3112464B0CB7F91A42 /* ChowserTests */,
 			);
 			name = ChowserTests;
-			packageProductDependencies = (
-			);
 			productName = ChowserTests;
 			productReference = 97B7470017E24968B7459B57 /* ChowserTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		EE1E63C8E51DADBF513BC3AA /* ChowserUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9D791A6C5C586971AE751679 /* Build configuration list for PBXNativeTarget "ChowserUITests" */;
+			buildPhases = (
+				7C4708A1572C8466B6977E6F /* Sources */,
+				29D3269148DF758835FF9510 /* Frameworks */,
+				C917BFBC7BF9001537821955 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ChowserUITests;
+			productName = ChowserUITests;
+			productReference = 0835040E4AFBA041A2260392 /* ChowserUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -162,6 +218,7 @@
 			targets = (
 				30E5E9EE2F4847CD00E18455 /* Chowser */,
 				B4481878B16547B69BC9538F /* ChowserTests */,
+				EE1E63C8E51DADBF513BC3AA /* ChowserUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -181,6 +238,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C917BFBC7BF9001537821955 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -188,6 +252,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7C4708A1572C8466B6977E6F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25AA97349CB4FAEB8479D3CA /* ChowserUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,7 +424,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.9;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -388,7 +460,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.9;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -401,22 +473,16 @@
 			};
 			name = Release;
 		};
-		BA38A795BCD648FC9CD17365 /* Debug */ = {
+		932F5BDB0A290C18D865AE10 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DN4N8L7YL9;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserTests;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Chowser.app/Contents/MacOS/Chowser";
+				TEST_TARGET_NAME = Chowser;
 			};
 			name = Debug;
 		};
@@ -439,9 +505,50 @@
 			};
 			name = Release;
 		};
+		A6356348533E3B2A3DB7A55D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = DN4N8L7YL9;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Chowser;
+			};
+			name = Release;
+		};
+		BA38A795BCD648FC9CD17365 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = DN4N8L7YL9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Chowser.app/Contents/MacOS/Chowser";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		08D1E0DB0A3C40D68C63DBD8 /* Build configuration list for PBXNativeTarget "ChowserTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BA38A795BCD648FC9CD17365 /* Debug */,
+				A1C2D3E4F5A6B7C8D9E0F1A2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		30E5E9EA2F4847CD00E18455 /* Build configuration list for PBXProject "Chowser" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -460,11 +567,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		08D1E0DB0A3C40D68C63DBD8 /* Build configuration list for PBXNativeTarget "ChowserTests" */ = {
+		9D791A6C5C586971AE751679 /* Build configuration list for PBXNativeTarget "ChowserUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				BA38A795BCD648FC9CD17365 /* Debug */,
-				A1C2D3E4F5A6B7C8D9E0F1A2 /* Release */,
+				A6356348533E3B2A3DB7A55D /* Release */,
+				932F5BDB0A290C18D865AE10 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

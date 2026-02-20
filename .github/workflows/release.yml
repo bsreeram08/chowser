@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Release archive
+        run: |
+          xcodebuild archive \
+            -project Chowser.xcodeproj \
+            -scheme Chowser \
+            -configuration Release \
+            -archivePath build/Chowser.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Export app
+        run: |
+          mkdir -p build/app
+          cp -R build/Chowser.xcarchive/Products/Applications/Chowser.app build/app/
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create DMG
+        run: |
+          mkdir -p release
+          create-dmg \
+            --volname "Chowser ${{ steps.version.outputs.VERSION }}" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Chowser.app" 150 200 \
+            --app-drop-link 450 200 \
+            --hide-extension "Chowser.app" \
+            "release/Chowser-${{ steps.version.outputs.VERSION }}.dmg" \
+            "build/app/Chowser.app" \
+            || true
+
+      - name: Verify DMG
+        run: |
+          ls -lh release/
+          test -f "release/Chowser-${{ steps.version.outputs.VERSION }}.dmg"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Chowser v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Chowser v${{ steps.version.outputs.VERSION }}
+            
+            ### Installation
+            1. Download `Chowser-${{ steps.version.outputs.VERSION }}.dmg` below
+            2. Open the DMG and drag Chowser to Applications
+            3. Launch Chowser — it appears in the menu bar
+            4. Right-click → Open if macOS shows a security warning (first launch only)
+            5. Click the menu bar icon → **Set as Default Browser**
+            
+            > **Note**: This build is unsigned. On first launch, right-click → Open to bypass Gatekeeper.
+          files: release/Chowser-${{ steps.version.outputs.VERSION }}.dmg
+          draft: false
+          prerelease: false

@@ -64,7 +64,7 @@ echo "📦 Exporting app..."
 cp -R "$ARCHIVE_PATH/Products/Applications/Chowser.app" "$APP_PATH"
 
 # ─── Step 4: Generate DMG background ───
-echo "🎨 Generating install background..."
+echo "🎨 Generating styled background..."
 BG_PATH="$RELEASE_DIR/background.png"
 swift "$SCRIPTS_DIR/generate-dmg-background.swift" "$BG_PATH"
 
@@ -101,6 +101,7 @@ MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | sed 's/.*\/Volumes/\/Vol
 echo "   Styling DMG window..."
 
 # AppleScript to set window appearance
+# We use label position of icons to right to avoid overlap with background labels
 osascript <<EOF
 tell application "Finder"
     tell disk "$VOLUME_NAME"
@@ -110,6 +111,7 @@ tell application "Finder"
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 100
+        set label position of viewOptions to bottom
         set background picture of viewOptions to file ".background:background.png"
         set position of item "Chowser.app" of container window to {165, 190}
         set position of item "Applications" of container window to {495, 190}
@@ -162,7 +164,8 @@ echo "────────────────────────�
 echo "  DMG: $DMG_PATH"
 echo "  Tag: v${VERSION}"
 echo ""
-echo "  Next steps:"
-echo "    git push origin main --tags"
-echo "    Upload $DMG_PATH to GitHub Releases"
+echo "  To push and overwrite remote tags:"
+echo "    git push origin main --tags --force"
+echo ""
+echo "  Upload $DMG_PATH to GitHub Releases"
 echo "════════════════════════════════════════"

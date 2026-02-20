@@ -141,6 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     private func showPicker() {
         NSApp.activate(ignoringOtherApps: true)
+        revealPickerWindow(retries: 8)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             self.configureVisiblePickerWindows()
         }
@@ -152,6 +153,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let pickerWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "picker" }) {
             configurePickerWindow(pickerWindow)
             NSApp.activate(ignoringOtherApps: true)
+            pickerWindow.makeMain()
             pickerWindow.makeKeyAndOrderFront(nil)
             pickerWindow.orderFrontRegardless()
             return
@@ -224,8 +226,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.hasShadow = false
         if #available(macOS 15.0, *) {
             window.toolbar = nil
-            window.styleMask.remove(.titled)
-            window.styleMask.remove(.fullSizeContentView)
+            // Keep the titled/full-size style so the window can reliably become key for keyboard shortcuts.
+            window.styleMask.insert(.titled)
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarSeparatorStyle = .none
         } else {
             window.styleMask.insert(.fullSizeContentView)
             window.titlebarSeparatorStyle = .none

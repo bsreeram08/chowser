@@ -226,14 +226,14 @@ struct ContentView: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.quaternary)
 
-            Text("1–9 select • ↑/↓ navigate • Return open • Esc close")
+            Text("1–9 select • Type initial • Tab/↑/↓ navigate • Return open • Esc close")
                 .font(.system(size: 10))
                 .foregroundStyle(.quaternary)
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Keyboard shortcuts: one to nine select, arrows navigate, return opens, escape closes.")
+        .accessibilityLabel("Keyboard shortcuts: one to nine opens directly, typing a browser initial moves selection, tab or arrows navigate, return opens, escape closes.")
     }
     
     private func browserRow(browser: BrowserConfig, index: Int) -> some View {
@@ -294,7 +294,7 @@ struct ContentView: View {
             }
         }
         .accessibilityLabel("Open in \(browser.name)")
-        .accessibilityHint("Opens the link in \(browser.name). Shortcut key: \(browser.shortcutKey)")
+        .accessibilityHint("Opens the link in \(browser.name). Shortcut key: \(browser.shortcutKey), with Shift and Option variants supported for keyboard layouts. You can also type \(browser.name.prefix(1)) to select it and press Return.")
         .accessibilityAddTraits(isKeyboardSelected ? .isSelected : [])
         .transition(.opacity.combined(with: .move(edge: .top)))
         .animation(.spring(response: 0.3, dampingFraction: 0.7).delay(Double(index) * 0.03), value: appeared)
@@ -358,17 +358,30 @@ struct ContentView: View {
     }
 
     private func handlePickerKeyDown(_ event: NSEvent) -> Bool {
-        guard NSApp.keyWindow?.identifier?.rawValue == "picker" else {
+        guard isPickerEvent(event) else {
             return false
         }
 
-        let blockedModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .function, .shift]
-        if !event.modifierFlags.intersection(blockedModifiers).isEmpty {
-            return false
-        }
-
-        if let shortcutKey = normalizedKey(from: event) {
+        if let shortcutKey = normalizedShortcutKey(from: event) {
             return openBrowser(matchingShortcutKey: shortcutKey)
+        }
+
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if let letterKey = normalizedLetterKey(from: event) {
+            return selectNextBrowser(matchingInitial: letterKey)
+        }
+
+        if event.keyCode == 48 { // tab
+            let blockedTabModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .function]
+            if modifiers.intersection(blockedTabModifiers).isEmpty {
+                moveSelection(by: modifiers.contains(.shift) ? -1 : 1)
+                return true
+            }
+        }
+
+        let disallowedNavigationModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .function, .shift]
+        if !modifiers.intersection(disallowedNavigationModifiers).isEmpty {
+            return false
         }
 
         switch event.keyCode {
@@ -388,7 +401,17 @@ struct ContentView: View {
         }
     }
 
-    private func normalizedKey(from event: NSEvent) -> String? {
+    private func normalizedShortcutKey(from event: NSEvent) -> String? {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let blockedShortcutModifiers: NSEvent.ModifierFlags = [.control, .function]
+        if !modifiers.intersection(blockedShortcutModifiers).isEmpty {
+            return nil
+        }
+
+        if let key = digitKeycodeMap[event.keyCode] {
+            return key
+        }
+
         guard let characters = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
               characters.count == 1,
               let character = characters.first,
@@ -399,6 +422,65 @@ struct ContentView: View {
         return String(character)
     }
 
+    private func normalizedLetterKey(from event: NSEvent) -> Character? {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let blockedLetterModifiers: NSEvent.ModifierFlags = [.command, .control, .function, .option]
+        if !modifiers.intersection(blockedLetterModifiers).isEmpty {
+            return nil
+        }
+
+        guard let characters = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
+              characters.count == 1,
+              let character = characters.lowercased().first,
+              String(character).rangeOfCharacter(from: .letters) != nil else {
+            return nil
+        }
+
+        return character
+    }
+
+    private func isPickerEvent(_ event: NSEvent) -> Bool {
+        if event.window?.identifier?.rawValue == "picker" {
+            return true
+        }
+
+        if NSApp.keyWindow?.identifier?.rawValue == "picker" {
+            return true
+        }
+
+        if NSApp.mainWindow?.identifier?.rawValue == "picker" {
+            return true
+        }
+
+        return false
+    }
+
+    private var digitKeycodeMap: [UInt16: String] {
+        [
+            // Number row (layout-independent physical key positions)
+            18: "1",
+            19: "2",
+            20: "3",
+            21: "4",
+            23: "5",
+            22: "6",
+            26: "7",
+            28: "8",
+            25: "9",
+
+            // Numeric keypad
+            83: "1",
+            84: "2",
+            85: "3",
+            86: "4",
+            87: "5",
+            88: "6",
+            89: "7",
+            91: "8",
+            92: "9",
+        ]
+    }
+
     private func openBrowser(matchingShortcutKey shortcutKey: String) -> Bool {
         guard let browser = browserManager.configuredBrowsers.first(where: { $0.shortcutKey == shortcutKey }) else {
             return false
@@ -406,6 +488,31 @@ struct ContentView: View {
 
         keyboardSelectedBrowserId = browser.id
         openUrl(with: browser)
+        return true
+    }
+
+    private func selectNextBrowser(matchingInitial initial: Character) -> Bool {
+        let normalizedInitial = String(initial).lowercased()
+        let matchingBrowsers = browserManager.configuredBrowsers.filter { browser in
+            let normalizedName = browser.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard let firstCharacter = normalizedName.first else {
+                return false
+            }
+            return String(firstCharacter) == normalizedInitial
+        }
+
+        guard !matchingBrowsers.isEmpty else {
+            return false
+        }
+
+        if let selectedId = keyboardSelectedBrowserId,
+           let currentIndex = matchingBrowsers.firstIndex(where: { $0.id == selectedId }) {
+            let nextIndex = (currentIndex + 1) % matchingBrowsers.count
+            keyboardSelectedBrowserId = matchingBrowsers[nextIndex].id
+        } else {
+            keyboardSelectedBrowserId = matchingBrowsers.first?.id
+        }
+
         return true
     }
 

@@ -50,14 +50,14 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a DMG (bumps version automatically)
-./scripts/release.sh 1.2.0
+./scripts/release.sh 1.3.0
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
 # 3. Create a DMG with create-dmg
-# 4. Create a git tag v1.2.0
-# 5. Output the DMG to release/Chowser-1.2.0.dmg
+# 4. Create a git tag v1.3.0
+# 5. Output the DMG to release/Chowser-1.3.0.dmg
 ```
 
 ## Testing

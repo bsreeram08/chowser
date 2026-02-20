@@ -122,6 +122,43 @@ final class ChowserUITests: XCTestCase {
         ui.addRule(hostPattern: "github.com")
         ui.assertRuleCreated()
     }
+
+    func testOpenLinkShortcutSelectionWorks() throws {
+        let ui = ChowserAppDriver(app: app)
+        ui.openSettings()
+        ui.assertSettingsVisible()
+
+        let testURL = "https://example.com/chowser-shortcut-\(UUID().uuidString)"
+        triggerOpenURLInChowser(testURL)
+
+        ui.assertPickerVisible()
+        XCTAssertTrue(ui.lastOpenedBrowserText.waitForExistence(timeout: 3), "Expected picker selection marker before using keyboard shortcut after URL open.")
+
+        app.typeKey("1", modifierFlags: [])
+
+        ui.assertBrowserSelectionRecorded()
+    }
+
+    private func triggerOpenURLInChowser(_ urlString: String, file: StaticString = #filePath, line: UInt = #line) {
+        guard let appURL = NSRunningApplication.runningApplications(withBundleIdentifier: chowserBundleIdentifier).first?.bundleURL else {
+            XCTFail("Could not locate running Chowser app to open URL.", file: file, line: line)
+            return
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", appURL.path, urlString]
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            XCTFail("Failed to invoke open command for URL test: \(error.localizedDescription)", file: file, line: line)
+            return
+        }
+
+        XCTAssertEqual(process.terminationStatus, 0, "open command should succeed when sending URL to Chowser.", file: file, line: line)
+    }
 }
 
 private struct ChowserAppDriver {

@@ -129,7 +129,7 @@ struct SettingsView: View {
                     Text("Configure which browsers appear in the picker.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
-                    Text("Picker shortcuts use keys 1–9 to avoid macOS screenshot shortcut collisions.")
+                    Text("Picker shortcuts use keys 1–9 and support Shift/Option variants. You can also type a browser initial, then press Return.")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
@@ -211,9 +211,10 @@ struct SettingsView: View {
                 Image(systemName: "arrow.up.arrow.down")
                     .font(.system(size: 9))
                     .foregroundStyle(.quaternary)
+
                 Text(hasBrowserSearchQuery
-                     ? "Clear search to drag reorder • Use 1–9 or ↑/↓ + Return in picker"
-                     : "Drag to reorder • Use 1–9 or ↑/↓ + Return in picker")
+                 ? "Clear search to drag reorder • Use 1–9, initials, or Tab/↑/↓ + Return in picker"
+                 : "Drag to reorder • Use 1–9, initials, or Tab/↑/↓ + Return in picker")
                     .font(.system(size: 10))
                     .foregroundStyle(.quaternary)
             }

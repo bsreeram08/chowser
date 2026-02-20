@@ -11,9 +11,11 @@ import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var settingsWindow: NSWindow?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusBar()
+        NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .openSettings, object: nil)
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -25,7 +27,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // When dock icon is clicked (if visible), show settings
         if !flag {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            openSettings()
         }
         return true
     }
@@ -75,8 +77,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func openSettings() {
         NSApp.activate(ignoringOtherApps: true)
-        // Standard macOS way to open settings window defined in SwiftUI
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        
+        if let window = settingsWindow {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 620, height: 440),
+                styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+                backing: .buffered, defer: false)
+            window.title = "Settings"
+            window.identifier = NSUserInterfaceItemIdentifier("settings")
+            window.contentView = NSHostingView(rootView: SettingsView())
+            window.center()
+            window.isReleasedWhenClosed = false
+            self.settingsWindow = window
+            window.makeKeyAndOrderFront(nil)
+        }
     }
     
     private func showPicker() {

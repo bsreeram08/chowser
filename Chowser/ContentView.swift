@@ -49,7 +49,7 @@ struct ContentView: View {
             // Use DispatchQueue.main.async so the window is available
             DispatchQueue.main.async {
                 guard let window = NSApp.windows.first(where: {
-                    $0.isVisible && $0.identifier?.rawValue != "settings"
+                    $0.isVisible && $0.identifier?.rawValue == "picker"
                     && $0.contentView != nil
                 }) else { return }
 
@@ -62,9 +62,9 @@ struct ContentView: View {
                     // (system dialogs, notifications, menu bar interactions)
                     dismissTask?.cancel()
                     let work = DispatchWorkItem {
-                        // Only dismiss if the window is still not key
+                        // Only dismiss if the picker window is still not key
                         if let w = NSApp.windows.first(where: {
-                            $0.identifier?.rawValue != "settings" && $0.isVisible
+                            $0.identifier?.rawValue == "picker" && $0.isVisible
                         }), !w.isKeyWindow {
                             dismissPicker()
                         }
@@ -102,8 +102,7 @@ struct ContentView: View {
             Spacer()
             
             Button(action: {
-                openWindow(id: "settings")
-                NSApp.activate(ignoringOtherApps: true)
+                NotificationCenter.default.post(name: .openSettings, object: nil)
             }) {
                 Image(systemName: "gear")
                     .font(.system(size: 12, weight: .medium))
@@ -229,7 +228,7 @@ struct ContentView: View {
         browserManager.currentURL = nil
         // Close the picker window(s) — don't hide the entire app.
         // As an LSUIElement app, Chowser naturally stays in the background.
-        for window in NSApp.windows where window.isVisible && window.identifier?.rawValue != "settings" {
+        for window in NSApp.windows where window.isVisible && window.identifier?.rawValue == "picker" {
             window.close()
         }
     }

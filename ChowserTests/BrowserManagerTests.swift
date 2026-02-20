@@ -1,0 +1,279 @@
+import Testing
+import Foundation
+@testable import Chowser
+
+// MARK: - BrowserManager Tests
+
+struct BrowserManagerTests {
+    
+    /// Creates an isolated UserDefaults suite for testing so we don't touch real preferences.
+    private func makeTestDefaults() -> UserDefaults {
+        let suiteName = "com.chowser.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        return defaults
+    }
+    
+    /// Cleans up a test defaults suite.
+    private func cleanupDefaults(_ defaults: UserDefaults, suiteName: String? = nil) {
+        defaults.removePersistentDomain(forName: defaults.description)
+    }
+    
+    // MARK: - Default State
+    
+    @Test("Fresh manager loads default Safari browser")
+    @MainActor
+    func defaultBrowserOnFirstLaunch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.configuredBrowsers[0].name == "Safari")
+        #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
+        #expect(manager.configuredBrowsers[0].shortcutKey == "1")
+    }
+    
+    // MARK: - Persistence (Save & Load)
+    
+    @Test("Saved browsers persist across manager instances")
+    @MainActor
+    func saveAndLoad() {
+        let defaults = makeTestDefaults()
+        
+        // Create manager and add browsers
+        let manager1 = BrowserManager(defaults: defaults)
+        manager1.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "2"),
+        ]
+        
+        // Create new manager instance with same defaults — should load our saved data
+        let manager2 = BrowserManager(defaults: defaults)
+        
+        #expect(manager2.configuredBrowsers.count == 2)
+        #expect(manager2.configuredBrowsers[0].name == "Chrome")
+        #expect(manager2.configuredBrowsers[1].name == "Firefox")
+    }
+    
+    @Test("Empty browser list persists correctly")
+    @MainActor
+    func saveEmptyList() {
+        let defaults = makeTestDefaults()
+        
+        let manager1 = BrowserManager(defaults: defaults)
+        manager1.configuredBrowsers = []
+        
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.configuredBrowsers.isEmpty)
+    }
+    
+    // MARK: - Add Browser
+    
+    @Test("Adding a browser appends to list and persists")
+    @MainActor
+    func addBrowser() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        let newBrowser = BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2")
+        manager.configuredBrowsers.append(newBrowser)
+        
+        #expect(manager.configuredBrowsers.count == 2)
+        #expect(manager.configuredBrowsers[1].name == "Arc")
+        
+        // Verify persistence
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.configuredBrowsers.count == 2)
+        #expect(manager2.configuredBrowsers[1].bundleId == "company.thebrowser.Browser")
+    }
+    
+    // MARK: - Remove Browser
+    
+    @Test("Removing a browser by ID works")
+    @MainActor
+    func removeBrowserById() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2")
+        let firefox = BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "3")
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            chrome,
+            firefox,
+        ]
+        
+        // Remove Chrome
+        manager.configuredBrowsers.removeAll { $0.id == chrome.id }
+        
+        #expect(manager.configuredBrowsers.count == 2)
+        #expect(manager.configuredBrowsers[0].name == "Safari")
+        #expect(manager.configuredBrowsers[1].name == "Firefox")
+    }
+    
+    @Test("Removing by offset works (used by onDelete)")
+    @MainActor
+    func removeBrowserByOffset() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "3"),
+        ]
+        
+        manager.configuredBrowsers.remove(atOffsets: IndexSet(integer: 1))
+        
+        #expect(manager.configuredBrowsers.count == 2)
+        #expect(manager.configuredBrowsers[0].name == "Safari")
+        #expect(manager.configuredBrowsers[1].name == "Firefox")
+    }
+    
+    // MARK: - Reorder
+    
+    @Test("Moving browsers reorders and persists")
+    @MainActor
+    func reorderBrowsers() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "3"),
+        ]
+        
+        // Move Firefox (index 2) to the front (before index 0)
+        manager.configuredBrowsers.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
+        
+        #expect(manager.configuredBrowsers[0].name == "Firefox")
+        #expect(manager.configuredBrowsers[1].name == "Safari")
+        #expect(manager.configuredBrowsers[2].name == "Chrome")
+        
+        // Verify persistence
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.configuredBrowsers[0].name == "Firefox")
+    }
+    
+    // MARK: - Shortcut Key Assignment
+    
+    @Test("Shortcut keys default incrementally when adding browsers")
+    @MainActor
+    func shortcutKeyAssignment() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        // Simulate the AddBrowserSheet logic
+        for i in 1...9 {
+            let key = String(min(manager.configuredBrowsers.count + 1, 9))
+            let browser = BrowserConfig(
+                name: "Browser \(i)",
+                bundleId: "com.test.browser\(i)",
+                shortcutKey: key
+            )
+            manager.configuredBrowsers.append(browser)
+        }
+        
+        // First added browser (after default Safari) should get key "2"
+        #expect(manager.configuredBrowsers[1].shortcutKey == "2")
+        // Keys cap at "9"
+        #expect(manager.configuredBrowsers.last!.shortcutKey == "9")
+    }
+    
+    // MARK: - Editing Browser Name
+    
+    @Test("Editing browser name persists")
+    @MainActor
+    func editBrowserName() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        manager.configuredBrowsers[0].name = "Safari (Private)"
+        
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.configuredBrowsers[0].name == "Safari (Private)")
+    }
+    
+    // MARK: - Corrupted Data
+    
+    @Test("Corrupted defaults data falls back to default Safari")
+    @MainActor
+    func corruptedDataFallback() {
+        let defaults = makeTestDefaults()
+        
+        // Write garbage data
+        defaults.set(Data("not valid json".utf8), forKey: "configuredBrowsers")
+        
+        let manager = BrowserManager(defaults: defaults)
+        
+        // Should fall back to default
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.configuredBrowsers[0].name == "Safari")
+    }
+    
+    // MARK: - Installed Browsers Discovery
+    
+    @Test("getInstalledBrowsers returns at least Safari")
+    func installedBrowsersIncludeSafari() {
+        let browsers = BrowserManager.getInstalledBrowsers()
+        
+        // On any Mac, Safari should be installed
+        let safari = browsers.first { $0.bundleId == "com.apple.Safari" }
+        #expect(safari != nil)
+        #expect(safari?.name == "Safari")
+    }
+    
+    @Test("getInstalledBrowsers filters out Safari WebApps")
+    func installedBrowsersExcludeWebApps() {
+        let browsers = BrowserManager.getInstalledBrowsers()
+        
+        let webApps = browsers.filter { $0.bundleId.contains("apple.Safari.WebApp") }
+        #expect(webApps.isEmpty)
+    }
+    
+    @Test("getInstalledBrowsers filters out Chowser itself")
+    func installedBrowsersExcludesSelf() {
+        let browsers = BrowserManager.getInstalledBrowsers()
+        let myBundleId = Bundle.main.bundleIdentifier ?? "in.sreerams.Chowser"
+        
+        let selfEntries = browsers.filter { $0.bundleId == myBundleId }
+        #expect(selfEntries.isEmpty)
+    }
+    
+    @Test("getInstalledBrowsers results are sorted alphabetically")
+    func installedBrowsersSorted() {
+        let browsers = BrowserManager.getInstalledBrowsers()
+        
+        let names = browsers.map(\.name)
+        #expect(names == names.sorted())
+    }
+    
+    // MARK: - Multiple Save Cycles
+    
+    @Test("Multiple rapid mutations all persist correctly")
+    @MainActor
+    func rapidMutations() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        // Rapid mutations
+        manager.configuredBrowsers.append(
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2")
+        )
+        manager.configuredBrowsers.append(
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "3")
+        )
+        manager.configuredBrowsers.remove(at: 0) // Remove Safari
+        manager.configuredBrowsers[0].name = "Google Chrome"
+        
+        // Verify final state
+        #expect(manager.configuredBrowsers.count == 2)
+        #expect(manager.configuredBrowsers[0].name == "Google Chrome")
+        #expect(manager.configuredBrowsers[1].name == "Firefox")
+        
+        // Verify persistence
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.configuredBrowsers.count == 2)
+        #expect(manager2.configuredBrowsers[0].name == "Google Chrome")
+    }
+}

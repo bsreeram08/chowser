@@ -4,19 +4,19 @@ set -euo pipefail
 # ─────────────────────────────────────────────
 # Chowser Release Script
 # Usage: ./scripts/release.sh <version>
-# Example: ./scripts/release.sh 1.0.3
+# Example: ./scripts/release.sh 1.0.4
 # ─────────────────────────────────────────────
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
     echo "❌ Usage: $0 <version>"
-    echo "   Example: $0 1.0.3"
+    echo "   Example: $0 1.0.4"
     exit 1
 fi
 
 # Validate semver format
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ Version must be in semver format (e.g. 1.0.3)"
+    echo "❌ Version must be in semver format (e.g. 1.0.4)"
     exit 1
 fi
 

@@ -24,14 +24,16 @@ class BrowserManager: ObservableObject {
     }
     
     let defaultsKey = "configuredBrowsers"
+    let defaults: UserDefaults
     
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         load()
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
     
     func load() {
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
+        if let data = defaults.data(forKey: defaultsKey),
            let decoded = try? JSONDecoder().decode([BrowserConfig].self, from: data) {
             configuredBrowsers = decoded
         } else {
@@ -44,7 +46,7 @@ class BrowserManager: ObservableObject {
     
     func save() {
         if let encoded = try? JSONEncoder().encode(configuredBrowsers) {
-            UserDefaults.standard.set(encoded, forKey: defaultsKey)
+            defaults.set(encoded, forKey: defaultsKey)
         }
     }
     

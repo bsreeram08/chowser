@@ -14,6 +14,8 @@ struct ContentView: View {
     @Environment(\.openWindow) var openWindow
     @State private var hoveredBrowserId: UUID?
     @State private var appeared = false
+    @State private var dismissTask: DispatchWorkItem?
+    @State private var focusObserver: NSObjectProtocol?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,14 +46,43 @@ struct ContentView: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 appeared = true
             }
-            // Close when the window loses focus (click outside)
-            NotificationCenter.default.addObserver(
-                forName: NSWindow.didResignKeyNotification,
-                object: nil,
-                queue: .main
-            ) { _ in
-                dismissPicker()
+            // Close when the picker window itself loses focus (click outside)
+            // Use DispatchQueue.main.async so the window is available
+            DispatchQueue.main.async {
+                guard let window = NSApp.windows.first(where: {
+                    $0.isVisible && $0.identifier?.rawValue != "settings"
+                    && $0.contentView != nil
+                }) else { return }
+
+                focusObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didResignKeyNotification,
+                    object: window,
+                    queue: .main
+                ) { _ in
+                    // Debounce: tolerate transient focus losses
+                    // (system dialogs, notifications, menu bar interactions)
+                    dismissTask?.cancel()
+                    let work = DispatchWorkItem {
+                        // Only dismiss if the window is still not key
+                        if let w = NSApp.windows.first(where: {
+                            $0.identifier?.rawValue != "settings" && $0.isVisible
+                        }), !w.isKeyWindow {
+                            dismissPicker()
+                        }
+                    }
+                    dismissTask = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+                }
             }
+        }
+        .onDisappear {
+            // Clean up observer to prevent accumulation
+            if let observer = focusObserver {
+                NotificationCenter.default.removeObserver(observer)
+                focusObserver = nil
+            }
+            dismissTask?.cancel()
+            dismissTask = nil
         }
         .scaleEffect(appeared ? 1.0 : 0.9)
         .opacity(appeared ? 1.0 : 0)
@@ -197,11 +228,11 @@ struct ContentView: View {
     
     private func dismissPicker() {
         openedURL = nil
-        // Close all windows and deactivate
+        // Close the picker window(s) — don't hide the entire app.
+        // As an LSUIElement app, Chowser naturally stays in the background.
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue != "settings" {
             window.close()
         }
-        NSApp.hide(nil)
     }
 
     // MARK: - Helpers

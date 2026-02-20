@@ -19,5 +19,12 @@ struct ChowserApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        
+        Window("Settings", id: "settings") {
+            SettingsView()
+        }
+        .windowStyle(.titleBar)
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
 }

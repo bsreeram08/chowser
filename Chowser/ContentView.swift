@@ -9,7 +9,7 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @ObservedObject private var browserManager = BrowserManager.shared
+    var browserManager = BrowserManager.shared
     @Environment(\.openWindow) var openWindow
     @State private var hoveredBrowserId: UUID?
     @State private var appeared = false
@@ -34,7 +34,7 @@ struct ContentView: View {
         }
         .frame(width: 380)
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(.rect(cornerRadius: 16))
         .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
         .padding(1)
         .overlay(
@@ -84,7 +84,10 @@ struct ContentView: View {
             dismissTask = nil
         }
         .scaleEffect(appeared ? 1.0 : 0.9)
-        .opacity(appeared ? 1.0 : 0)
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("openSettingsWindow"))) { _ in
+            openWindow(id: "settings")
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
     
     // MARK: - Header
@@ -102,7 +105,8 @@ struct ContentView: View {
             Spacer()
             
             Button(action: {
-                NotificationCenter.default.post(name: .openSettings, object: nil)
+                openWindow(id: "settings")
+                NSApp.activate(ignoringOtherApps: true)
             }) {
                 Image(systemName: "gear")
                     .font(.system(size: 12, weight: .medium))
@@ -207,7 +211,7 @@ struct ContentView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(isHovered ? .white.opacity(0.1) : .clear)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(.rect(cornerRadius: 10))
         }
         .buttonStyle(.plain)
         .onHover { hovering in

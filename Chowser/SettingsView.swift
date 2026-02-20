@@ -2,7 +2,7 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @ObservedObject private var browserManager = BrowserManager.shared
+    var browserManager = BrowserManager.shared
     @State private var showingAddSheet = false
     @State private var selectedSection: SettingsSection = .browsers
     
@@ -86,8 +86,9 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                @Bindable var bm = browserManager
                 List {
-                    ForEach($browserManager.configuredBrowsers) { $browser in
+                    ForEach($bm.configuredBrowsers) { $browser in
                         browserConfigRow(browser: $browser)
                     }
                     .onMove { indices, newOffset in
@@ -195,8 +196,9 @@ struct SettingsView: View {
                 .padding(.horizontal, 20)
             
             Form {
+                @Bindable var bm = browserManager
                 Section {
-                    Toggle("Launch Chowser at login", isOn: $browserManager.launchAtLogin)
+                    Toggle("Launch Chowser at login", isOn: $bm.launchAtLogin)
                         .accessibilityHint("When enabled, Chowser starts automatically when you log in")
                 } header: {
                     Text("Startup")
@@ -264,7 +266,7 @@ struct SettingsView: View {
 // MARK: - Add Browser Sheet
 
 struct AddBrowserSheet: View {
-    @ObservedObject var manager: BrowserManager
+    var manager: BrowserManager
     @Binding var isPresented: Bool
     
     @State private var availableBrowsers: [(name: String, bundleId: String, iconURL: URL?)] = []

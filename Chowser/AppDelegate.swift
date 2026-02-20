@@ -15,7 +15,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusBar()
-        NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .openSettings, object: nil)
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -75,31 +74,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.orderFrontStandardAboutPanel(nil)
     }
     
-    @objc private func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        
-        if let window = settingsWindow {
-            window.makeKeyAndOrderFront(nil)
-        } else {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 620, height: 440),
-                styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
-                backing: .buffered, defer: false)
-            window.title = "Settings"
-            window.identifier = NSUserInterfaceItemIdentifier("settings")
-            window.contentView = NSHostingView(rootView: SettingsView())
-            window.center()
-            window.isReleasedWhenClosed = false
-            self.settingsWindow = window
-            window.makeKeyAndOrderFront(nil)
-        }
+    @objc func openSettings() {
+        NotificationCenter.default.post(name: Notification.Name("openSettingsWindow"), object: nil)
     }
     
     private func showPicker() {
         NSApp.activate(ignoringOtherApps: true)
-        // If window is already open, just bring to front. 
-        // If not, SwiftUI's Window Group handles it or we can trigger another notification if needed.
-        // For now, we rely on currentURL being observed.
     }
     
     @objc private func setDefaultBrowser() {
@@ -109,10 +89,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let openSettings = Notification.Name("openSettingsWindow")
 }

@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import SwiftUI
 import ServiceManagement
 
 struct BrowserConfig: Identifiable, Codable, Hashable {
@@ -10,25 +11,26 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var shortcutKey: String // "1", "2", etc
 }
 
-class BrowserManager: ObservableObject {
+@MainActor
+@Observable final class BrowserManager {
     static let shared = BrowserManager()
     
-    @Published var configuredBrowsers: [BrowserConfig] = [] {
+    var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
             save()
         }
     }
     
-    @Published var launchAtLogin: Bool = false {
+    var launchAtLogin: Bool = false {
         didSet {
             updateLaunchAtLogin()
         }
     }
     
-    @Published var currentURL: URL?
+    var currentURL: URL?
     
-    let defaultsKey = "configuredBrowsers"
-    let defaults: UserDefaults
+    @ObservationIgnored let defaultsKey = "configuredBrowsers"
+    @ObservationIgnored let defaults: UserDefaults
     
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

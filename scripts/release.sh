@@ -4,7 +4,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────
 # Chowser Release Script
 # Usage: ./scripts/release.sh <version>
-# Example: ./scripts/release.sh 1.2.0
+# Example: ./scripts/release.sh 1.0.0
 # ─────────────────────────────────────────────
 
 VERSION="${1:-}"
@@ -31,13 +31,7 @@ DMG_PATH="$RELEASE_DIR/Chowser-${VERSION}.dmg"
 echo "🧭 Chowser Release v${VERSION}"
 echo "────────────────────────────────"
 
-# ─── Step 1: Check dependencies ───
-if ! command -v create-dmg &> /dev/null; then
-    echo "📦 Installing create-dmg..."
-    brew install create-dmg
-fi
-
-# ─── Step 2: Update version in Xcode project ───
+# ─── Step 1: Update version in Xcode project ───
 echo "📝 Setting version to ${VERSION}..."
 cd "$PROJECT_DIR"
 
@@ -50,8 +44,9 @@ sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = ${BUILD_N
 
 echo "   Version: ${VERSION} (build ${BUILD_NUMBER})"
 
-# ─── Step 3: Clean and build archive ───
+# ─── Step 2: Clean and build archive ───
 echo "🔨 Building Release archive..."
+rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
 xcodebuild archive \
@@ -65,44 +60,40 @@ xcodebuild archive \
 
 echo "   Archive created at $ARCHIVE_PATH"
 
-# ─── Step 4: Export the app ───
+# ─── Step 3: Export the app ───
 echo "📦 Exporting app..."
-
-# Copy the app from the archive
 cp -R "$ARCHIVE_PATH/Products/Applications/Chowser.app" "$APP_PATH"
-
 echo "   App exported to $APP_PATH"
 
-# ─── Step 5: Create DMG ───
+# ─── Step 4: Create DMG using hdiutil ───
 echo "💿 Creating DMG..."
 
-# Remove old DMG if exists
-rm -f "$DMG_PATH"
+STAGING_DIR="$RELEASE_DIR/dmg_staging"
+mkdir -p "$STAGING_DIR"
+cp -R "$APP_PATH" "$STAGING_DIR/"
+ln -s /Applications "$STAGING_DIR/Applications"
 
-create-dmg \
-    --volname "Chowser ${VERSION}" \
-    --volicon "$APP_PATH/Contents/Resources/AppIcon.icns" \
-    --window-pos 200 120 \
-    --window-size 600 400 \
-    --icon-size 100 \
-    --icon "Chowser.app" 150 200 \
-    --app-drop-link 450 200 \
-    --hide-extension "Chowser.app" \
-    "$DMG_PATH" \
-    "$APP_PATH" \
-    || true  # create-dmg returns non-zero even on success sometimes
+hdiutil create \
+    -volname "Chowser ${VERSION}" \
+    -srcfolder "$STAGING_DIR" \
+    -ov \
+    -format UDZO \
+    "$DMG_PATH"
+
+rm -rf "$STAGING_DIR"
 
 if [ -f "$DMG_PATH" ]; then
-    echo "   ✅ DMG created: $DMG_PATH"
+    DMG_SIZE=$(du -h "$DMG_PATH" | cut -f1)
+    echo "   ✅ DMG created: $DMG_PATH (${DMG_SIZE})"
 else
     echo "   ❌ DMG creation failed"
     exit 1
 fi
 
-# ─── Step 6: Clean up ───
+# ─── Step 5: Clean up ───
 rm -rf "$ARCHIVE_PATH" "$APP_PATH"
 
-# ─── Step 7: Git tag ───
+# ─── Step 6: Git tag ───
 echo "🏷️  Creating git tag v${VERSION}..."
 
 git add -A

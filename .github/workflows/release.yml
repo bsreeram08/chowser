@@ -41,23 +41,18 @@ jobs:
           mkdir -p build/app
           cp -R build/Chowser.xcarchive/Products/Applications/Chowser.app build/app/
 
-      - name: Install create-dmg
-        run: brew install create-dmg
-
       - name: Create DMG
         run: |
-          mkdir -p release
-          create-dmg \
-            --volname "Chowser ${{ steps.version.outputs.VERSION }}" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "Chowser.app" 150 200 \
-            --app-drop-link 450 200 \
-            --hide-extension "Chowser.app" \
-            "release/Chowser-${{ steps.version.outputs.VERSION }}.dmg" \
-            "build/app/Chowser.app" \
-            || true
+          mkdir -p release dmg_staging
+          cp -R build/app/Chowser.app dmg_staging/
+          ln -s /Applications dmg_staging/Applications
+          hdiutil create \
+            -volname "Chowser ${{ steps.version.outputs.VERSION }}" \
+            -srcfolder dmg_staging \
+            -ov \
+            -format UDZO \
+            "release/Chowser-${{ steps.version.outputs.VERSION }}.dmg"
+          rm -rf dmg_staging
 
       - name: Verify DMG
         run: |

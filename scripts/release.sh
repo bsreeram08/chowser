@@ -98,7 +98,7 @@ echo "🏷️  Creating git tag v${VERSION}..."
 
 git add -A
 git commit -m "release: v${VERSION}" --allow-empty
-git tag -a "v${VERSION}" -m "Chowser v${VERSION}"
+git tag -fa "v${VERSION}" -m "Chowser v${VERSION}"
 
 echo ""
 echo "════════════════════════════════════════"

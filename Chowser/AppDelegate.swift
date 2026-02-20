@@ -16,6 +16,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusBar()
     }
     
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first else { return }
+        BrowserManager.shared.currentURL = url
+        showPicker()
+    }
+    
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // When dock icon is clicked (if visible), show settings
         if !flag {
@@ -69,8 +75,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func openSettings() {
         NSApp.activate(ignoringOtherApps: true)
-        // Use notification to open settings window
-        NotificationCenter.default.post(name: .openSettings, object: nil)
+        // Standard macOS way to open settings window defined in SwiftUI
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+    
+    private func showPicker() {
+        NSApp.activate(ignoringOtherApps: true)
+        // If window is already open, just bring to front. 
+        // If not, SwiftUI's Window Group handles it or we can trigger another notification if needed.
+        // For now, we rely on currentURL being observed.
     }
     
     @objc private func setDefaultBrowser() {

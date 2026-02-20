@@ -11,6 +11,8 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
 }
 
 class BrowserManager: ObservableObject {
+    static let shared = BrowserManager()
+    
     @Published var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
             save()
@@ -22,6 +24,8 @@ class BrowserManager: ObservableObject {
             updateLaunchAtLogin()
         }
     }
+    
+    @Published var currentURL: URL?
     
     let defaultsKey = "configuredBrowsers"
     let defaults: UserDefaults

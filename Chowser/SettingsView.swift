@@ -2,7 +2,7 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @StateObject private var browserManager = BrowserManager()
+    @ObservedObject private var browserManager = BrowserManager.shared
     @State private var showingAddSheet = false
     @State private var selectedSection: SettingsSection = .browsers
     

@@ -10,23 +10,18 @@ import SwiftUI
 @main
 struct ChowserApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var openedURL: URL?
+    @Environment(\.openWindow) var openWindow
 
     var body: some Scene {
         Window("Chowser", id: "picker") {
-            ContentView(openedURL: $openedURL)
-                .onOpenURL { url in
-                    openedURL = url
-                    NSApp.activate(ignoringOtherApps: true)
-                }
+            ContentView()
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultPosition(.center)
         
-        Window("Settings", id: "settings") {
+        Settings {
             SettingsView()
         }
-        .defaultSize(width: 600, height: 500)
     }
 }

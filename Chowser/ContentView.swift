@@ -9,8 +9,7 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @Binding var openedURL: URL?
-    @StateObject private var browserManager = BrowserManager()
+    @ObservedObject private var browserManager = BrowserManager.shared
     @Environment(\.openWindow) var openWindow
     @State private var hoveredBrowserId: UUID?
     @State private var appeared = false
@@ -26,7 +25,7 @@ struct ContentView: View {
                 .opacity(0.3)
             
             // URL display
-            if let url = openedURL {
+            if let url = browserManager.currentURL {
                 urlDisplay(url: url)
             }
             
@@ -227,7 +226,7 @@ struct ContentView: View {
     // MARK: - Dismiss
     
     private func dismissPicker() {
-        openedURL = nil
+        browserManager.currentURL = nil
         // Close the picker window(s) — don't hide the entire app.
         // As an LSUIElement app, Chowser naturally stays in the background.
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue != "settings" {
@@ -245,7 +244,7 @@ struct ContentView: View {
     }
 
     private func openUrl(with browser: BrowserConfig) {
-        guard let url = openedURL else { return }
+        guard let url = browserManager.currentURL else { return }
         
         // Dismiss immediately — don't wait for the browser to open
         dismissPicker()
@@ -263,5 +262,8 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(openedURL: .constant(URL(string: "https://example.com/long/path/truncation/showing/off/here")))
+    ContentView()
+        .onAppear {
+            BrowserManager.shared.currentURL = URL(string: "https://sreerams.in")
+        }
 }

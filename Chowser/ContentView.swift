@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var dismissTask: DispatchWorkItem?
     @State private var focusObserver: NSObjectProtocol?
     @State private var keyEventMonitor: Any?
+    @State private var showingConfigureRule = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +37,28 @@ struct ContentView: View {
 
             if !browserManager.configuredBrowsers.isEmpty {
                 pickerHintBar
+            }
+
+            // "Configure Rule" button — lets the user create a routing rule from the current URL.
+            if !browserManager.configuredBrowsers.isEmpty && browserManager.currentURL != nil {
+                Divider()
+                    .opacity(0.2)
+                    .padding(.horizontal, 14)
+
+                Button(action: { showingConfigureRule = true }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Configure Rule")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("picker.configureRuleButton")
+                .accessibilityLabel("Configure a routing rule for this URL")
             }
 
             if AppEnvironment.isUITesting {
@@ -72,10 +95,11 @@ struct ContentView: View {
                         // Debounce: tolerate transient focus losses.
                         dismissTask?.cancel()
                         let work = DispatchWorkItem {
-                            // Only dismiss if the picker window is still not key.
+                            // Only dismiss if the picker window is still not key
+                            // and no sheet (e.g. Configure Rule) is attached to it.
                             if let w = NSApp.windows.first(where: {
                                 $0.identifier?.rawValue == "picker" && $0.isVisible
-                            }), !w.isKeyWindow {
+                            }), !w.isKeyWindow, w.attachedSheet == nil {
                                 dismissPicker()
                             }
                         }
@@ -102,6 +126,17 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("openSettingsWindow"))) { _ in
             openWindow(id: "settings")
             NSApp.activate(ignoringOtherApps: true)
+        }
+        // Present the Configure Rule sheet when the user taps the button.
+        .sheet(isPresented: $showingConfigureRule) {
+            if let url = browserManager.currentURL {
+                ConfigureRuleView(
+                    browserManager: browserManager,
+                    interceptedURL: url,
+                    isPresented: $showingConfigureRule,
+                    onSave: { dismissPicker() }
+                )
+            }
         }
     }
     
@@ -557,6 +592,167 @@ struct ContentView: View {
         .onAppear {
             BrowserManager.shared.currentURL = URL(string: "https://sreerams.in")
         }
+}
+
+// MARK: - Configure Rule View
+
+/// Compact sheet for creating a routing rule directly from the intercepted URL context.
+/// Pre-populates rule name and host pattern from the intercepted URL's domain.
+struct ConfigureRuleView: View {
+    var browserManager: BrowserManager
+    let interceptedURL: URL
+    @Binding var isPresented: Bool
+    var onSave: () -> Void
+
+    @State private var ruleName = ""
+    @State private var hostPattern = ""
+    @State private var selectedBrowserBundleID = ""
+
+    // Inline validation: rule name, host pattern, and browser must all be valid.
+    private var isFormValid: Bool {
+        !ruleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && browserManager.isValidRoutingHostPattern(hostPattern)
+            && !selectedBrowserBundleID.isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            formFields
+            Divider()
+            footer
+        }
+        .frame(width: 340)
+        .onAppear {
+            prefillFromURL()
+        }
+        .accessibilityIdentifier("picker.configureRule.root")
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        HStack {
+            Text("Configure Rule")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Spacer()
+            Button(action: { isPresented = false }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+    }
+
+    // MARK: Form Fields
+
+    private var formFields: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Rule Name — auto-suggested as the domain name (e.g. "github").
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Rule Name")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField("e.g. github", text: $ruleName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .accessibilityIdentifier("picker.configureRule.nameField")
+            }
+
+            // URL Pattern — pre-filled with the intercepted URL's host.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("URL Pattern")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField("example.com or *.example.com", text: $hostPattern)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                    .accessibilityIdentifier("picker.configureRule.hostField")
+
+                if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !browserManager.isValidRoutingHostPattern(hostPattern) {
+                    Text("Invalid pattern. Use example.com or *.example.com")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                }
+            }
+
+            // Browser picker — dropdown of all configured browsers.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Open In")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Picker("Browser", selection: $selectedBrowserBundleID) {
+                    ForEach(browserManager.configuredBrowsers) { browser in
+                        Text(browser.name).tag(browser.bundleId)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("picker.configureRule.browserPicker")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 14)
+    }
+
+    // MARK: Footer
+
+    private var footer: some View {
+        HStack {
+            Button("Cancel") {
+                isPresented = false
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("picker.configureRule.cancelButton")
+
+            Spacer()
+
+            Button("Save Rule") {
+                // Persist the new rule using the existing rules store.
+                browserManager.addRoutingRule(
+                    name: ruleName,
+                    hostPattern: hostPattern,
+                    pathPrefix: nil,
+                    browserBundleId: selectedBrowserBundleID
+                )
+                isPresented = false
+                onSave()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!isFormValid)
+            .accessibilityIdentifier("picker.configureRule.saveButton")
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: Helpers
+
+    /// Pre-populate form fields from the intercepted URL's domain.
+    private func prefillFromURL() {
+        let host = interceptedURL.host ?? ""
+        hostPattern = host
+
+        // Suggest the second-level domain as the rule name (e.g. "github" from "github.com").
+        let components = host.split(separator: ".")
+        if components.count >= 2 {
+            ruleName = String(components[components.count - 2])
+        } else {
+            ruleName = host
+        }
+
+        selectedBrowserBundleID = browserManager.configuredBrowsers.first?.bundleId ?? ""
+    }
 }
 
 private struct PickerSurfaceModifier: ViewModifier {

@@ -9,6 +9,7 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var bundleId: String // e.g. "com.apple.Safari"
     var shortcutKey: String // "1", "2", etc
     var profile: String? // Optional profile argument for browsers that support it
+    var customArguments: String? // User-defined command line arguments (e.g. "--profile-directory={profile}")
 
     var identity: String { "\(bundleId)|\(profile ?? "")" }
 }
@@ -210,6 +211,14 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     func browserName(for id: UUID) -> String {
         configuredBrowsers.first(where: { $0.id == id })?.name ?? ""
+    }
+
+    func updateBrowserCustomArguments(id: UUID, to args: String) {
+        guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = args.isEmpty ? nil : args
+        if configuredBrowsers[index].customArguments != trimmed {
+            configuredBrowsers[index].customArguments = trimmed
+        }
     }
 
     func shortcutKey(for id: UUID) -> String {
@@ -530,23 +539,84 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         }
 
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
+            print("Chowser: App not found for bundle ID: \(bundleId)")
             return
         }
 
+        let browser = configuredBrowsers.first(where: { $0.bundleId == bundleId && $0.profile == profile })
+        let customArgs = browser?.customArguments
+        
         let configuration = NSWorkspace.OpenConfiguration()
-        if let profile = profile {
-            if bundleId.contains("Chrome") || bundleId.contains("edgemac") || bundleId.contains("Brave") || bundleId.contains("Arc") || bundleId.contains("Vivaldi") {
-                configuration.arguments = ["--profile-directory=\(profile)"]
-            } else if bundleId.contains("firefox") || bundleId.contains("zen") {
-                configuration.arguments = ["-P", profile]
+        
+        // If we have a profile or custom arguments, we use the specialized launch logic
+        if let info = Self.launchInfo(forBundleID: bundleId, profile: profile, customArguments: customArgs, url: url) {
+            // Replicate 'open -n' (New Instance) which proved reliable in CLI tests
+            configuration.createsNewApplicationInstance = true
+            
+            // We pass ALL arguments including the URL via the arguments array.
+            // This mirrors exactly how 'open --args' works.
+            configuration.arguments = info.arguments
+            
+            NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
+                if let error = error {
+                    print("Chowser: Failed to open application with profile: \(error)")
+                }
             }
+        } else {
+            // Default launch for Safari or browsers without profiles
+            NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
+                if let error = error {
+                    print("Chowser: Failed to open URL: \(error)")
+                }
+            }
+        }
+    }
+
+    /// Generates the appropriate command line arguments for a browser launch.
+    /// Supports {profile} and {url} placeholders in customArguments.
+    static func launchInfo(forBundleID bundleId: String, profile: String?, customArguments: String?, url: URL) -> (arguments: [String], type: String)? {
+        // 1. Check for custom arguments first
+        if let custom = customArguments, !custom.isEmpty {
+            let processed = custom
+                .replacingOccurrences(of: "{profile}", with: profile ?? "")
+                .replacingOccurrences(of: "{url}", with: url.absoluteString)
+            
+            // Split by whitespace but respect quotes if we wanted to be fancy. 
+            // For now, simple split is usually enough for flags.
+            var args = processed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            
+            // If the user didn't include {url}, append it at the end
+            if !custom.contains("{url}") {
+                args.append(url.absoluteString)
+            }
+            
+            return (arguments: args, type: "custom")
+        }
+
+        // 2. Fall back to smart defaults if we have a profile
+        guard let profile = profile else { return nil }
+
+        let isChromium = bundleId.localizedCaseInsensitiveContains("Chrome") ||
+                        bundleId.localizedCaseInsensitiveContains("Brave") ||
+                        bundleId.localizedCaseInsensitiveContains("Edge") ||
+                        bundleId.localizedCaseInsensitiveContains("Vivaldi") ||
+                        bundleId.localizedCaseInsensitiveContains("Arc") ||
+                        bundleId == "company.thebrowser.Browser" ||
+                        bundleId.localizedCaseInsensitiveContains("Chromium") ||
+                        bundleId.localizedCaseInsensitiveContains("Opera")
+        
+        let isFirefox = bundleId.localizedCaseInsensitiveContains("Firefox") ||
+                        bundleId.localizedCaseInsensitiveContains("Zen") ||
+                        bundleId.localizedCaseInsensitiveContains("LibreWolf") ||
+                        bundleId.localizedCaseInsensitiveContains("Waterfox")
+
+        if isChromium {
+            return (arguments: ["--profile-directory=\(profile)", url.absoluteString], type: "chromium")
+        } else if isFirefox {
+            return (arguments: ["-P", profile, url.absoluteString], type: "firefox")
         }
         
-        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
-            if let error {
-                print("Failed to open URL: \(error)")
-            }
-        }
+        return nil
     }
 
     func isValidRoutingHostPattern(_ hostPattern: String) -> Bool {

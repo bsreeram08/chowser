@@ -226,14 +226,39 @@ struct SettingsView: View {
     }
 
     private func browserConfigRow(browser: BrowserConfig) -> some View {
-        HStack(spacing: 12) {
-            browserIconView(bundleID: browser.bundleId)
-            browserIdentityView(browser: browser)
-            Spacer()
-            browserShortcutPicker(browser: browser)
-            deleteBrowserButton(browser: browser)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                browserIconView(bundleID: browser.bundleId)
+                browserIdentityView(browser: browser)
+                Spacer()
+                browserShortcutPicker(browser: browser)
+                deleteBrowserButton(browser: browser)
+            }
+            .padding(.vertical, 4)
+            
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Custom Launch Arguments")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    
+                    TextField("--profile-directory={profile} {url}", text: browserCustomArgumentsBinding(for: browser.id))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                    
+                    Text("Placeholders: {profile}, {url}. Defaults used if empty.")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.leading, 40)
+                .padding(.vertical, 4)
+            } label: {
+                Text("Advanced")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.leading, 40)
         }
-        .padding(.vertical, 4)
         .contextMenu {
             Button("Move Up") {
                 moveBrowser(id: browser.id, by: -1)
@@ -266,6 +291,13 @@ struct SettingsView: View {
         Binding(
             get: { browserManager.shortcutKey(for: browserID) },
             set: { browserManager.updateShortcutKey(id: browserID, to: $0) }
+        )
+    }
+
+    private func browserCustomArgumentsBinding(for browserID: UUID) -> Binding<String> {
+        Binding(
+            get: { browserManager.configuredBrowsers.first(where: { $0.id == browserID })?.customArguments ?? "" },
+            set: { browserManager.updateBrowserCustomArguments(id: browserID, to: $0) }
         )
     }
 

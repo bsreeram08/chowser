@@ -36,7 +36,17 @@ Chowser lives in your menu bar and uses zero resources when idle.
 2. Open the DMG and drag Chowser to Applications
 3. Launch Chowser — it appears in the menu bar
 4. Right-click → Open if macOS shows a security warning (first time only)
-5. Click the menu bar icon → **Set as Default Browser** (if not already done)
+5. Click the menu bar icon &rarr; **Set as Default Browser** (if not already done)
+
+### 🤖 AI-Powered Auto-Setup (Recommended)
+
+Since Chowser supports unlimited browser profiles, setting them up manually can be tedious. You can use an AI agent (like Claude, ChatGPT, or Cursor) to do it for you!
+
+**Just copy and paste this prompt to your AI agent:**
+
+> I have installed Chowser (`in.sreerams.Chowser`) on my Mac. Please help me configure it. Scan my system for all installed browsers (Chrome, Brave, Edge, Vivaldi, Arc, Firefox, Zen, etc.) and find all their user profiles (by checking Application Support directories). Then, generate and apply a `defaults write in.sreerams.Chowser configuredBrowsers -array ...` command with the correct `bundleId`, `profile` path, a descriptive `name`, and a unique `shortcutKey` (1-9) for each.
+
+---
 
 ### From Source
 
@@ -50,14 +60,14 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a DMG (bumps version automatically)
-./scripts/release.sh 1.5.0
+./scripts/release.sh 1.6.0
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
 # 3. Create a DMG with create-dmg
-# 4. Create a git tag v1.5.0
-# 5. Output the DMG to release/Chowser-1.5.0.dmg
+# 4. Create a git tag v1.6.0
+# 5. Output the DMG to release/Chowser-1.6.0.dmg
 ```
 
 ## Testing

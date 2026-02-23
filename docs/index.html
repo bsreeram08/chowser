@@ -192,8 +192,8 @@
 
       <p
         class="text-lg sm:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up opacity-0 delay-200">
-        A lightweight macOS browser chooser. Click a link anywhere, and Chowser lets you instantly pick which browser
-        opens it. No dock icon, no bloat.
+        A lightweight macOS browser chooser with <strong>profiles support</strong>, <strong>smart routing</strong>, and
+        <strong>rule portability</strong>. Intercept links anywhere and open them in the right browser, every time.
       </p>
 
       <div
@@ -320,7 +320,7 @@
             </div>
           </div>
 
-          <!-- Chrome -->
+          <!-- Chrome Profile -->
           <div
             class="flex items-center gap-[10px] p-[10px] pl-[10px] pr-[6px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors">
             <div
@@ -361,7 +361,10 @@
                 </svg>
               </div>
             </div>
-            <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Google Chrome</span>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Google Chrome</span>
+              <span class="text-[10px] text-zinc-500 font-mono">Work Profile</span>
+            </div>
             <div class="flex-1"></div>
             <div
               class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-500 shadow-sm border border-white/[0.02]">
@@ -377,7 +380,8 @@
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
           </svg>
-          <span class="text-[10px] text-zinc-500 tracking-wide font-medium">1–9 select • Type initial • Tab/↑/↓ navigate
+          <span class="text-[10px] text-zinc-500 tracking-wide font-medium">1–9 select • Type initial • Tab/↑/↓
+            navigate
             • Return open • Esc close</span>
         </div>
 
@@ -447,8 +451,9 @@
             class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
             3</div>
           <h3 class="text-xl font-bold mb-2">Set as Default</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Follow the onboarding prompts to set Chowser as your default
-            browser. It will now intercept links and live quietly in your menu bar.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Click the menu bar icon &rarr; <strong>Set as Default
+              Browser</strong>.
+            Chowser will now intercept links and live quietly in your menu bar.</p>
         </div>
 
         <!-- Step 4 -->
@@ -460,13 +465,80 @@
           <div
             class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
             4</div>
-          <h3 class="text-xl font-bold mb-2">Configure Browsers</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Click the menu bar icon -> Settings to add your installed
-            browsers, reorder them, and configure custom routing rules.</p>
+          <h3 class="text-xl font-bold mb-2">Configure & Customize</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">Click the menu bar icon &rarr; <strong>Settings</strong> to
+            add
+            browsers, select specific profiles, hide non-browser apps, and configure routing rules.</p>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- AI Automation Section -->
+  <section id="ai-setup" class="py-24 px-6 sm:px-12 relative border-t border-zinc-800/50 bg-zinc-900/40">
+    <div class="max-w-4xl mx-auto reveal">
+      <div
+        class="glass-card p-8 sm:p-12 rounded-[32px] border border-blue-500/20 shadow-[0_0_50px_-10px_rgba(59,130,246,0.15)] relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+          <svg class="w-64 h-64" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
+          </svg>
+        </div>
+
+        <div class="relative z-10">
+          <div
+            class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold mb-6">
+            ✨ MAGIC SETUP
+          </div>
+          <h2 class="text-3xl sm:text-4xl font-bold mb-6 tracking-tight">AI-Powered Configuration</h2>
+          <p class="text-zinc-400 text-lg mb-8 leading-relaxed max-w-2xl">
+            Don't waste time manually adding profiles. Copy the prompt below and paste it into <strong>Claude, ChatGPT,
+              or Cursor</strong> to have it discover and configure all your browsers and profiles automatically.
+          </p>
+
+          <div
+            class="bg-black/60 rounded-2xl border border-zinc-800 p-6 font-mono text-sm sm:text-base text-zinc-300 relative group shadow-2xl">
+            <button onclick="copyPrompt()"
+              class="absolute top-4 right-4 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-all border border-zinc-700 text-zinc-400 hover:text-white active:scale-95"
+              title="Copy to clipboard">
+              <svg id="copy-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                stroke-width="2">
+                <path
+                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              <svg id="check-icon" class="w-4 h-4 hidden text-green-400" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
+            <p id="ai-prompt-text" class="pr-10 leading-relaxed">I have installed Chowser
+              (<code>in.sreerams.Chowser</code>) on my Mac. Please help me configure it. Scan my system for all
+              installed browsers (Chrome, Brave, Edge, Vivaldi, Arc, Firefox, Zen, etc.) and find all their user
+              profiles by checking Application Support directories. Then, generate and apply a
+              <code>defaults write in.sreerams.Chowser configuredBrowsers -array ...</code> command with the correct
+              bundleId, profile path, a descriptive name, and a unique shortcutKey (1-9) for each.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function copyPrompt() {
+      const text = document.getElementById('ai-prompt-text').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const copyBtn = document.getElementById('copy-icon');
+        const checkBtn = document.getElementById('check-icon');
+        copyBtn.classList.add('hidden');
+        checkBtn.classList.remove('hidden');
+        setTimeout(() => {
+          copyBtn.classList.remove('hidden');
+          checkBtn.classList.add('hidden');
+        }, 2000);
+      });
+    }
+  </script>
+
 
   <!-- Rules & Configuration Section -->
   <section id="rules" class="py-24 px-6 sm:px-12 relative border-t border-zinc-800/50">
@@ -494,7 +566,7 @@
             <p class="text-sm text-zinc-400 mb-6 leading-relaxed">
               Rules execute from <strong>top to bottom</strong>. When you click a link, Chowser checks the URL against
               your rules. The first matching rule automatically opens the link in the assigned browser, bypassing the
-              picker.
+              picker. You can also <strong>Import/Export</strong> rules via the context menu.
             </p>
 
             <ul class="space-y-4">
@@ -566,100 +638,170 @@
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="border-t border-zinc-800/50 bg-background py-10 px-6 sm:px-12">
-    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-      <div class="flex items-center gap-2">
-        <div
-          class="w-6 h-6 rounded bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs">
-          &#127760;
+    <!-- Advanced Features -->
+    <section class="py-24 px-6 sm:px-12 relative border-t border-zinc-800/50 bg-zinc-900/10">
+      <div class="max-w-6xl mx-auto reveal">
+        <div class="text-center mb-16">
+          <h2 class="text-3xl sm:text-4xl font-bold mb-4 tracking-tight">New in v1.6.0</h2>
+          <p class="text-zinc-400 max-w-2xl mx-auto">More power, less clutter. We've added the features power users
+            requested most.</p>
         </div>
-        <span class="font-semibold text-zinc-300">Chowser</span>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <!-- Profile Support -->
+          <div class="glass-card p-8 rounded-3xl border border-zinc-800 hover:border-blue-500/30 transition-all group">
+            <div
+              class="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
+              <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold mb-3">Browser Profiles</h3>
+            <p class="text-zinc-400 text-sm leading-relaxed">
+              Support for <strong>Chrome, Brave, Edge,</strong> and <strong>Firefox</strong> profiles.
+              Route work links to your work profile and personal links to your home profile automatically.
+            </p>
+          </div>
+
+          <!-- Import/Export -->
+          <div
+            class="glass-card p-8 rounded-3xl border border-zinc-800 hover:border-purple-500/30 transition-all group">
+            <div
+              class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
+              <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold mb-3">Rule Portability</h3>
+            <p class="text-zinc-400 text-sm leading-relaxed">
+              Easily <strong>Import/Export</strong> your routing rules as JSON. Share your setup across machines or
+              backup your complex regex configurations with a click.
+            </p>
+          </div>
+
+          <!-- App Blocklist -->
+          <div
+            class="glass-card p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group">
+            <div
+              class="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 mb-6 group-hover:scale-110 transition-transform">
+              <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+                </path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold mb-3">Hidden Apps</h3>
+            <p class="text-zinc-400 text-sm leading-relaxed">
+              Keep your list clean. Hide non-browser apps like <strong>media players</strong> (VLC, IINA, MX Player)
+              that register as web handlers but aren't browsers.
+            </p>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="flex items-center gap-6 text-sm text-zinc-500">
-        <a href="https://github.com/bsreeram08/chowser" class="hover:text-white transition-colors">GitHub Repository</a>
-        <a href="https://github.com/bsreeram08/chowser/releases" class="hover:text-white transition-colors">Releases</a>
-        <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE" class="hover:text-white transition-colors">MIT
-          License</a>
+
+    <!-- Footer -->
+    <footer class="border-t border-zinc-800/50 bg-background py-10 px-6 sm:px-12">
+      <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2">
+          <div
+            class="w-6 h-6 rounded bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs">
+            &#127760;
+          </div>
+          <span class="font-semibold text-zinc-300">Chowser</span>
+        </div>
+
+        <div class="flex items-center gap-6 text-sm text-zinc-500">
+          <a href="https://github.com/bsreeram08/chowser" class="hover:text-white transition-colors">GitHub
+            Repository</a>
+          <a href="https://github.com/bsreeram08/chowser/releases"
+            class="hover:text-white transition-colors">Releases</a>
+          <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE"
+            class="hover:text-white transition-colors">MIT
+            License</a>
+        </div>
       </div>
-    </div>
-  </footer>
+    </footer>
 
-  <!-- Scripts -->
-  <script>
-    // Reveal Navigation on Scroll
-    const nav = document.querySelector('nav');
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 20) {
-        nav.classList.add('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
-        nav.classList.remove('bg-transparent');
-      } else {
-        nav.classList.remove('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
-        nav.classList.add('bg-transparent');
-      }
-    });
-
-    // Reveal Elements on Scroll
-    const revealElements = document.querySelectorAll('.reveal');
-    const revealOptions = {
-      threshold: 0.15,
-      rootMargin: "0px 0px -50px 0px"
-    };
-
-    const revealOnScroll = new IntersectionObserver(function (entries, observer) {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) {
-          return;
+    <!-- Scripts -->
+    <script>
+      // Reveal Navigation on Scroll
+      const nav = document.querySelector('nav');
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 20) {
+          nav.classList.add('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
+          nav.classList.remove('bg-transparent');
         } else {
-          entry.target.classList.add('active');
-          observer.unobserve(entry.target);
+          nav.classList.remove('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
+          nav.classList.add('bg-transparent');
         }
       });
-    }, revealOptions);
 
-    revealElements.forEach(el => {
-      revealOnScroll.observe(el);
-    });
+      // Reveal Elements on Scroll
+      const revealElements = document.querySelectorAll('.reveal');
+      const revealOptions = {
+        threshold: 0.15,
+        rootMargin: "0px 0px -50px 0px"
+      };
 
-    // Fetch Latest Release Logic (from original)
-    (async function () {
-      const btn = document.getElementById("download-btn");
-      const label = document.getElementById("download-label");
-      const versionLink = document.getElementById("version-link");
-      const errorMsg = document.getElementById("error-msg");
+      const revealOnScroll = new IntersectionObserver(function (entries, observer) {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) {
+            return;
+          } else {
+            entry.target.classList.add('active');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, revealOptions);
 
-      try {
-        const res = await fetch("https://api.github.com/repos/bsreeram08/chowser/releases/latest");
-        if (!res.ok) throw new Error("GitHub API returned " + res.status);
+      revealElements.forEach(el => {
+        revealOnScroll.observe(el);
+      });
 
-        const release = await res.json();
-        const version = release.tag_name.replace(/^v/, "");
-        const dmg = release.assets.find(a => a.name.endsWith(".dmg"));
+      // Fetch Latest Release Logic (from original)
+      (async function () {
+        const btn = document.getElementById("download-btn");
+        const label = document.getElementById("download-label");
+        const versionLink = document.getElementById("version-link");
+        const errorMsg = document.getElementById("error-msg");
 
-        if (!dmg) throw new Error("No DMG asset found in latest release");
+        try {
+          const res = await fetch("https://api.github.com/repos/bsreeram08/chowser/releases/latest");
+          if (!res.ok) throw new Error("GitHub API returned " + res.status);
 
-        btn.href = dmg.browser_download_url;
-        label.innerHTML = "Download <span class='opacity-80 text-sm ml-1'>v" + version + "</span>";
+          const release = await res.json();
+          const version = release.tag_name.replace(/^v/, "");
+          const dmg = release.assets.find(a => a.name.endsWith(".dmg"));
 
-        versionLink.innerHTML = `<svg class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> v${version} for macOS 13.0+`;
-        versionLink.href = release.html_url;
-      } catch (err) {
-        btn.href = "https://github.com/bsreeram08/chowser/releases/latest";
-        label.textContent = "View Releases";
+          if (!dmg) throw new Error("No DMG asset found in latest release");
 
-        versionLink.innerHTML = "Latest release on GitHub";
-        versionLink.href = "https://github.com/bsreeram08/chowser/releases/latest";
+          btn.href = dmg.browser_download_url;
+          label.innerHTML = "Download <span class='opacity-80 text-sm ml-1'>v" + version + "</span>";
 
-        errorMsg.classList.remove('hidden');
-        errorMsg.classList.add('block');
-        errorMsg.textContent = "Could not fetch direct download automatically. Click above to view releases.";
-        console.error("Release fetch error:", err);
-      }
-    })();
-  </script>
+          versionLink.innerHTML = `<svg class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> v${version} for macOS 13.0+`;
+          versionLink.href = release.html_url;
+        } catch (err) {
+          btn.href = "https://github.com/bsreeram08/chowser/releases/latest";
+          label.textContent = "View Releases";
+
+          versionLink.innerHTML = "Latest release on GitHub";
+          versionLink.href = "https://github.com/bsreeram08/chowser/releases/latest";
+
+          errorMsg.classList.remove('hidden');
+          errorMsg.classList.add('block');
+          errorMsg.textContent = "Could not fetch direct download automatically. Click above to view releases.";
+          console.error("Release fetch error:", err);
+        }
+      })();
+    </script>
 </body>
 
 </html>

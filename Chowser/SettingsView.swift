@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     var browserManager = BrowserManager.shared
@@ -291,9 +292,15 @@ struct SettingsView: View {
                 .font(.system(size: 13, weight: .medium))
                 .accessibilityIdentifier("settings.browser.nameField")
 
-            Text(browser.bundleId)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.tertiary)
+            if let profile = browser.profile {
+                Text("\(browser.bundleId) (\(profile))")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            } else {
+                Text(browser.bundleId)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
@@ -357,13 +364,34 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Button(action: { showingAddRuleSheet = true }) {
-                    Label("Add Rule", systemImage: "plus")
-                        .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 8) {
+                    Menu {
+                        Button(action: exportRules) {
+                            Label("Export Rules…", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(browserManager.routingRules.isEmpty)
+                        .accessibilityIdentifier("settings.exportRulesButton")
+
+                        Button(action: importRules) {
+                            Label("Import Rules…", systemImage: "square.and.arrow.down")
+                        }
+                        .accessibilityIdentifier("settings.importRulesButton")
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 28)
+                    .accessibilityIdentifier("settings.rulesMenuButton")
+
+                    Button(action: { showingAddRuleSheet = true }) {
+                        Label("Add Rule", systemImage: "plus")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .disabled(browserManager.configuredBrowsers.isEmpty)
+                    .accessibilityIdentifier("settings.addRuleButton")
+                    .accessibilityLabel("Add a new routing rule")
                 }
-                .disabled(browserManager.configuredBrowsers.isEmpty)
-                .accessibilityIdentifier("settings.addRuleButton")
-                .accessibilityLabel("Add a new routing rule")
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -545,7 +573,7 @@ struct SettingsView: View {
 
                     Picker("Browser", selection: ruleBrowserBinding(for: rule.id)) {
                         ForEach(browserManager.configuredBrowsers) { browser in
-                            Text(browser.name).tag(browser.bundleId)
+                            Text(browser.name).tag(browser.identity)
                         }
                     }
                     .pickerStyle(.menu)
@@ -641,13 +669,18 @@ struct SettingsView: View {
     private func ruleBrowserBinding(for ruleID: UUID) -> Binding<String> {
         Binding(
             get: {
-                let current = browserManager.routingRuleBrowserBundleID(for: ruleID)
-                if !current.isEmpty {
-                    return current
+                let currentBundleId = browserManager.routingRuleBrowserBundleID(for: ruleID)
+                let currentProfile = browserManager.routingRuleProfile(for: ruleID)
+                if !currentBundleId.isEmpty, let browser = browserManager.configuredBrowsers.first(where: { $0.bundleId == currentBundleId && $0.profile == currentProfile }) {
+                    return browser.identity
                 }
-                return browserManager.configuredBrowsers.first?.bundleId ?? ""
+                return browserManager.configuredBrowsers.first?.identity ?? ""
             },
-            set: { browserManager.updateRoutingRuleBrowser(id: ruleID, to: $0) }
+            set: { newValue in
+                if let browser = browserManager.configuredBrowsers.first(where: { $0.identity == newValue }) {
+                    browserManager.updateRoutingRuleBrowser(id: ruleID, to: browser.bundleId, profile: browser.profile)
+                }
+            }
         )
     }
 
@@ -667,6 +700,38 @@ struct SettingsView: View {
         }
         let statusText = rule.isEnabled ? "Enabled" : "Disabled"
         return "\(statusText): host \(rule.hostPattern)\(pathText)"
+    }
+
+    // MARK: - Import / Export
+
+    private func exportRules() {
+        let panel = NSSavePanel()
+        panel.title = "Export Routing Rules"
+        panel.nameFieldStringValue = "ChowserRules.json"
+        panel.allowedContentTypes = [.json]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try browserManager.exportRules(to: url)
+        } catch {
+            print("Export failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func importRules() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Routing Rules"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try browserManager.importRules(from: url)
+        } catch {
+            print("Import failed: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - General Section
@@ -892,14 +957,14 @@ struct AddBrowserSheet: View {
     var manager: BrowserManager
     @Binding var isPresented: Bool
 
-    @State private var availableBrowsers: [(name: String, bundleId: String, iconURL: URL?)] = []
-    @State private var hoveredBundleID: String?
+    @State private var availableBrowsers: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] = []
+    @State private var hoveredIdentity: String?
     @State private var searchText = ""
 
-    private var filteredBrowsers: [(name: String, bundleId: String, iconURL: URL?)] {
-        let configuredIDs = Set(manager.configuredBrowsers.map(\.bundleId))
+    private var filteredBrowsers: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
+        let configuredIdentities = Set(manager.configuredBrowsers.map { "\($0.bundleId)|\($0.profile ?? "")" })
 
-        let candidates = availableBrowsers.filter { !configuredIDs.contains($0.bundleId) }
+        let candidates = availableBrowsers.filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedQuery.isEmpty else {
@@ -961,7 +1026,7 @@ struct AddBrowserSheet: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(filteredBrowsers, id: \.bundleId) { entry in
+                        ForEach(filteredBrowsers, id: \.name) { entry in
                             browserOption(entry: entry)
                         }
                     }
@@ -976,14 +1041,16 @@ struct AddBrowserSheet: View {
         .accessibilityIdentifier("settings.addSheet.root")
     }
 
-    private func browserOption(entry: (name: String, bundleId: String, iconURL: URL?)) -> some View {
-        let isHovered = hoveredBundleID == entry.bundleId
+    private func browserOption(entry: (name: String, bundleId: String, profile: String?, iconURL: URL?)) -> some View {
+        let identifier = "\(entry.bundleId)|\(entry.profile ?? "")"
+        let isHovered = hoveredIdentity == identifier
 
         return Button(action: {
             manager.addBrowser(
                 name: entry.name,
                 bundleId: entry.bundleId,
-                shortcutKey: manager.nextAvailableShortcutKey()
+                shortcutKey: manager.nextAvailableShortcutKey(),
+                profile: entry.profile
             )
             isPresented = false
         }) {
@@ -1004,9 +1071,16 @@ struct AddBrowserSheet: View {
                     Text(entry.name)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
-                    Text(entry.bundleId)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
+                    
+                    if let profile = entry.profile {
+                        Text("\(entry.bundleId) (\(profile))")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        Text(entry.bundleId)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
 
                 Spacer()
@@ -1027,7 +1101,7 @@ struct AddBrowserSheet: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.12)) {
-                hoveredBundleID = hovering ? entry.bundleId : nil
+                hoveredIdentity = hovering ? identifier : nil
             }
         }
         .accessibilityIdentifier("settings.addSheet.option")
@@ -1043,14 +1117,19 @@ struct AddRuleSheet: View {
     @State private var ruleName = ""
     @State private var hostPattern = ""
     @State private var pathPrefix = ""
-    @State private var selectedBrowserBundleID = ""
+    @State private var selectedBrowserIdentity = ""
+
+    private var effectiveBrowserIdentity: String {
+        if !selectedBrowserIdentity.isEmpty { return selectedBrowserIdentity }
+        return manager.configuredBrowsers.first?.identity ?? ""
+    }
 
     private var hostPatternIsValid: Bool {
         manager.isValidRoutingHostPattern(hostPattern)
     }
 
     private var canCreateRule: Bool {
-        hostPatternIsValid && !selectedBrowserBundleID.isEmpty
+        hostPatternIsValid
     }
 
     var body: some View {
@@ -1081,8 +1160,8 @@ struct AddRuleSheet: View {
         }
         .frame(width: 460, height: 420)
         .onAppear {
-            if selectedBrowserBundleID.isEmpty {
-                selectedBrowserBundleID = manager.configuredBrowsers.first?.bundleId ?? ""
+            if selectedBrowserIdentity.isEmpty {
+                selectedBrowserIdentity = manager.configuredBrowsers.first?.identity ?? ""
             }
         }
         .accessibilityIdentifier("settings.addRule.root")
@@ -1139,6 +1218,12 @@ struct AddRuleSheet: View {
 
             Button("Use example host") {
                 hostPattern = "github.com"
+                if ruleName.isEmpty {
+                    ruleName = "github"
+                }
+                if selectedBrowserIdentity.isEmpty {
+                    selectedBrowserIdentity = manager.configuredBrowsers.first?.identity ?? ""
+                }
             }
             .buttonStyle(.borderless)
             .font(.system(size: 10))
@@ -1166,9 +1251,9 @@ struct AddRuleSheet: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
-            Picker("Browser", selection: $selectedBrowserBundleID) {
+            Picker("Browser", selection: $selectedBrowserIdentity) {
                 ForEach(manager.configuredBrowsers) { browser in
-                    Text(browser.name).tag(browser.bundleId)
+                    Text(browser.name).tag(browser.identity)
                 }
             }
             .pickerStyle(.menu)
@@ -1187,12 +1272,15 @@ struct AddRuleSheet: View {
             Spacer()
 
             Button("Add Rule") {
-                manager.addRoutingRule(
-                    name: ruleName,
-                    hostPattern: hostPattern,
-                    pathPrefix: pathPrefix,
-                    browserBundleId: selectedBrowserBundleID
-                )
+                if let browser = manager.configuredBrowsers.first(where: { $0.identity == effectiveBrowserIdentity }) {
+                    manager.addRoutingRule(
+                        name: ruleName,
+                        hostPattern: hostPattern,
+                        pathPrefix: pathPrefix,
+                        browserBundleId: browser.bundleId,
+                        profile: browser.profile
+                    )
+                }
                 isPresented = false
             }
             .buttonStyle(.borderedProminent)

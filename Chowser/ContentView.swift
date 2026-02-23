@@ -606,14 +606,14 @@ struct ConfigureRuleView: View {
 
     @State private var ruleName = ""
     @State private var hostPattern = ""
-    @State private var selectedBrowserBundleID = ""
+    @State private var selectedBrowserIdentity = ""
 
     // Inline validation: rule name, host pattern, and browser must all be valid.
     private var isFormValid: Bool {
         !ruleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && browserManager.isValidRoutingHostPattern(hostPattern)
-            && !selectedBrowserBundleID.isEmpty
+            && !selectedBrowserIdentity.isEmpty
     }
 
     var body: some View {
@@ -689,9 +689,9 @@ struct ConfigureRuleView: View {
                 Text("Open In")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                Picker("Browser", selection: $selectedBrowserBundleID) {
+                Picker("Browser", selection: $selectedBrowserIdentity) {
                     ForEach(browserManager.configuredBrowsers) { browser in
-                        Text(browser.name).tag(browser.bundleId)
+                        Text(browser.name).tag(browser.identity)
                     }
                 }
                 .pickerStyle(.menu)
@@ -718,12 +718,15 @@ struct ConfigureRuleView: View {
 
             Button("Save Rule") {
                 // Persist the new rule using the existing rules store.
-                browserManager.addRoutingRule(
-                    name: ruleName,
-                    hostPattern: hostPattern,
-                    pathPrefix: nil,
-                    browserBundleId: selectedBrowserBundleID
-                )
+                if let browser = browserManager.configuredBrowsers.first(where: { $0.identity == selectedBrowserIdentity }) {
+                    browserManager.addRoutingRule(
+                        name: ruleName,
+                        hostPattern: hostPattern,
+                        pathPrefix: nil,
+                        browserBundleId: browser.bundleId,
+                        profile: browser.profile
+                    )
+                }
                 isPresented = false
                 onSave()
             }
@@ -751,7 +754,7 @@ struct ConfigureRuleView: View {
             ruleName = host
         }
 
-        selectedBrowserBundleID = browserManager.configuredBrowsers.first?.bundleId ?? ""
+        selectedBrowserIdentity = browserManager.configuredBrowsers.first?.identity ?? ""
     }
 }
 

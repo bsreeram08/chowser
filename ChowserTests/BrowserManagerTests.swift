@@ -75,16 +75,18 @@ struct BrowserManagerTests {
         let defaults = makeTestDefaults()
         let manager = BrowserManager(defaults: defaults)
         
-        let newBrowser = BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2")
+        let newBrowser = BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2", profile: "Work")
         manager.configuredBrowsers.append(newBrowser)
         
         #expect(manager.configuredBrowsers.count == 2)
         #expect(manager.configuredBrowsers[1].name == "Arc")
+        #expect(manager.configuredBrowsers[1].profile == "Work")
         
         // Verify persistence
         let manager2 = BrowserManager(defaults: defaults)
         #expect(manager2.configuredBrowsers.count == 2)
         #expect(manager2.configuredBrowsers[1].bundleId == "company.thebrowser.Browser")
+        #expect(manager2.configuredBrowsers[1].profile == "Work")
     }
     
     // MARK: - Remove Browser
@@ -516,5 +518,243 @@ struct BrowserManagerTests {
         let manager2 = BrowserManager(defaults: defaults)
         #expect(manager2.configuredBrowsers.count == 2)
         #expect(manager2.configuredBrowsers[0].name == "Google Chrome")
+    }
+    
+    // MARK: - Import / Export Rules
+    
+    @Test("Rules are exported and imported correctly")
+    @MainActor
+    func importExportRules() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "company.thebrowser.Browser"
+        )
+        
+        // Export to temp URL
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_export.json")
+        try manager.exportRules(to: tempURL)
+        
+        // Setup new manager and clear its rules, then import
+        let newManager = BrowserManager(defaults: makeTestDefaults())
+        newManager.configuredBrowsers = manager.configuredBrowsers
+        newManager.routingRules.removeAll()
+        #expect(newManager.routingRules.isEmpty)
+        
+        try newManager.importRules(from: tempURL)
+        
+        #expect(newManager.routingRules.count == 1)
+        #expect(newManager.routingRules[0].name == "GitHub")
+        #expect(newManager.routingRules[0].hostPattern == "github.com")
+        #expect(newManager.routingRules[0].browserBundleId == "company.thebrowser.Browser")
+        
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
+    // MARK: - Profile Support
+
+    @Test("addBrowser with profile stores profile correctly")
+    @MainActor
+    func addBrowserWithProfile() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = []
+
+        manager.addBrowser(name: "Brave - Work", bundleId: "com.brave.Browser", profile: "Profile 1")
+
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.configuredBrowsers[0].profile == "Profile 1")
+        #expect(manager.configuredBrowsers[0].name == "Brave - Work")
+    }
+
+    @Test("addBrowser prevents duplicate bundleId+profile combination")
+    @MainActor
+    func addBrowserDuplicateProfilePrevented() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = []
+
+        manager.addBrowser(name: "Brave - Work", bundleId: "com.brave.Browser", profile: "Profile 1")
+        manager.addBrowser(name: "Brave - Work", bundleId: "com.brave.Browser", profile: "Profile 1")
+
+        #expect(manager.configuredBrowsers.count == 1)
+    }
+
+    @Test("addBrowser allows same bundleId with different profiles")
+    @MainActor
+    func addBrowserDifferentProfiles() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = []
+
+        manager.addBrowser(name: "Brave - Work", bundleId: "com.brave.Browser", profile: "Profile 1")
+        manager.addBrowser(name: "Brave - Personal", bundleId: "com.brave.Browser", profile: "Profile 2")
+
+        #expect(manager.configuredBrowsers.count == 2)
+        #expect(manager.configuredBrowsers[0].profile == "Profile 1")
+        #expect(manager.configuredBrowsers[1].profile == "Profile 2")
+    }
+
+    @Test("BrowserConfig identity combines bundleId and profile")
+    func browserConfigIdentity() {
+        let withProfile = BrowserConfig(name: "Brave", bundleId: "com.brave.Browser", shortcutKey: "1", profile: "Profile 1")
+        let withoutProfile = BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "2")
+
+        #expect(withProfile.identity == "com.brave.Browser|Profile 1")
+        #expect(withoutProfile.identity == "com.apple.Safari|")
+    }
+
+    @Test("Profile persists across manager instances")
+    @MainActor
+    func profilePersistsAcrossInstances() {
+        let defaults = makeTestDefaults()
+        let manager1 = BrowserManager(defaults: defaults)
+        manager1.configuredBrowsers = [
+            BrowserConfig(name: "Brave - Work", bundleId: "com.brave.Browser", shortcutKey: "1", profile: "Profile 1"),
+        ]
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.configuredBrowsers[0].profile == "Profile 1")
+        #expect(manager2.configuredBrowsers[0].identity == "com.brave.Browser|Profile 1")
+    }
+
+    @Test("Routing rule with profile matches correct browser")
+    @MainActor
+    func routingRuleWithProfileMatchesCorrectBrowser() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Brave - Work", bundleId: "com.brave.Browser", shortcutKey: "1", profile: "Profile 1"),
+            BrowserConfig(name: "Brave - Personal", bundleId: "com.brave.Browser", shortcutKey: "2", profile: "Profile 2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.brave.Browser",
+            profile: "Profile 1"
+        )
+
+        let url = URL(string: "https://github.com/test")!
+        let route = manager.resolvedRoute(for: url)
+
+        #expect(route?.browser.profile == "Profile 1")
+        #expect(route?.browser.name == "Brave - Work")
+        #expect(route?.rule.profile == "Profile 1")
+    }
+
+    @Test("Removing browser with profile prunes matching rules only")
+    @MainActor
+    func removingBrowserWithProfilePrunesCorrectRules() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let work = BrowserConfig(name: "Brave - Work", bundleId: "com.brave.Browser", shortcutKey: "1", profile: "Profile 1")
+        let personal = BrowserConfig(name: "Brave - Personal", bundleId: "com.brave.Browser", shortcutKey: "2", profile: "Profile 2")
+        manager.configuredBrowsers = [work, personal]
+
+        manager.addRoutingRule(
+            name: "Work GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.brave.Browser",
+            profile: "Profile 1"
+        )
+        manager.addRoutingRule(
+            name: "Personal Reddit",
+            hostPattern: "reddit.com",
+            pathPrefix: nil,
+            browserBundleId: "com.brave.Browser",
+            profile: "Profile 2"
+        )
+
+        #expect(manager.routingRules.count == 2)
+
+        manager.removeBrowser(id: work.id)
+
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].name == "Personal Reddit")
+    }
+
+    @Test("Import/export preserves profile in routing rules")
+    @MainActor
+    func importExportRulesWithProfile() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Brave - Work", bundleId: "com.brave.Browser", shortcutKey: "1", profile: "Profile 1"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.brave.Browser",
+            profile: "Profile 1"
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_profile_export.json")
+        try manager.exportRules(to: tempURL)
+
+        let newManager = BrowserManager(defaults: makeTestDefaults())
+        newManager.configuredBrowsers = manager.configuredBrowsers
+        newManager.routingRules.removeAll()
+
+        try newManager.importRules(from: tempURL)
+
+        #expect(newManager.routingRules.count == 1)
+        #expect(newManager.routingRules[0].profile == "Profile 1")
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Import skips rules with duplicate IDs")
+    @MainActor
+    func importSkipsDuplicateIDs() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.apple.Safari"
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_dup_test.json")
+        try manager.exportRules(to: tempURL)
+
+        // Try importing the same rules — should not duplicate
+        try manager.importRules(from: tempURL)
+
+        #expect(manager.routingRules.count == 1)
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Installed browsers list includes profile info when profiles exist")
+    func installedBrowsersIncludeProfiles() {
+        let browsers = BrowserManager.getInstalledBrowsers()
+        let braveEntries = browsers.filter { $0.bundleId == "com.brave.Browser" }
+
+        // If Brave is installed with profiles, there should be multiple entries
+        if braveEntries.count > 1 {
+            #expect(braveEntries.allSatisfy { $0.profile != nil })
+            let profileIDs = braveEntries.compactMap(\.profile)
+            #expect(Set(profileIDs).count == braveEntries.count) // All unique
+        }
     }
 }

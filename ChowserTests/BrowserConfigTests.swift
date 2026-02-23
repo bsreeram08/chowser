@@ -10,11 +10,12 @@ struct BrowserConfigTests {
     
     @Test("Default initialization creates valid config")
     func defaultInit() {
-        let config = BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1")
+        let config = BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1", profile: "Work")
         
         #expect(config.name == "Safari")
         #expect(config.bundleId == "com.apple.Safari")
         #expect(config.shortcutKey == "1")
+        #expect(config.profile == "Work")
         #expect(config.id != UUID()) // Has a unique ID
     }
     
@@ -30,7 +31,7 @@ struct BrowserConfigTests {
     
     @Test("Encodes and decodes correctly")
     func codableRoundTrip() throws {
-        let original = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2")
+        let original = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2", profile: "Default")
         
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(BrowserConfig.self, from: data)
@@ -39,6 +40,7 @@ struct BrowserConfigTests {
         #expect(decoded.name == original.name)
         #expect(decoded.bundleId == original.bundleId)
         #expect(decoded.shortcutKey == original.shortcutKey)
+        #expect(decoded.profile == original.profile)
     }
     
     @Test("Array encodes and decodes correctly")

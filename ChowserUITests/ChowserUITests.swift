@@ -139,6 +139,108 @@ final class ChowserUITests: XCTestCase {
         ui.assertBrowserSelectionRecorded()
     }
 
+    // MARK: - Profile-Aware Tests
+
+    func testAddBrowserSheetShowsProfileEntries() throws {
+        let ui = ChowserAppDriver(app: app)
+
+        ui.openSettings()
+        ui.assertSettingsVisible()
+        ui.openAddBrowserSheet()
+
+        // The add-browser sheet should show browser options (mock or real).
+        // Each option has the identifier "settings.addSheet.option".
+        let options = app.descendants(matching: .any).matching(identifier: "settings.addSheet.option")
+        XCTAssertTrue(options.firstMatch.waitForExistence(timeout: 5), "Expected at least one browser option in add sheet.")
+        XCTAssertGreaterThanOrEqual(options.count, 1, "Should have at least one browser option displayed.")
+    }
+
+    func testAddBrowserWithProfileAppearsInList() throws {
+        let ui = ChowserAppDriver(app: app)
+
+        ui.openSettings()
+        ui.assertSettingsVisible()
+        ui.openAddBrowserSheet()
+
+        // Count browsers before adding
+        let beforeCount = ui.browserDeleteButtons.count
+
+        // Add the first available browser option
+        ui.addFirstBrowserOption()
+
+        // Browser list should grow by 1
+        let afterCount = ui.browserDeleteButtons.count
+        XCTAssertEqual(afterCount, beforeCount + 1, "Adding a browser should increase the browser list count.")
+    }
+
+    func testRulesMenuButtonExists() throws {
+        let ui = ChowserAppDriver(app: app)
+
+        ui.openSettings()
+        ui.assertSettingsVisible()
+        ui.openRulesSection()
+
+        // The rules section should have a menu button for export/import
+        let menuButton = app.descendants(matching: .any).matching(identifier: "settings.rulesMenuButton").firstMatch
+        XCTAssertTrue(menuButton.waitForExistence(timeout: 5), "Rules menu button should exist.")
+    }
+
+    func testRulesMenuShowsExportImportOptions() throws {
+        let ui = ChowserAppDriver(app: app)
+
+        ui.openSettings()
+        ui.assertSettingsVisible()
+
+        // Need at least one rule first
+        ui.openRulesSection()
+        ui.openAddRuleSheet()
+        ui.addRule(hostPattern: "example.com")
+        ui.assertRuleCreated()
+
+        // Click the menu button to open the menu
+        let menuButton = app.descendants(matching: .any).matching(identifier: "settings.rulesMenuButton").firstMatch
+        XCTAssertTrue(menuButton.waitForExistence(timeout: 5), "Rules menu button should exist.")
+        menuButton.click()
+
+        // Check that Export and Import items appear
+        let exportItem = app.menuItems["Export Rules…"]
+        let importItem = app.menuItems["Import Rules…"]
+        XCTAssertTrue(exportItem.waitForExistence(timeout: 3), "Export Rules menu item should appear.")
+        XCTAssertTrue(importItem.waitForExistence(timeout: 3), "Import Rules menu item should appear.")
+
+        // Dismiss the menu by pressing Escape
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    func testAddRuleWithBrowserPickerSelection() throws {
+        let ui = ChowserAppDriver(app: app)
+
+        ui.openSettings()
+        ui.assertSettingsVisible()
+
+        // Ensure multiple browsers are configured
+        if ui.browserDeleteButtons.count < 2 {
+            ui.openAddBrowserSheet()
+            ui.addFirstBrowserOption()
+        }
+
+        // Switch to rules and add a rule
+        ui.openRulesSection()
+        ui.openAddRuleSheet()
+
+        // Verify the browser picker is present in the add-rule sheet
+        let browserPicker = app.descendants(matching: .any).matching(identifier: "settings.addRule.browserPicker").firstMatch
+        XCTAssertTrue(browserPicker.waitForExistence(timeout: 5), "Browser picker should be present in add-rule sheet.")
+
+        // Fill the rule and submit
+        ui.addRule(hostPattern: "test.example.com")
+        ui.assertRuleCreated()
+
+        // Verify the rule's browser picker in the rules list
+        let ruleBrowserPicker = app.descendants(matching: .any).matching(identifier: "settings.rule.browserPicker").firstMatch
+        XCTAssertTrue(ruleBrowserPicker.waitForExistence(timeout: 5), "Rule should have a browser picker.")
+    }
+
     private func triggerOpenURLInChowser(_ urlString: String, file: StaticString = #filePath, line: UInt = #line) {
         guard let appURL = NSRunningApplication.runningApplications(withBundleIdentifier: chowserBundleIdentifier).first?.bundleURL else {
             XCTFail("Could not locate running Chowser app to open URL.", file: file, line: line)
@@ -289,23 +391,24 @@ private struct ChowserAppDriver {
     }
 
     func addRule(hostPattern: String) {
-        if addRuleQuickFillButton.waitForExistence(timeout: 1) {
-            addRuleQuickFillButton.click()
-        } else {
-            let hostField = resolvedAddRuleHostField()
-            XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Host pattern field not found.")
-            hostField.click()
-            hostField.typeText(hostPattern)
-
-            if !addRuleConfirmButton.isEnabled {
-                app.typeKey("\t", modifierFlags: [])
-                app.typeText(hostPattern)
-            }
+        // Fill the rule name field
+        let nameField = app.descendants(matching: .textField).matching(identifier: "settings.addRule.nameField").firstMatch
+        if nameField.waitForExistence(timeout: 3) {
+            nameField.click()
+            nameField.typeText("TestRule")
         }
 
-        XCTAssertTrue(addRuleConfirmButton.waitForExistence(timeout: 5), "Add rule confirm button not found.")
-        XCTAssertTrue(addRuleConfirmButton.isEnabled, "Add rule confirm button should be enabled.")
-        addRuleConfirmButton.click()
+        // Fill the host pattern field
+        let hostField = resolvedAddRuleHostField()
+        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Host pattern field not found.")
+        hostField.click()
+        hostField.typeText(hostPattern)
+
+        // The "Add Rule" button has .keyboardShortcut(.defaultAction),
+        // so pressing Return triggers it. XCUI can't reliably read isEnabled
+        // on .defaultAction buttons, so we use the keyboard shortcut instead.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        app.typeKey(.return, modifierFlags: [])
 
         let predicate = NSPredicate(format: "exists == false")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: addRuleSheetRoot)

@@ -8,6 +8,9 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var name: String
     var bundleId: String // e.g. "com.apple.Safari"
     var shortcutKey: String // "1", "2", etc
+    var profile: String? // Optional profile argument for browsers that support it
+
+    var identity: String { "\(bundleId)|\(profile ?? "")" }
 }
 
 struct BrowserRoutingRule: Identifiable, Codable, Hashable {
@@ -16,6 +19,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     var hostPattern: String
     var pathPrefix: String?
     var browserBundleId: String
+    var profile: String?
     var isEnabled: Bool = true
 }
 
@@ -153,13 +157,13 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         routingRules = []
     }
 
-    func addBrowser(name: String, bundleId: String, shortcutKey: String? = nil) {
-        guard !configuredBrowsers.contains(where: { $0.bundleId == bundleId }) else {
+    func addBrowser(name: String, bundleId: String, shortcutKey: String? = nil, profile: String? = nil) {
+        guard !configuredBrowsers.contains(where: { $0.bundleId == bundleId && $0.profile == profile }) else {
             return
         }
 
         let key = shortcutKey.flatMap { normalizedShortcut($0) } ?? nextAvailableShortcutKey()
-        configuredBrowsers.append(BrowserConfig(name: name, bundleId: bundleId, shortcutKey: key))
+        configuredBrowsers.append(BrowserConfig(name: name, bundleId: bundleId, shortcutKey: key, profile: profile))
     }
 
     func removeBrowser(id: UUID) {
@@ -215,10 +219,29 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         return Constants.supportedShortcutKeys.last ?? "9"
     }
 
+    // MARK: - Import / Export Rules
+
+    func exportRules(to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(routingRules)
+        try data.write(to: url)
+    }
+
+    func importRules(from url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode([BrowserRoutingRule].self, from: data)
+        
+        let existingIds = Set(routingRules.map(\.id))
+        let newRules = decoded.filter { !existingIds.contains($0.id) }
+        routingRules.append(contentsOf: newRules)
+    }
+
     // MARK: - Routing Rules
 
-    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String) {
-        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId }) else { return }
+    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil) {
+        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
 
         let normalizedHost = normalizedHostPattern(hostPattern)
         guard isValidHostPattern(normalizedHost) else { return }
@@ -231,7 +254,8 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
                 name: ruleName,
                 hostPattern: normalizedHost,
                 pathPrefix: normalizedPathPrefix(pathPrefix),
-                browserBundleId: browserBundleId
+                browserBundleId: browserBundleId,
+                profile: profile
             )
         )
     }
@@ -257,6 +281,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
             hostPattern: original.hostPattern,
             pathPrefix: original.pathPrefix,
             browserBundleId: original.browserBundleId,
+            profile: original.profile,
             isEnabled: original.isEnabled
         )
         routingRules.insert(duplicate, at: index + 1)
@@ -276,6 +301,10 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     func routingRuleBrowserBundleID(for id: UUID) -> String {
         routingRules.first(where: { $0.id == id })?.browserBundleId ?? ""
+    }
+
+    func routingRuleProfile(for id: UUID) -> String? {
+        routingRules.first(where: { $0.id == id })?.profile
     }
 
     func routingRuleIsEnabled(for id: UUID) -> Bool {
@@ -304,10 +333,11 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         routingRules[index].pathPrefix = normalizedPathPrefix(pathPrefix)
     }
 
-    func updateRoutingRuleBrowser(id: UUID, to browserBundleId: String) {
+    func updateRoutingRuleBrowser(id: UUID, to browserBundleId: String, profile: String? = nil) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId }) else { return }
+        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
         routingRules[index].browserBundleId = browserBundleId
+        routingRules[index].profile = profile
     }
 
     func updateRoutingRuleIsEnabled(id: UUID, to isEnabled: Bool) {
@@ -324,7 +354,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         for rule in routingRules where rule.isEnabled {
             guard hostMatches(host, pattern: rule.hostPattern) else { continue }
             guard pathMatches(path, prefix: rule.pathPrefix) else { continue }
-            guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId }) else { continue }
+            guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId && $0.profile == rule.profile }) else { continue }
 
             return (rule, browser)
         }
@@ -384,31 +414,41 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     // MARK: - Installed Browsers
 
-    static func getInstalledBrowsers() -> [(name: String, bundleId: String, iconURL: URL?)] {
+    static func getInstalledBrowsers() -> [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
         if AppEnvironment.shouldUseMockInstalledBrowsers {
-            let mockEntries = [
-                ("Google Chrome", "com.google.Chrome"),
-                ("Firefox", "org.mozilla.firefox"),
-                ("Safari", "com.apple.Safari"),
-                ("Zen Browser", "app.zen-browser.zen"),
+            let mockEntries: [(String, String, String?)] = [
+                ("Google Chrome", "com.google.Chrome", nil),
+                ("Firefox", "org.mozilla.firefox", nil),
+                ("Safari", "com.apple.Safari", nil),
+                ("Zen Browser", "app.zen-browser.zen", nil),
             ]
 
-            return mockEntries.map { name, bundleId in
+            return mockEntries.map { name, bundleId, profile in
                 let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId)
-                return (name, bundleId, url)
+                return (name, bundleId, profile, url)
             }
         }
 
         guard let dummyURL = URL(string: "https://example.com") else { return [] }
         let appURLs = NSWorkspace.shared.urlsForApplications(toOpen: dummyURL)
 
-        var browsers: [(String, String, URL?)] = []
+        var browsers: [(String, String, String?, URL?)] = []
         for url in appURLs {
             if let bundle = Bundle(url: url), let bundleId = bundle.bundleIdentifier {
                 let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String) ??
                            (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ??
                            url.deletingPathExtension().lastPathComponent
-                browsers.append((name, bundleId, url))
+                
+                let profiles = BrowserProfileDetector.detectProfiles(for: bundleId)
+                if profiles.isEmpty {
+                    browsers.append((name, bundleId, nil, url))
+                } else if profiles.count == 1 {
+                    browsers.append((name, bundleId, profiles[0].id, url))
+                } else {
+                    for profile in profiles {
+                        browsers.append(("\(name) - \(profile.name)", bundleId, profile.id, url))
+                    }
+                }
             }
         }
 
@@ -450,7 +490,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         return NSImage(size: NSSize(width: 64, height: 64))
     }
 
-    func open(url: URL, withBrowserBundleID bundleId: String) {
+    func open(url: URL, withBrowserBundleID bundleId: String, profile: String? = nil) {
         if AppEnvironment.shouldDisableExternalURLOpen {
             lastOpenedBrowserBundleIDForTesting = bundleId
             return
@@ -461,6 +501,14 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
+        if let profile = profile {
+            if bundleId.contains("Chrome") || bundleId.contains("edgemac") || bundleId.contains("Brave") || bundleId.contains("Arc") || bundleId.contains("Vivaldi") {
+                configuration.arguments = ["--profile-directory=\(profile)"]
+            } else if bundleId.contains("firefox") || bundleId.contains("zen") {
+                configuration.arguments = ["-P", profile]
+            }
+        }
+        
         NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
             if let error {
                 print("Failed to open URL: \(error)")
@@ -482,8 +530,8 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     }
 
     private func removeRoutingRulesWithMissingBrowsers() {
-        let validBundleIDs = Set(configuredBrowsers.map(\.bundleId))
-        let filteredRules = routingRules.filter { validBundleIDs.contains($0.browserBundleId) }
+        let validBrowserIdentities = Set(configuredBrowsers.map { "\($0.bundleId)|\($0.profile ?? "")" })
+        let filteredRules = routingRules.filter { validBrowserIdentities.contains("\($0.browserBundleId)|\($0.profile ?? "")") }
 
         if filteredRules.count != routingRules.count {
             routingRules = filteredRules

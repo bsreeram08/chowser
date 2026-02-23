@@ -1,221 +1,630 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chowser - A Browser Chooser for macOS</title>
+  <title>Chowser - The Smart Browser Chooser for macOS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            background: '#09090b', // zinc-950
+            surface: '#18181b',    // zinc-900
+            border: '#27272a',     // zinc-800
+            primary: '#3b82f6',    // blue-500
+            'primary-hover': '#2563eb', // blue-600
+          },
+          animation: {
+            'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 6s ease-in-out infinite',
+          },
+          keyframes: {
+            fadeInUp: {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    :root {
-      --bg: #0d0d0d;
-      --surface: #1a1a1a;
-      --border: #2a2a2a;
-      --text: #f0f0f0;
-      --text-secondary: #888;
-      --accent: #4a9eff;
-      --accent-hover: #6bb3ff;
+    /* Custom Glassmorphism Utilities */
+    .glass {
+      background: rgba(24, 24, 27, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
+    .glass-card {
+      background: linear-gradient(145deg, rgba(39, 39, 42, 0.6) 0%, rgba(24, 24, 27, 0.8) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     }
 
-    .container {
-      max-width: 520px;
-      text-align: center;
-    }
-
-    .icon {
-      width: 96px;
-      height: 96px;
-      margin: 0 auto 1.5rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 48px;
-    }
-
-    h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.5rem;
-    }
-
-    .tagline {
-      font-size: 1.1rem;
-      color: var(--text-secondary);
-      margin-bottom: 2rem;
-      line-height: 1.5;
-    }
-
-    .download-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.85rem 2rem;
-      font-size: 1rem;
-      font-weight: 600;
-      color: #fff;
-      background: var(--accent);
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.2s, transform 0.1s;
-    }
-
-    .download-btn:hover {
-      background: var(--accent-hover);
-      transform: translateY(-1px);
-    }
-
-    .download-btn:active {
-      transform: translateY(0);
-    }
-
-    .download-btn.loading {
-      opacity: 0.6;
+    /* Abstract Background Glows */
+    .glow-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.4;
+      z-index: -1;
       pointer-events: none;
     }
 
-    .version-badge {
-      display: inline-block;
-      margin-top: 1rem;
-      padding: 0.3rem 0.75rem;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: var(--text-secondary);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
+    .glow-1 {
+      top: -10%;
+      left: -10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(0, 0, 0, 0) 70%);
+      animation: float 8s ease-in-out infinite alternate;
     }
 
-    .version-badge a {
-      color: var(--text-secondary);
-      text-decoration: none;
+    .glow-2 {
+      bottom: -10%;
+      right: -10%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+      animation: float 12s ease-in-out infinite alternate-reverse;
     }
 
-    .version-badge a:hover {
-      color: var(--text);
+    body {
+      color: #f4f4f5;
+      /* zinc-100 */
+      background-color: var(--background);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
-    .instructions {
-      margin-top: 2.5rem;
-      text-align: left;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1.25rem 1.5rem;
+    /* Animation delays for staggered reveal */
+    .delay-100 {
+      animation-delay: 100ms;
     }
 
-    .instructions h2 {
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-secondary);
-      margin-bottom: 0.75rem;
+    .delay-200 {
+      animation-delay: 200ms;
     }
 
-    .instructions ol {
-      padding-left: 1.2rem;
-      font-size: 0.9rem;
-      line-height: 1.8;
-      color: var(--text-secondary);
+    .delay-300 {
+      animation-delay: 300ms;
     }
 
-    .instructions li {
-      padding-left: 0.25rem;
+    .delay-400 {
+      animation-delay: 400ms;
     }
 
-    .note {
-      margin-top: 0.75rem;
-      padding: 0.6rem 0.75rem;
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      background: rgba(74, 158, 255, 0.08);
-      border-radius: 8px;
-      line-height: 1.5;
+    /* Reveal on scroll setup */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
-    .footer {
-      margin-top: 2rem;
-      font-size: 0.8rem;
-      color: var(--text-secondary);
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
     }
 
-    .footer a {
-      color: var(--accent);
-      text-decoration: none;
+    /* Hide scrollbar for clean look */
+    ::-webkit-scrollbar {
+      width: 8px;
     }
 
-    .footer a:hover {
-      text-decoration: underline;
+    ::-webkit-scrollbar-track {
+      background: #09090b;
     }
 
-    .error-msg {
-      margin-top: 0.75rem;
-      font-size: 0.85rem;
-      color: #ff6b6b;
-      display: none;
+    ::-webkit-scrollbar-thumb {
+      background: #3f3f46;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #52525b;
     }
   </style>
 </head>
-<body>
-  <div class="container">
-    <div class="icon">&#127760;</div>
 
-    <h1>Chowser</h1>
-    <p class="tagline">A lightweight browser chooser for macOS.<br>Pick which browser opens every link.</p>
+<body class="bg-background min-h-screen font-sans selection:bg-primary/30 selection:text-white relative">
 
-    <a id="download-btn" class="download-btn loading" href="#">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span id="download-label">Download Now</span>
-    </a>
-
-    <div>
-      <span class="version-badge">
-        <a id="version-link" href="https://github.com/bsreeram08/chowser/releases/latest">Loading version&hellip;</a>
-      </span>
-    </div>
-
-    <p id="error-msg" class="error-msg"></p>
-
-    <div class="instructions">
-      <h2>Installation</h2>
-      <ol>
-        <li>Download and open the <strong>.dmg</strong> file</li>
-        <li>Drag <strong>Chowser</strong> to Applications</li>
-        <li>Launch Chowser &mdash; it appears in the menu bar</li>
-        <li>Right-click &rarr; Open if macOS shows a security warning</li>
-        <li>Set Chowser as your default browser when prompted</li>
-      </ol>
-      <div class="note">
-        <strong>Note:</strong> This build is unsigned. On first launch, right-click &rarr; Open to bypass Gatekeeper.
-      </div>
-    </div>
-
-    <p class="footer">
-      <a href="https://github.com/bsreeram08/chowser">GitHub</a> &middot;
-      <a href="https://github.com/bsreeram08/chowser/releases">All Releases</a> &middot;
-      <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE">MIT License</a>
-    </p>
+  <!-- Background Effects -->
+  <div class="glow-blob glow-1"></div>
+  <div class="glow-blob glow-2"></div>
+  <div
+    class="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent)] z-[-1] pointer-events-none">
   </div>
 
+  <!-- Navigation -->
+  <nav class="fixed top-0 w-full glass z-50 transition-all duration-300">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div
+          class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold text-xl leading-none">
+          &#127760;
+        </div>
+        <span class="font-bold text-xl tracking-tight text-white">Chowser</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm font-medium text-zinc-400">
+        <a href="#features" class="hover:text-white transition-colors hidden sm:block">Features</a>
+        <a href="#setup" class="hover:text-white transition-colors hidden sm:block">Setup</a>
+        <a href="#rules" class="hover:text-white transition-colors hidden sm:block">Rules</a>
+        <a href="https://github.com/bsreeram08/chowser" target="_blank"
+          class="text-zinc-300 hover:text-white transition-colors flex items-center gap-2">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current">
+            <path
+              d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+          </svg>
+          <span class="hidden sm:inline">GitHub</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <main class="relative pt-32 pb-20 px-6 sm:px-12 flex flex-col items-center justify-center min-h-[90vh]">
+    <div class="text-center max-w-3xl mx-auto z-10 w-full">
+      <div
+        class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/50 backdrop-blur text-xs font-medium text-zinc-300 mb-8 animate-fade-in-up opacity-0">
+        <span class="flex h-2 w-2 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+        </span>
+        macOS 13.0+ Supported
+      </div>
+
+      <h1
+        class="text-5xl sm:text-7xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-zinc-200 to-zinc-500 mb-6 animate-fade-in-up opacity-0 delay-100 leading-tight">
+        Take Control of <br class="hidden sm:block"> Your Links
+      </h1>
+
+      <p
+        class="text-lg sm:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up opacity-0 delay-200">
+        A lightweight macOS browser chooser. Click a link anywhere, and Chowser lets you instantly pick which browser
+        opens it. No dock icon, no bloat.
+      </p>
+
+      <div
+        class="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up opacity-0 delay-300 w-full sm:w-auto">
+        <a id="download-btn" href="#"
+          class="group relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-primary hover:bg-primary-hover text-white rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_rgba(59,130,246,0.4)] hover:shadow-[0_0_40px_-5px_rgba(59,130,246,0.6)] overflow-hidden">
+          <div
+            class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out">
+          </div>
+          <svg class="w-5 h-5 relative z-10 group-hover:-translate-y-1 transition-transform duration-300"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span id="download-label" class="relative z-10">Download for Mac</span>
+        </a>
+        <a href="#setup"
+          class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700 text-white rounded-2xl font-semibold text-lg transition-all duration-300 backdrop-blur-md">
+          View Setup Guide
+        </a>
+      </div>
+
+      <div class="mt-8 animate-fade-in-up opacity-0 delay-400">
+        <a id="version-link" href="https://github.com/bsreeram08/chowser/releases/latest"
+          class="text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+            </path>
+          </svg>
+          Fetching latest release...
+        </a>
+        <p id="error-msg" class="text-sm text-red-400 mt-2 hidden"></p>
+      </div>
+
+    </div>
+
+    <!-- Preview Image/UI Mockup -->
+    <div
+      class="mt-20 z-10 animate-fade-in-up opacity-0 delay-400 transform hover:scale-[1.01] transition-transform duration-500 flex justify-center w-full">
+      <!-- macOS Window Mockup -->
+      <div
+        class="w-[364px] bg-[#1a1a1a]/80 backdrop-blur-[40px] rounded-[16px] border border-white/[0.15] shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col font-sans">
+
+        <!-- Header -->
+        <div class="flex items-center px-[14px] py-[8px]">
+          <span class="ml-1.5 text-[14px] font-semibold text-zinc-200 tracking-[0.01em]">Open with…</span>
+          <div class="flex-1"></div>
+          <div
+            class="w-6 h-6 rounded-full bg-transparent hover:bg-white/10 flex items-center justify-center text-zinc-400 cursor-pointer transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+              </path>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <div
+            class="w-6 h-6 rounded-full bg-transparent hover:bg-white/10 flex items-center justify-center text-zinc-400 cursor-pointer transition-colors ml-1">
+            <svg class="w-[11px] h-[11px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div class="h-[1px] w-full bg-white/[0.08]"></div>
+
+        <!-- URL display -->
+        <div class="px-[14px] py-[10px] bg-white/[0.03] flex items-center gap-[8px]">
+          <svg class="w-3 h-3 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1">
+            </path>
+          </svg>
+          <div class="flex flex-col gap-[2px] overflow-hidden">
+            <div class="text-[12px] font-medium text-zinc-400 truncate tracking-wide">github.com</div>
+            <div class="text-[10px] text-zinc-500 font-mono truncate">/bsreeram08/chowser</div>
+          </div>
+        </div>
+
+        <!-- Browser list -->
+        <div class="p-[6px] flex flex-col gap-[4px]">
+
+          <!-- Safari -->
+          <div
+            class="flex items-center gap-[10px] p-[10px] pl-[10px] pr-[6px] rounded-[10px] bg-white/[0.1] cursor-pointer">
+            <div
+              class="w-[32px] h-[32px] rounded-[8px] bg-gradient-to-br from-[#1b8cff] to-[#0151c6] flex items-center justify-center text-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] ring-1 ring-inset ring-white/20">
+              <svg class="w-5 h-5 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 20.33a8.33 8.33 0 1 1 0-16.66 8.33 8.33 0 0 1 0 16.66Z" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="m15.34 8.66-2.22 4.68-4.68 2.22 2.22-4.68 4.68-2.22Z" />
+              </svg>
+            </div>
+            <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Safari</span>
+            <div class="flex-1"></div>
+            <div
+              class="bg-white/10 px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-400 shadow-sm border border-transparent">
+              1
+            </div>
+          </div>
+
+          <!-- Firefox -->
+          <div
+            class="flex items-center gap-[10px] p-[10px] pl-[10px] pr-[6px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors">
+            <div
+              class="w-[32px] h-[32px] rounded-[8px] bg-gradient-to-br from-[#ff9500] to-[#ff3b30] flex items-center justify-center text-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] ring-1 ring-inset ring-white/20">
+              <svg class="w-5 h-5 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+              </svg>
+            </div>
+            <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Firefox</span>
+            <div class="flex-1"></div>
+            <div
+              class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-500 shadow-sm border border-white/[0.02]">
+              2
+            </div>
+          </div>
+
+          <!-- Chrome -->
+          <div
+            class="flex items-center gap-[10px] p-[10px] pl-[10px] pr-[6px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors">
+            <div
+              class="w-[32px] h-[32px] rounded-[8px] bg-[#f8f9fa] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.3)] ring-1 ring-inset ring-black/10 overflow-hidden relative">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 48 48"
+                  height="48" width="48">
+                  <defs>
+                    <linearGradient id="a" x1="3.2173" y1="15" x2="44.7812" y2="15" gradientUnits="userSpaceOnUse">
+                      <stop offset="0" stop-color="#d93025" />
+                      <stop offset="1" stop-color="#ea4335" />
+                    </linearGradient>
+                    <linearGradient id="b" x1="20.7219" y1="47.6791" x2="41.5039" y2="11.6837"
+                      gradientUnits="userSpaceOnUse">
+                      <stop offset="0" stop-color="#fcc934" />
+                      <stop offset="1" stop-color="#fbbc04" />
+                    </linearGradient>
+                    <linearGradient id="c" x1="26.5981" y1="46.5015" x2="5.8161" y2="10.506"
+                      gradientUnits="userSpaceOnUse">
+                      <stop offset="0" stop-color="#1e8e3e" />
+                      <stop offset="1" stop-color="#34a853" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="24" cy="23.9947" r="12" style="fill:#fff" />
+                  <path
+                    d="M3.2154,36A24,24,0,1,0,12,3.2154,24,24,0,0,0,3.2154,36ZM34.3923,18A12,12,0,1,1,18,13.6077,12,12,0,0,1,34.3923,18Z"
+                    style="fill:none" />
+                  <path
+                    d="M24,12H44.7812a23.9939,23.9939,0,0,0-41.5639.0029L13.6079,30l.0093-.0024A11.9852,11.9852,0,0,1,24,12Z"
+                    style="fill:url(#a)" />
+                  <circle cx="24" cy="24" r="9.5" style="fill:#1a73e8" />
+                  <path
+                    d="M34.3913,30.0029,24.0007,48A23.994,23.994,0,0,0,44.78,12.0031H23.9989l-.0025.0093A11.985,11.985,0,0,1,34.3913,30.0029Z"
+                    style="fill:url(#b)" />
+                  <path
+                    d="M13.6086,30.0031,3.218,12.006A23.994,23.994,0,0,0,24.0025,48L34.3931,30.0029l-.0067-.0068a11.9852,11.9852,0,0,1-20.7778.007Z"
+                    style="fill:url(#c)" />
+                </svg>
+              </div>
+            </div>
+            <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Google Chrome</span>
+            <div class="flex-1"></div>
+            <div
+              class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-500 shadow-sm border border-white/[0.02]">
+              3
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Hint bar -->
+        <div class="flex items-center gap-[6px] px-[14px] pb-[8px]">
+          <svg class="w-2.5 h-2.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>
+          <span class="text-[10px] text-zinc-500 tracking-wide font-medium">1–9 select • Type initial • Tab/↑/↓ navigate
+            • Return open • Esc close</span>
+        </div>
+
+        <!-- Configure Rule (bottom button) -->
+        <div class="px-[14px]">
+          <div class="h-[1px] w-full bg-white/[0.08]"></div>
+        </div>
+
+        <div
+          class="flex items-center justify-center gap-[5px] py-[8px] cursor-pointer hover:bg-white/[0.05] transition-colors mt-[4px] mb-[4px]">
+          <svg class="w-2.5 h-2.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+          </svg>
+          <span class="text-[11px] font-medium text-zinc-400 tracking-wide">Configure Rule</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Setup Section -->
+  <section id="setup" class="py-24 px-6 sm:px-12 relative border-t border-zinc-800/50 bg-zinc-900/20">
+    <div class="max-w-4xl mx-auto reveal">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4 tracking-tight">Seamless Installation</h2>
+        <p class="text-zinc-400 max-w-2xl mx-auto">Get up and running in seconds. Chowser is designed to be lightweight
+          and unobtrusive.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Step 1 -->
+        <div
+          class="glass-card p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-500/50 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-100 opacity-0">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            1</div>
+          <h3 class="text-xl font-bold mb-2">Download & Install</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">Download the latest <strong>.dmg</strong> file. Open it and
+            drag the Chowser app icon into your Applications folder.</p>
+        </div>
+
+        <!-- Step 2 -->
+        <div
+          class="glass-card p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-500/50 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-100 opacity-0">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            2</div>
+          <h3 class="text-xl font-bold mb-2">Launch & Bypass Warning</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">Launch Chowser from Applications. Because this is an unsigned
+            build, on the first launch, you must <strong>Right-click &rarr; Open</strong> to bypass macOS Gatekeeper.
+          </p>
+        </div>
+
+        <!-- Step 3 -->
+        <div
+          class="glass-card p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-500/50 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-100 opacity-0">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            3</div>
+          <h3 class="text-xl font-bold mb-2">Set as Default</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">Follow the onboarding prompts to set Chowser as your default
+            browser. It will now intercept links and live quietly in your menu bar.</p>
+        </div>
+
+        <!-- Step 4 -->
+        <div
+          class="glass-card p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-500/50 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-100 opacity-0">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            4</div>
+          <h3 class="text-xl font-bold mb-2">Configure Browsers</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">Click the menu bar icon -> Settings to add your installed
+            browsers, reorder them, and configure custom routing rules.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Rules & Configuration Section -->
+  <section id="rules" class="py-24 px-6 sm:px-12 relative border-t border-zinc-800/50">
+    <div
+      class="absolute left-0 top-1/2 -translate-y-1/2 w-64 h-64 bg-primary/5 rounded-full blur-3xl -ml-32 pointer-events-none">
+    </div>
+    <div class="max-w-4xl mx-auto reveal">
+      <div class="mb-12">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4 tracking-tight">Smart Routing Rules</h2>
+        <p class="text-zinc-400 max-w-2xl text-lg">Never pick a browser manually again. Set up powerful rules to
+          auto-route specific domains to work, personal, or testing browsers.</p>
+      </div>
+
+      <div class="glass-card rounded-2xl border border-zinc-700/80 overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_1.5fr] divide-y md:divide-y-0 md:divide-x divide-zinc-700/50">
+
+          <!-- Rules Explanation -->
+          <div class="p-8 bg-zinc-800/20">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              How Rules Work
+            </h3>
+            <p class="text-sm text-zinc-400 mb-6 leading-relaxed">
+              Rules execute from <strong>top to bottom</strong>. When you click a link, Chowser checks the URL against
+              your rules. The first matching rule automatically opens the link in the assigned browser, bypassing the
+              picker.
+            </p>
+
+            <ul class="space-y-4">
+              <li class="flex items-start gap-3">
+                <div
+                  class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div class="text-sm">
+                  <span class="text-white font-medium">Domain Matching</span>
+                  <p class="text-zinc-500 mt-1">Match exact domains or use wildcards (e.g., <code
+                      class="bg-zinc-800 px-1 py-0.5 rounded text-xs text-primary font-mono">*.google.com</code>) or
+                    regex.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <div
+                  class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div class="text-sm">
+                  <span class="text-white font-medium">URL Matching</span>
+                  <p class="text-zinc-500 mt-1">Match specific paths or full URLs containing certain keywords.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Code/Visual Example -->
+          <div class="p-8 bg-zinc-900 flex flex-col justify-center">
+            <div
+              class="bg-[#1e1e1e] rounded-xl border border-zinc-700/50 p-4 font-mono text-xs sm:text-sm overflow-x-auto shadow-inner">
+              <div class="flex gap-2 mb-3 px-2">
+                <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+                <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+                <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+              </div>
+              <div class="text-zinc-400 space-y-2 px-2">
+                <p><span class="text-pink-400"># Open work links in Chrome</span></p>
+                <p>IF url <span class="text-blue-400">contains</span> <span
+                    class="text-amber-300">"github.com/company"</span></p>
+                <p class="pl-4">&rarr; OPEN IN <span class="text-green-400">Google Chrome</span></p>
+                <p class="mt-4"><span class="text-pink-400"># Open banking in Safari</span></p>
+                <p>IF domain <span class="text-blue-400">matches</span> <span
+                    class="text-amber-300">"*.chase.com"</span></p>
+                <p class="pl-4">&rarr; OPEN IN <span class="text-green-400">Safari</span></p>
+                <p class="mt-4"><span class="text-pink-400"># Fallback behavior</span></p>
+                <p>ELSE</p>
+                <p class="pl-4">&rarr; SHOW <span class="text-purple-400">Browser Picker</span></p>
+              </div>
+            </div>
+
+            <div class="mt-6 flex items-center justify-between text-xs text-zinc-500">
+              <span class="flex items-center gap-1.5"><kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">1-9</kbd>
+                Quick Pick Shortcuts</span>
+              <span class="flex items-center gap-1.5"><kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">↑/↓</kbd>
+                + <kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">Enter</kbd>
+                Navigate</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-800/50 bg-background py-10 px-6 sm:px-12">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div
+          class="w-6 h-6 rounded bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs">
+          &#127760;
+        </div>
+        <span class="font-semibold text-zinc-300">Chowser</span>
+      </div>
+
+      <div class="flex items-center gap-6 text-sm text-zinc-500">
+        <a href="https://github.com/bsreeram08/chowser" class="hover:text-white transition-colors">GitHub Repository</a>
+        <a href="https://github.com/bsreeram08/chowser/releases" class="hover:text-white transition-colors">Releases</a>
+        <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE" class="hover:text-white transition-colors">MIT
+          License</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
   <script>
+    // Reveal Navigation on Scroll
+    const nav = document.querySelector('nav');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 20) {
+        nav.classList.add('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
+        nav.classList.remove('bg-transparent');
+      } else {
+        nav.classList.remove('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
+        nav.classList.add('bg-transparent');
+      }
+    });
+
+    // Reveal Elements on Scroll
+    const revealElements = document.querySelectorAll('.reveal');
+    const revealOptions = {
+      threshold: 0.15,
+      rootMargin: "0px 0px -50px 0px"
+    };
+
+    const revealOnScroll = new IntersectionObserver(function (entries, observer) {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) {
+          return;
+        } else {
+          entry.target.classList.add('active');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, revealOptions);
+
+    revealElements.forEach(el => {
+      revealOnScroll.observe(el);
+    });
+
+    // Fetch Latest Release Logic (from original)
     (async function () {
       const btn = document.getElementById("download-btn");
       const label = document.getElementById("download-label");
@@ -223,40 +632,34 @@
       const errorMsg = document.getElementById("error-msg");
 
       try {
-        const res = await fetch(
-          "https://api.github.com/repos/bsreeram08/chowser/releases/latest"
-        );
-
+        const res = await fetch("https://api.github.com/repos/bsreeram08/chowser/releases/latest");
         if (!res.ok) throw new Error("GitHub API returned " + res.status);
 
         const release = await res.json();
         const version = release.tag_name.replace(/^v/, "");
-        const dmg = release.assets.find(function (a) {
-          return a.name.endsWith(".dmg");
-        });
+        const dmg = release.assets.find(a => a.name.endsWith(".dmg"));
 
         if (!dmg) throw new Error("No DMG asset found in latest release");
 
         btn.href = dmg.browser_download_url;
-        btn.classList.remove("loading");
-        label.textContent = "Download Now";
+        label.innerHTML = "Download <span class='opacity-80 text-sm ml-1'>v" + version + "</span>";
 
-        versionLink.textContent = "v" + version + " \u00b7 macOS";
+        versionLink.innerHTML = `<svg class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> v${version} for macOS 13.0+`;
         versionLink.href = release.html_url;
       } catch (err) {
-        // Fallback: link directly to the releases page.
         btn.href = "https://github.com/bsreeram08/chowser/releases/latest";
-        btn.classList.remove("loading");
-        label.textContent = "Download Now";
+        label.textContent = "View Releases";
 
-        versionLink.textContent = "Latest release";
+        versionLink.innerHTML = "Latest release on GitHub";
         versionLink.href = "https://github.com/bsreeram08/chowser/releases/latest";
 
-        errorMsg.style.display = "block";
-        errorMsg.textContent =
-          "Could not fetch release info automatically. Click the button to go to the releases page.";
+        errorMsg.classList.remove('hidden');
+        errorMsg.classList.add('block');
+        errorMsg.textContent = "Could not fetch direct download automatically. Click above to view releases.";
+        console.error("Release fetch error:", err);
       }
     })();
   </script>
 </body>
+
 </html>

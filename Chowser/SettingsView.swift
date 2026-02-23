@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var ruleTestInput = ""
     @State private var browserSearchText = ""
     @State private var ruleSearchText = ""
+    @State private var newHiddenBundleId = ""
 
     private let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -807,21 +808,63 @@ struct SettingsView: View {
                     Text("Maintenance")
                 }
 
+
+
                 Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Replay onboarding and installation guidance.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Apps registered as URL handlers that you don't want in the browser list.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
 
-                        Button("Open Onboarding") {
-                            NotificationCenter.default.post(name: Notification.Name("openOnboardingWindow"), object: nil)
-                            NSApp.activate(ignoringOtherApps: true)
+                        if browserManager.hiddenBundleIDs.isEmpty {
+                            Text("No hidden apps.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                                .padding(.vertical, 4)
+                        } else {
+                            ForEach(Array(browserManager.hiddenBundleIDs.sorted()), id: \.self) { bundleId in
+                                HStack {
+                                    Text(bundleId)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Button {
+                                        browserManager.removeHiddenBundleID(bundleId)
+                                    } label: {
+                                        Image(systemName: "eye")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Show this app in the browser list")
+                                }
+                            }
                         }
-                        .accessibilityIdentifier("settings.openOnboardingButton")
+
+                        Divider()
+
+                        HStack(spacing: 8) {
+                            TextField("Bundle ID (e.g. com.example.app)", text: $newHiddenBundleId)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 11, design: .monospaced))
+
+                            Button("Hide") {
+                                let trimmed = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmed.isEmpty else { return }
+                                browserManager.addHiddenBundleID(trimmed)
+                                newHiddenBundleId = ""
+                            }
+                            .disabled(newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+
+                        Button("Reset to Defaults") {
+                            browserManager.resetHiddenBundleIDs()
+                        }
+                        .font(.system(size: 11))
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("Setup")
+                    Text("Hidden Apps")
                 }
 
                 Section {
@@ -958,13 +1001,16 @@ struct AddBrowserSheet: View {
     @Binding var isPresented: Bool
 
     @State private var availableBrowsers: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] = []
+    @State private var allBrowsersIncludingHidden: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] = []
     @State private var hoveredIdentity: String?
     @State private var searchText = ""
+    @State private var showHiddenApps = false
 
     private var filteredBrowsers: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
         let configuredIdentities = Set(manager.configuredBrowsers.map { "\($0.bundleId)|\($0.profile ?? "")" })
 
-        let candidates = availableBrowsers.filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
+        let source = showHiddenApps ? allBrowsersIncludingHidden : availableBrowsers
+        let candidates = source.filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedQuery.isEmpty else {
@@ -1004,6 +1050,12 @@ struct AddBrowserSheet: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .accessibilityIdentifier("settings.addSheet.searchField")
+
+                Toggle("Show hidden", isOn: $showHiddenApps)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(.system(size: 10))
+                    .accessibilityIdentifier("settings.addSheet.showHiddenToggle")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -1026,8 +1078,12 @@ struct AddBrowserSheet: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(filteredBrowsers, id: \.name) { entry in
-                            browserOption(entry: entry)
+                        let items = filteredBrowsers
+                        ForEach(items.indices, id: \.self) { index in
+                            let entry = items[index]
+                            let isHidden = manager.hiddenBundleIDs.contains(entry.bundleId)
+                            browserOption(entry: entry, isHidden: isHidden)
+                                .id("\(entry.bundleId)|\(entry.profile ?? "")")
                         }
                     }
                     .padding(12)
@@ -1037,68 +1093,91 @@ struct AddBrowserSheet: View {
         .frame(width: 420, height: 420)
         .onAppear {
             availableBrowsers = BrowserManager.getInstalledBrowsers()
+            allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
         }
         .accessibilityIdentifier("settings.addSheet.root")
     }
 
-    private func browserOption(entry: (name: String, bundleId: String, profile: String?, iconURL: URL?)) -> some View {
+    private func browserOption(entry: (name: String, bundleId: String, profile: String?, iconURL: URL?), isHidden: Bool = false) -> some View {
         let identifier = "\(entry.bundleId)|\(entry.profile ?? "")"
         let isHovered = hoveredIdentity == identifier
 
-        return Button(action: {
-            manager.addBrowser(
-                name: entry.name,
-                bundleId: entry.bundleId,
-                shortcutKey: manager.nextAvailableShortcutKey(),
-                profile: entry.profile
-            )
-            isPresented = false
-        }) {
-            HStack(spacing: 12) {
-                if let icon = BrowserManager.icon(forBrowserBundleID: entry.bundleId, fallbackURL: entry.iconURL) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 32, height: 32)
-                } else {
-                    Image(systemName: "globe")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
-                    
-                    if let profile = entry.profile {
-                        Text("\(entry.bundleId) (\(profile))")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.tertiary)
+        return HStack(spacing: 0) {
+            Button(action: {
+                manager.addBrowser(
+                    name: entry.name,
+                    bundleId: entry.bundleId,
+                    shortcutKey: manager.nextAvailableShortcutKey(),
+                    profile: entry.profile
+                )
+                isPresented = false
+            }) {
+                HStack(spacing: 12) {
+                    if let icon = BrowserManager.icon(forBrowserBundleID: entry.bundleId, fallbackURL: entry.iconURL) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: 32, height: 32)
                     } else {
-                        Text(entry.bundleId)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.tertiary)
+                        Image(systemName: "globe")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
                     }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.name)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(isHidden ? .secondary : .primary)
+
+                        if let profile = entry.profile {
+                            Text("\(entry.bundleId) (\(profile))")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        } else {
+                            Text(entry.bundleId)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.blue)
+                        .opacity(isHovered ? 1.0 : 0.5)
                 }
-
-                Spacer()
-
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.blue)
-                    .opacity(isHovered ? 1.0 : 0.5)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isHovered ? .white.opacity(0.08) : .clear)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .buttonStyle(.plain)
+
+            if showHiddenApps {
+                Button {
+                    if isHidden {
+                        manager.removeHiddenBundleID(entry.bundleId)
+                    } else {
+                        manager.addHiddenBundleID(entry.bundleId)
+                    }
+                    // Refresh the lists
+                    availableBrowsers = BrowserManager.getInstalledBrowsers()
+                    allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
+                } label: {
+                    Image(systemName: isHidden ? "eye.slash" : "eye")
+                        .font(.system(size: 11))
+                        .foregroundStyle(isHidden ? .orange : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(isHidden ? "Unhide from browser list" : "Hide from browser list")
+                .padding(.trailing, 8)
+            }
         }
-        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isHovered ? .white.opacity(0.08) : .clear)
+        )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.12)) {
                 hoveredIdentity = hovering ? identifier : nil

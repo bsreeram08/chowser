@@ -29,7 +29,19 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         static let defaultsKey = "configuredBrowsers"
         static let onboardingCompletedKey = "onboardingCompleted"
         static let routingRulesKey = "routingRules"
+        static let hiddenBundleIDsKey = "hiddenBundleIDs"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+        /// Apps that register as HTTP handlers but are not browsers.
+        static let defaultHiddenBundleIDs: Set<String> = [
+            "com.mxtech.mxplayerforios",
+            "com.mxtech.videoplayer.pro",
+            "com.mxplayer.mac",
+            "com.rockysandstudio.MKPlayer",
+            "io.mpv",
+            "com.colliderli.iina",
+            "org.videolan.vlc",
+        ]
     }
 
     static let shared = BrowserManager(defaults: makeDefaultStore())
@@ -63,6 +75,12 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     var currentURL: URL?
     var lastOpenedBrowserBundleIDForTesting: String?
 
+    var hiddenBundleIDs: Set<String> = [] {
+        didSet {
+            defaults.set(Array(hiddenBundleIDs), forKey: Constants.hiddenBundleIDsKey)
+        }
+    }
+
     @ObservationIgnored private let defaultsKey: String
     @ObservationIgnored let defaults: UserDefaults
 
@@ -78,6 +96,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
         load()
         loadRoutingRules()
+        loadHiddenBundleIDs()
         removeRoutingRulesWithMissingBrowsers()
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
@@ -414,7 +433,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     // MARK: - Installed Browsers
 
-    static func getInstalledBrowsers() -> [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
+    static func getInstalledBrowsers(includeHidden: Bool = false) -> [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
         if AppEnvironment.shouldUseMockInstalledBrowsers {
             let mockEntries: [(String, String, String?)] = [
                 ("Google Chrome", "com.google.Chrome", nil),
@@ -429,34 +448,48 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
             }
         }
 
-        guard let dummyURL = URL(string: "https://example.com") else { return [] }
+        guard let dummyURL = URL(string: "https://sreerams.in") else { return [] }
         let appURLs = NSWorkspace.shared.urlsForApplications(toOpen: dummyURL)
 
+        // Apps that register as HTTP handlers but aren't browsers.
+        let blockedBundleIDs = shared.hiddenBundleIDs
+
+        let myBundleId = Bundle.main.bundleIdentifier ?? ""
+
         var browsers: [(String, String, String?, URL?)] = []
+        var seenIdentities: Set<String> = []
+
         for url in appURLs {
-            if let bundle = Bundle(url: url), let bundleId = bundle.bundleIdentifier {
-                let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String) ??
-                           (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ??
-                           url.deletingPathExtension().lastPathComponent
-                
-                let profiles = BrowserProfileDetector.detectProfiles(for: bundleId)
-                if profiles.isEmpty {
-                    browsers.append((name, bundleId, nil, url))
-                } else if profiles.count == 1 {
-                    browsers.append((name, bundleId, profiles[0].id, url))
-                } else {
-                    for profile in profiles {
-                        browsers.append(("\(name) - \(profile.name)", bundleId, profile.id, url))
-                    }
+            guard let bundle = Bundle(url: url), let bundleId = bundle.bundleIdentifier else { continue }
+
+            // Skip Chowser, Safari WebApps, and known non-browsers.
+            if bundleId == myBundleId { continue }
+            if bundleId.contains("apple.Safari.WebApp") { continue }
+            if !includeHidden && blockedBundleIDs.contains(bundleId) { continue }
+
+            let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String) ??
+                       (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ??
+                       url.deletingPathExtension().lastPathComponent
+
+            let profiles = BrowserProfileDetector.detectProfiles(for: bundleId)
+            if profiles.isEmpty {
+                let identity = "\(bundleId)|"
+                guard seenIdentities.insert(identity).inserted else { continue }
+                browsers.append((name, bundleId, nil, url))
+            } else if profiles.count == 1 {
+                let identity = "\(bundleId)|\(profiles[0].id)"
+                guard seenIdentities.insert(identity).inserted else { continue }
+                browsers.append((name, bundleId, profiles[0].id, url))
+            } else {
+                for profile in profiles {
+                    let identity = "\(bundleId)|\(profile.id)"
+                    guard seenIdentities.insert(identity).inserted else { continue }
+                    browsers.append(("\(name) - \(profile.name)", bundleId, profile.id, url))
                 }
             }
         }
 
-        // Filter out Chowser itself.
-        let myBundleId = Bundle.main.bundleIdentifier ?? ""
-        return browsers
-            .filter { $0.1 != myBundleId && !$0.1.contains("apple.Safari.WebApp") }
-            .sorted { $0.0 < $1.0 }
+        return browsers.sorted { $0.0 < $1.0 }
     }
 
     static func icon(forBrowserBundleID bundleId: String, fallbackURL: URL? = nil) -> NSImage? {
@@ -527,6 +560,27 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     private func clearPersistedRoutingRules() {
         defaults.removeObject(forKey: Constants.routingRulesKey)
+    }
+
+    private func loadHiddenBundleIDs() {
+        if let stored = defaults.array(forKey: Constants.hiddenBundleIDsKey) as? [String] {
+            hiddenBundleIDs = Set(stored)
+        } else {
+            // First launch: seed with defaults
+            hiddenBundleIDs = Constants.defaultHiddenBundleIDs
+        }
+    }
+
+    func addHiddenBundleID(_ bundleId: String) {
+        hiddenBundleIDs.insert(bundleId)
+    }
+
+    func removeHiddenBundleID(_ bundleId: String) {
+        hiddenBundleIDs.remove(bundleId)
+    }
+
+    func resetHiddenBundleIDs() {
+        hiddenBundleIDs = Constants.defaultHiddenBundleIDs
     }
 
     private func removeRoutingRulesWithMissingBrowsers() {

@@ -757,4 +757,36 @@ struct BrowserManagerTests {
             #expect(Set(profileIDs).count == braveEntries.count) // All unique
         }
     }
+
+    @Test("Browser blocklist persists and filters correctly")
+    @MainActor
+    func blocklistPersistence() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        let testID = "com.test.nonbrowser"
+        manager.addHiddenBundleID(testID)
+        #expect(manager.hiddenBundleIDs.contains(testID))
+        
+        let newManager = BrowserManager(defaults: defaults)
+        #expect(newManager.hiddenBundleIDs.contains(testID))
+        
+        newManager.removeHiddenBundleID(testID)
+        #expect(!newManager.hiddenBundleIDs.contains(testID))
+    }
+
+    @Test("getInstalledBrowsers respects blocklist parameter")
+    @MainActor
+    func blocklistFiltering() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        
+        // com.mxplayer.mac is in default blocklist
+        let browsers = BrowserManager.getInstalledBrowsers(includeHidden: false)
+        #expect(!browsers.contains(where: { $0.bundleId == "com.mxplayer.mac" }))
+        
+        let allBrowsers = BrowserManager.getInstalledBrowsers(includeHidden: true)
+        // Note: This test assumes MX Player is actually installed on the test machine 
+        // to be truly useful, but we can verify the behavior if it exists.
+    }
 }

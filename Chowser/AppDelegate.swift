@@ -12,20 +12,11 @@ import ServiceManagement
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var pickerWindowObserver: NSObjectProtocol?
-    private var onboardingRequestObserver: NSObjectProtocol?
-    private var onboardingWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusBar()
         startObservingPickerWindows()
-        startObservingOnboardingRequests()
         configureVisiblePickerWindows()
-
-        if shouldShowOnboardingOnLaunch {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                self.showOnboardingWindow(markAsSeen: true)
-            }
-        }
 
         if AppEnvironment.shouldOpenSettingsOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -44,10 +35,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let observer = pickerWindowObserver {
             NotificationCenter.default.removeObserver(observer)
             pickerWindowObserver = nil
-        }
-        if let observer = onboardingRequestObserver {
-            NotificationCenter.default.removeObserver(observer)
-            onboardingRequestObserver = nil
         }
     }
     
@@ -98,9 +85,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
-        let onboardingItem = NSMenuItem(title: "Welcome & Setup…", action: #selector(openOnboarding), keyEquivalent: "")
-        onboardingItem.target = self
-        menu.addItem(onboardingItem)
+
         
         let defaultBrowserItem = NSMenuItem(title: "Set as Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
         defaultBrowserItem.target = self
@@ -135,9 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NotificationCenter.default.post(name: Notification.Name("openSettingsWindow"), object: nil)
     }
 
-    @objc private func openOnboarding() {
-        showOnboardingWindow()
-    }
+
     
     private func showPicker() {
         NSApp.activate(ignoringOtherApps: true)
@@ -239,72 +222,4 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.standardWindowButton(.zoomButton)?.isHidden = true
     }
 
-    private var shouldShowOnboardingOnLaunch: Bool {
-        if AppEnvironment.isUITesting {
-            return false
-        }
-
-        return !BrowserManager.shared.hasCompletedOnboarding
-    }
-
-    private func startObservingOnboardingRequests() {
-        onboardingRequestObserver = NotificationCenter.default.addObserver(
-            forName: Notification.Name("openOnboardingWindow"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.showOnboardingWindow()
-        }
-    }
-
-    private func showOnboardingWindow(markAsSeen: Bool = false) {
-        if markAsSeen {
-            BrowserManager.shared.completeOnboarding()
-        }
-
-        if let window = onboardingWindow {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-            return
-        }
-
-        let content = OnboardingView(
-            onOpenSettings: { [weak self] in
-                self?.openSettings()
-            },
-            onFinish: { [weak self] in
-                self?.finishOnboarding()
-            }
-        )
-
-        let hostingController = NSHostingController(rootView: content)
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Welcome to Chowser"
-        window.styleMask.remove(.miniaturizable)
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.setContentSize(NSSize(width: 700, height: 520))
-        window.minSize = NSSize(width: 700, height: 520)
-        window.center()
-        window.delegate = self
-
-        onboardingWindow = window
-
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
-    }
-
-    private func finishOnboarding() {
-        BrowserManager.shared.completeOnboarding()
-        onboardingWindow?.close()
-        onboardingWindow = nil
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        if window == onboardingWindow {
-            onboardingWindow = nil
-        }
-    }
 }

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chowser - A Browser Chooser for macOS</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --text-secondary: #888;
+      --accent: #4a9eff;
+      --accent-hover: #6bb3ff;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 520px;
+      text-align: center;
+    }
+
+    .icon {
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.85rem 2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .download-btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .download-btn:active {
+      transform: translateY(0);
+    }
+
+    .download-btn.loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .version-badge {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+    }
+
+    .version-badge a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    .version-badge a:hover {
+      color: var(--text);
+    }
+
+    .instructions {
+      margin-top: 2.5rem;
+      text-align: left;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .instructions h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .instructions ol {
+      padding-left: 1.2rem;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+    }
+
+    .instructions li {
+      padding-left: 0.25rem;
+    }
+
+    .note {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      background: rgba(74, 158, 255, 0.08);
+      border-radius: 8px;
+      line-height: 1.5;
+    }
+
+    .footer {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    .error-msg {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: #ff6b6b;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">&#127760;</div>
+
+    <h1>Chowser</h1>
+    <p class="tagline">A lightweight browser chooser for macOS.<br>Pick which browser opens every link.</p>
+
+    <a id="download-btn" class="download-btn loading" href="#">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span id="download-label">Download Now</span>
+    </a>
+
+    <div>
+      <span class="version-badge">
+        <a id="version-link" href="https://github.com/bsreeram08/chowser/releases/latest">Loading version&hellip;</a>
+      </span>
+    </div>
+
+    <p id="error-msg" class="error-msg"></p>
+
+    <div class="instructions">
+      <h2>Installation</h2>
+      <ol>
+        <li>Download and open the <strong>.dmg</strong> file</li>
+        <li>Drag <strong>Chowser</strong> to Applications</li>
+        <li>Launch Chowser &mdash; it appears in the menu bar</li>
+        <li>Right-click &rarr; Open if macOS shows a security warning</li>
+        <li>Set Chowser as your default browser when prompted</li>
+      </ol>
+      <div class="note">
+        <strong>Note:</strong> This build is unsigned. On first launch, right-click &rarr; Open to bypass Gatekeeper.
+      </div>
+    </div>
+
+    <p class="footer">
+      <a href="https://github.com/bsreeram08/chowser">GitHub</a> &middot;
+      <a href="https://github.com/bsreeram08/chowser/releases">All Releases</a> &middot;
+      <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE">MIT License</a>
+    </p>
+  </div>
+
+  <script>
+    (async function () {
+      const btn = document.getElementById("download-btn");
+      const label = document.getElementById("download-label");
+      const versionLink = document.getElementById("version-link");
+      const errorMsg = document.getElementById("error-msg");
+
+      try {
+        const res = await fetch(
+          "https://api.github.com/repos/bsreeram08/chowser/releases/latest"
+        );
+
+        if (!res.ok) throw new Error("GitHub API returned " + res.status);
+
+        const release = await res.json();
+        const version = release.tag_name.replace(/^v/, "");
+        const dmg = release.assets.find(function (a) {
+          return a.name.endsWith(".dmg");
+        });
+
+        if (!dmg) throw new Error("No DMG asset found in latest release");
+
+        btn.href = dmg.browser_download_url;
+        btn.classList.remove("loading");
+        label.textContent = "Download Now";
+
+        versionLink.textContent = "v" + version + " \u00b7 macOS";
+        versionLink.href = release.html_url;
+      } catch (err) {
+        // Fallback: link directly to the releases page.
+        btn.href = "https://github.com/bsreeram08/chowser/releases/latest";
+        btn.classList.remove("loading");
+        label.textContent = "Download Now";
+
+        versionLink.textContent = "Latest release";
+        versionLink.href = "https://github.com/bsreeram08/chowser/releases/latest";
+
+        errorMsg.style.display = "block";
+        errorMsg.textContent =
+          "Could not fetch release info automatically. Click the button to go to the releases page.";
+      }
+    })();
+  </script>
+</body>
+</html>

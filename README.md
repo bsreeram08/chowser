@@ -19,12 +19,13 @@ Chowser lives in your menu bar and uses zero resources when idle.
 
 - **Browser Picker** — Choose from your configured browsers with a single click
 - **Keyboard Shortcuts** — Press `1` through `9` (plus `↑/↓` + Return) for instant selection
+- **Browser Profiles** — Full support for Chrome, Brave, and Edge profiles (Personal, Work, etc.)
 - **Menu Bar App** — Runs silently in the background, no Dock icon
-- **Guided Onboarding** — First-run setup for installation checks and default-browser setup
+- **Smart Routing Rules** — Auto-open matching domains/paths in a fixed browser
+- **Import/Export Rules** — Share or backup your routing configuration as JSON
+- **App Blocklist** — Hide non-browser apps (media players, etc.) from the picker
 - **Launch at Login** — Start automatically when you log in
 - **Configurable** — Add, remove, and reorder browsers in Settings
-- **Smart Routing Rules** — Auto-open matching domains/paths in a chosen browser
-- **Fresh Setup Reset** — Reset settings to first-launch state for repeatable testing
 - **UI End-to-End Tests** — XCTest-based flow coverage for picker and settings
 
 ## Installation
@@ -35,8 +36,7 @@ Chowser lives in your menu bar and uses zero resources when idle.
 2. Open the DMG and drag Chowser to Applications
 3. Launch Chowser — it appears in the menu bar
 4. Right-click → Open if macOS shows a security warning (first time only)
-5. Complete the in-app onboarding
-6. Click the menu bar icon → **Set as Default Browser** (if not already done)
+5. Click the menu bar icon → **Set as Default Browser** (if not already done)
 
 ### From Source
 

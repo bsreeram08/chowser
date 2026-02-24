@@ -266,6 +266,42 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         routingRules.append(contentsOf: newRules)
     }
 
+    func exportBrowsers(to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(configuredBrowsers)
+        try data.write(to: url)
+    }
+
+    func importBrowsers(from url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode([BrowserConfig].self, from: data)
+        
+        // When importing browsers, we might want to merge or replace.
+        // For now, let's append only browsers that don't exist by identity.
+        let existingIdentities = Set(configuredBrowsers.map { $0.identity })
+        let newBrowsers = decoded.filter { !existingIdentities.contains($0.identity) }
+        
+        // Ensure shortcuts don't conflict. 
+        // We'll just re-assign shortcuts for imported browsers if they conflict.
+        var updatedBrowsers = configuredBrowsers
+        for var browser in newBrowsers {
+            if updatedBrowsers.contains(where: { $0.shortcutKey == browser.shortcutKey }) {
+                browser.shortcutKey = nextAvailableShortcutKey(excluding: updatedBrowsers)
+            }
+            updatedBrowsers.append(browser)
+        }
+        configuredBrowsers = updatedBrowsers
+    }
+
+    private func nextAvailableShortcutKey(excluding: [BrowserConfig]) -> String {
+        for key in Constants.supportedShortcutKeys where !excluding.contains(where: { $0.shortcutKey == key }) {
+            return key
+        }
+        return Constants.supportedShortcutKeys.last ?? "9"
+    }
+
     // MARK: - Routing Rules
 
     func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil) {

@@ -101,7 +101,7 @@ struct SettingsView: View {
                 generalSection
             }
         }
-        .frame(width: 640, height: 460)
+        .frame(width: 900, height: 600)
         .sheet(isPresented: $showingAddSheet) {
             AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
         }
@@ -138,13 +138,34 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Button(action: { showingAddSheet = true }) {
-                    Label("Add Browser", systemImage: "plus")
-                        .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 8) {
+                    Menu {
+                        Button(action: exportBrowsers) {
+                            Label("Export Browsers…", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(browserManager.configuredBrowsers.isEmpty)
+                        .accessibilityIdentifier("settings.exportBrowsersButton")
+
+                        Button(action: importBrowsers) {
+                            Label("Import Browsers…", systemImage: "square.and.arrow.down")
+                        }
+                        .accessibilityIdentifier("settings.importBrowsersButton")
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 28)
+                    .accessibilityIdentifier("settings.browsersMenuButton")
+
+                    Button(action: { showingAddSheet = true }) {
+                        Label("Add Browser", systemImage: "plus")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .keyboardShortcut("n", modifiers: .command)
+                    .accessibilityIdentifier("settings.addBrowserButton")
+                    .accessibilityLabel("Add a new browser to the picker")
                 }
-                .keyboardShortcut("n", modifiers: .command)
-                .accessibilityIdentifier("settings.addBrowserButton")
-                .accessibilityLabel("Add a new browser to the picker")
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -591,53 +612,84 @@ struct SettingsView: View {
     private func ruleRow(rule: BrowserRoutingRule) -> some View {
         let hostPatternIsValid = browserManager.isValidRoutingHostPattern(rule.hostPattern)
 
-        return HStack(spacing: 10) {
-            Toggle("", isOn: ruleEnabledBinding(for: rule.id))
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .accessibilityLabel("Enable rule \(rule.name)")
+        return HStack(spacing: 16) {
+            VStack(spacing: 4) {
+                Toggle("", isOn: ruleEnabledBinding(for: rule.id))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Enable rule \(rule.name)")
+                
+                Text(rule.isEnabled ? "ON" : "OFF")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(rule.isEnabled ? .green : .secondary)
+            }
+            .frame(width: 40)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    TextField("Rule name", text: ruleNameBinding(for: rule.id))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, weight: .medium))
-                        .accessibilityIdentifier("settings.rule.nameField")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("RULE NAME")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Rule name", text: ruleNameBinding(for: rule.id))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 13, weight: .medium))
+                            .accessibilityIdentifier("settings.rule.nameField")
+                    }
+                    .frame(maxWidth: .infinity)
 
-                    Picker("Browser", selection: ruleBrowserBinding(for: rule.id)) {
-                        ForEach(browserManager.configuredBrowsers) { browser in
-                            Text(browser.name).tag(browser.identity)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TARGET BROWSER")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: ruleBrowserBinding(for: rule.id)) {
+                            ForEach(browserManager.configuredBrowsers) { browser in
+                                Text(browser.name).tag(browser.identity)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("settings.rule.browserPicker")
+                        .accessibilityLabel("Target browser")
+                    }
+                    .frame(width: 220)
+                }
+
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("HOST PATTERN")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("example.com or *.example.com", text: ruleHostBinding(for: rule.id))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .accessibilityIdentifier("settings.rule.hostField")
+                        
+                        if !hostPatternIsValid {
+                            Label("Invalid host pattern", systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.orange)
                         }
                     }
-                    .pickerStyle(.menu)
-                    .frame(width: 150)
-                    .accessibilityIdentifier("settings.rule.browserPicker")
-                    .accessibilityLabel("Target browser")
-                }
 
-                HStack(spacing: 8) {
-                    TextField("Host pattern (example.com or *.example.com)", text: ruleHostBinding(for: rule.id))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
-                        .accessibilityIdentifier("settings.rule.hostField")
-
-                    TextField("Path prefix (optional)", text: rulePathPrefixBinding(for: rule.id))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(width: 170)
-                        .accessibilityIdentifier("settings.rule.pathField")
-                }
-
-                if !hostPatternIsValid {
-                    Label("Invalid host pattern. Use example.com or *.example.com", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("PATH PREFIX")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Optional", text: rulePathPrefixBinding(for: rule.id))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .accessibilityIdentifier("settings.rule.pathField")
+                    }
+                    .frame(width: 220)
                 }
 
                 Text(ruleMatchSummary(rule))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                    .padding(.top, -4)
             }
+            
+            Spacer()
 
             Button(role: .destructive) {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -652,7 +704,8 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.rule.deleteButton")
             .accessibilityLabel("Remove \(rule.name)")
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
         .contextMenu {
             Button("Move Up") {
                 moveRoutingRule(id: rule.id, by: -1)
@@ -762,6 +815,36 @@ struct SettingsView: View {
 
         do {
             try browserManager.importRules(from: url)
+        } catch {
+            print("Import failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func exportBrowsers() {
+        let panel = NSSavePanel()
+        panel.title = "Export Browser Configuration"
+        panel.nameFieldStringValue = "ChowserBrowsers.json"
+        panel.allowedContentTypes = [.json]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try browserManager.exportBrowsers(to: url)
+        } catch {
+            print("Export failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func importBrowsers() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Browser Configuration"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try browserManager.importBrowsers(from: url)
         } catch {
             print("Import failed: \(error.localizedDescription)")
         }

@@ -357,7 +357,8 @@ struct ContentView: View {
         
         // Dismiss immediately — don't wait for the browser to open
         dismissPicker()
-        browserManager.open(url: url, withBrowserBundleID: browser.bundleId)
+        // Pass browser.profile so profile-based launch args (--profile-directory etc.) are used.
+        browserManager.open(url: url, withBrowserBundleID: browser.bundleId, profile: browser.profile)
     }
 
     private func syncKeyboardSelection(with browsers: [BrowserConfig]) {

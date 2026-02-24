@@ -45,7 +45,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         if let route = manager.resolvedRoute(for: url) {
             manager.currentURL = nil
-            manager.open(url: url, withBrowserBundleID: route.browser.bundleId)
+            manager.open(url: url, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile)
             return
         }
 

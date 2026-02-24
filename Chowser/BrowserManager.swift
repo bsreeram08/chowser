@@ -581,25 +581,31 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
         let browser = configuredBrowsers.first(where: { $0.bundleId == bundleId && $0.profile == profile })
         let customArgs = browser?.customArguments
-        
-        let configuration = NSWorkspace.OpenConfiguration()
-        
-        // If we have a profile or custom arguments, we use the specialized launch logic
+
+        // If we have a profile or custom arguments, use Process-based launch.
+        //
+        // Why not NSWorkspace.openApplication with createsNewApplicationInstance?
+        // When Chromium-based browsers (Brave, Chrome, etc.) are already running, macOS
+        // launches a second process that immediately hands off to the first running process.
+        // That first process ignores --profile-directory because it wasn't in *its* argv.
+        // The URL is also silently dropped in this handoff path.
+        //
+        // Using /usr/bin/open -n -a <App> --args ... exactly replicates the terminal
+        // command that was confirmed reliable in local CLI testing and is consistent
+        // regardless of whether the browser is already running.
         if let info = Self.launchInfo(forBundleID: bundleId, profile: profile, customArguments: customArgs, url: url) {
-            // Replicate 'open -n' (New Instance) which proved reliable in CLI tests
-            configuration.createsNewApplicationInstance = true
-            
-            // We pass ALL arguments including the URL via the arguments array.
-            // This mirrors exactly how 'open --args' works.
-            configuration.arguments = info.arguments
-            
-            NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
-                if let error = error {
-                    print("Chowser: Failed to open application with profile: \(error)")
-                }
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            // -n forces a new instance; --args passes everything after it directly to the app.
+            process.arguments = ["-n", "-a", appURL.path, "--args"] + info.arguments
+            do {
+                try process.run()
+            } catch {
+                print("Chowser: Failed to launch browser with profile: \(error)")
             }
         } else {
             // Default launch for Safari or browsers without profiles
+            let configuration = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
                 if let error = error {
                     print("Chowser: Failed to open URL: \(error)")

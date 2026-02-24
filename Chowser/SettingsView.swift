@@ -1180,12 +1180,22 @@ struct AddBrowserSheet: View {
             )
             .padding(12)
 
-            if filteredBrowsers.isEmpty {
+            if filteredBrowsers.isEmpty && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 28))
                         .foregroundStyle(.green)
-                    Text(searchText.isEmpty ? "All installed browsers are configured" : "No matching browsers")
+                    Text("All installed browsers are configured")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredBrowsers.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.quaternary)
+                    Text("No matching browsers")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
@@ -1204,8 +1214,11 @@ struct AddBrowserSheet: View {
                     .padding(12)
                 }
             }
+
+            Divider()
+            AddCustomAppSection(manager: manager, isPresented: $isPresented)
         }
-        .frame(width: 420, height: 420)
+        .frame(width: 420, height: 500)
         .onAppear {
             availableBrowsers = BrowserManager.getInstalledBrowsers()
             allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
@@ -1301,6 +1314,183 @@ struct AddBrowserSheet: View {
         .accessibilityIdentifier("settings.addSheet.option")
         .accessibilityLabel("Add \(entry.name)")
         .accessibilityHint("Adds \(entry.name) to the browser picker")
+    }
+}
+
+// MARK: - Add Custom App Section (inside AddBrowserSheet)
+
+private struct AddCustomAppSection: View {
+    var manager: BrowserManager
+    @Binding var isPresented: Bool
+
+    @State private var isExpanded = false
+    @State private var customName = ""
+    @State private var customBundleId = ""
+    @State private var customArgs = ""
+    @State private var pickedAppIcon: NSImage? = nil
+
+    private var canAdd: Bool {
+        !customName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !customBundleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 10) {
+                // App picker row
+                HStack(spacing: 8) {
+                    Group {
+                        if let icon = pickedAppIcon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: 28, height: 28)
+                        } else {
+                            Image(systemName: "app.dashed")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.quaternary)
+                                .frame(width: 28, height: 28)
+                        }
+                    }
+
+                    Button("Choose App…") {
+                        pickApp()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("settings.addSheet.custom.pickAppButton")
+
+                    Text("or fill in manually below")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+
+                // Name field
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Display Name")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("e.g. Arc, Kagi, MyApp", text: $customName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                        .accessibilityIdentifier("settings.addSheet.custom.nameField")
+                }
+
+                // Bundle ID field
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Bundle ID")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("com.example.MyApp", text: $customBundleId)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                        .accessibilityIdentifier("settings.addSheet.custom.bundleIdField")
+                    Text("Found in Info.plist or via: mdls -name kMDItemCFBundleIdentifier /Applications/MyApp.app")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // Custom args field
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Custom Launch Arguments (Optional)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("--profile-directory={profile} {url}", text: $customArgs)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                        .accessibilityIdentifier("settings.addSheet.custom.argsField")
+                    Text("Placeholders: {url}, {profile}. If omitted, URL is appended at the end.")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+
+                // Add button
+                HStack {
+                    Spacer()
+                    Button("Add Custom App") {
+                        let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let bundleId = customBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let args = customArgs.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        manager.addBrowser(name: name, bundleId: bundleId)
+                        // Apply custom args if provided
+                        if !args.isEmpty, let id = manager.configuredBrowsers.last(where: { $0.bundleId == bundleId })?.id {
+                            manager.updateBrowserCustomArguments(id: id, to: args)
+                        }
+                        isPresented = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(!canAdd)
+                    .accessibilityIdentifier("settings.addSheet.custom.addButton")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.square.dashed")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text("Add custom app not in list above")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .disclosureGroupStyle(PlainDisclosureStyle())
+        .padding(.bottom, 4)
+    }
+
+    private func pickApp() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose an Application"
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        // Auto-fill name + bundle ID from the app bundle
+        if let bundle = Bundle(url: url) {
+            let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+                ?? url.deletingPathExtension().lastPathComponent
+            if customName.isEmpty { customName = name }
+            customBundleId = bundle.bundleIdentifier ?? customBundleId
+            pickedAppIcon = NSWorkspace.shared.icon(forFile: url.path)
+        }
+    }
+}
+
+private struct PlainDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    configuration.label
+                    Spacer()
+                    Image(systemName: configuration.isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .padding(.trailing, 16)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if configuration.isExpanded {
+                configuration.content
+            }
+        }
     }
 }
 

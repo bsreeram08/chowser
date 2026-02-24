@@ -48,13 +48,23 @@ echo "🔨 Building Release archive..."
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
+# Support unsigned CI builds via env vars
+SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Apple Development}"
+SIGNING_ALLOWED="${CODE_SIGNING_ALLOWED:-YES}"
+
+SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_IDENTITY")
+if [ "$SIGNING_ALLOWED" = "NO" ]; then
+    SIGN_ARGS+=(CODE_SIGNING_ALLOWED=NO)
+else
+    SIGN_ARGS+=(DEVELOPMENT_TEAM="DN4N8L7YL9")
+fi
+
 xcodebuild archive \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -configuration Release \
     -archivePath "$ARCHIVE_PATH" \
-    CODE_SIGN_IDENTITY="Apple Development" \
-    DEVELOPMENT_TEAM="DN4N8L7YL9" \
+    "${SIGN_ARGS[@]}" \
     -quiet
 
 echo "   Archive created"

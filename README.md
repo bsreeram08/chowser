@@ -1,10 +1,12 @@
 # Chowser 🧭
 
-A lightweight macOS browser chooser. When you click a link anywhere on your Mac, Chowser intercepts it and lets you pick which browser to open it in.
+A lightweight macOS browser chooser with **profiles support**, **smart routing**, and **rule portability**. Intercept links anywhere and open them in the right browser, every time.
 
 ![macOS](https://img.shields.io/badge/macOS-13.0+-blue?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange?logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+🌐 **[chowser.sreerams.in](https://chowser.sreerams.in)** — Landing page with setup guide & AI-powered configuration
 
 ## How It Works
 
@@ -18,15 +20,14 @@ Chowser lives in your menu bar and uses zero resources when idle.
 ## Features
 
 - **Browser Picker** — Choose from your configured browsers with a single click
-- **Keyboard Shortcuts** — Press `1` through `9` (plus `↑/↓` + Return) for instant selection
-- **Browser Profiles** — Full support for Chrome, Brave, and Edge profiles (Personal, Work, etc.)
+- **Keyboard Shortcuts** — Press `1` through `9`, type a browser initial, or use `↑/↓` + Return for instant selection
+- **Browser Profiles** — Full support for Chrome, Brave, Edge, and Firefox profiles (Personal, Work, etc.)
+- **Smart Routing Rules** — Auto-open matching domains/paths in a specific browser, bypassing the picker
+- **Rule Portability** — Import/Export both browser configs and routing rules as JSON
+- **Hidden Apps** — Hide non-browser apps (VLC, IINA, MX Player, etc.) that register as web handlers
 - **Menu Bar App** — Runs silently in the background, no Dock icon
-- **Smart Routing Rules** — Auto-open matching domains/paths in a fixed browser
-- **Import/Export Rules** — Share or backup your routing configuration as JSON
-- **App Blocklist** — Hide non-browser apps (media players, etc.) from the picker
 - **Launch at Login** — Start automatically when you log in
-- **Configurable** — Add, remove, and reorder browsers in Settings
-- **UI End-to-End Tests** — XCTest-based flow coverage for picker and settings
+- **Fully Configurable** — Add, remove, reorder browsers, and set custom launch arguments in Settings
 
 ## Installation
 
@@ -36,15 +37,59 @@ Chowser lives in your menu bar and uses zero resources when idle.
 2. Open the DMG and drag Chowser to Applications
 3. Launch Chowser — it appears in the menu bar
 4. Right-click → Open if macOS shows a security warning (first time only)
-5. Click the menu bar icon &rarr; **Set as Default Browser** (if not already done)
+5. Click the menu bar icon → **Set as Default Browser**
 
-### 🤖 AI-Powered Auto-Setup (Recommended)
+### 🤖 AI-Powered Auto-Setup
 
-Since Chowser supports unlimited browser profiles, setting them up manually can be tedious. You can use an AI agent (like Claude, ChatGPT, or Cursor) to do it for you!
+Skip manual configuration. Copy the prompt below, paste it into **Claude, ChatGPT, or Cursor**, and your AI agent will scan your Mac, find every browser and profile, generate routing rules, and give you ready-to-import JSON files.
 
-**Just copy and paste this prompt to your AI agent:**
+<details>
+<summary><strong>📋 Click to expand the full AI prompt</strong></summary>
 
-> I have installed Chowser (`in.sreerams.Chowser`) on my Mac. Please help me configure it. Scan my system for all installed browsers (Chrome, Brave, Edge, Vivaldi, Arc, Firefox, Zen, etc.) and find all their user profiles (by checking Application Support directories). Then, generate and apply a `defaults write in.sreerams.Chowser configuredBrowsers -array ...` command with the correct `bundleId`, `profile` path, a descriptive `name`, and a unique `shortcutKey` (1-9) for each.
+```
+I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac.
+It's a browser chooser app that intercepts links. I need you to:
+
+## Step 1: Discover my browsers and profiles
+
+Scan my Mac for all installed browsers and their profiles:
+
+- Chromium browsers (Chrome, Brave, Edge, Vivaldi, Arc, Opera):
+  Check ~/Library/Application Support/{BrowserName}/Local State
+  Parse the JSON → profile.info_cache → each key is a profile directory name
+  (e.g. "Default", "Profile 1", "Profile 2")
+
+- Firefox-based (Firefox, Zen, LibreWolf, Waterfox):
+  Check ~/Library/Application Support/{BrowserName}/profiles.ini
+  Parse the INI → each [Profile*] section → Name= is the profile name
+
+- Safari: No profiles, just add it as-is.
+
+For each browser+profile combo, produce a JSON object:
+{ "name": "Chrome - Work", "bundleId": "com.google.Chrome", "shortcutKey": "1", "profile": "Profile 1" }
+
+Save ALL of them as a JSON array in a file called ChowserBrowsers.json.
+
+## Step 2: Generate routing rules
+
+Based on my needs: [EDIT THIS — e.g. "work stuff in Chrome Work profile, personal browsing in Safari, dev docs in Firefox"]
+
+For each rule, produce a JSON object:
+{ "name": "Work GitHub", "hostPattern": "*.github.com", "pathPrefix": "/my-company", "browserBundleId": "com.google.Chrome", "profile": "Profile 1", "isEnabled": true }
+
+hostPattern supports exact match (github.com) or wildcard (*.github.com).
+pathPrefix is optional — only set it if you need path-level routing.
+
+Save ALL rules as a JSON array in a file called ChowserRules.json.
+
+## Step 3: Import into Chowser
+
+Tell me to open Chowser → Menu Bar Icon → Settings:
+- Browsers tab → click ⋯ menu → Import Browsers → select ChowserBrowsers.json
+- Rules tab → click ⋯ menu → Import Rules → select ChowserRules.json
+```
+
+</details>
 
 ---
 
@@ -59,16 +104,19 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 ## Creating a Release
 
 ```bash
-# Build and create a DMG (bumps version automatically)
+# Build and create a styled DMG (bumps version, tags, generates background)
 ./scripts/release.sh 1.7.0
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
-# 3. Create a DMG with create-dmg
-# 4. Create a git tag v1.7.0
-# 5. Output the DMG to release/Chowser-1.7.0.dmg
+# 3. Generate a styled DMG background
+# 4. Create a DMG with icon positioning
+# 5. Create a git tag v1.7.0
+# 6. Output the DMG to release/Chowser-1.7.0.dmg
 ```
+
+Releases are also automated via GitHub Actions — push a `v*` tag and it builds + publishes the release.
 
 ## Testing
 

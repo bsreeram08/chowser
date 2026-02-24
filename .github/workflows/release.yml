@@ -25,34 +25,14 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build Release archive
+      - name: Build and create DMG
         run: |
-          xcodebuild archive \
-            -project Chowser.xcodeproj \
-            -scheme Chowser \
-            -configuration Release \
-            -archivePath build/Chowser.xcarchive \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO \
-            -quiet
-
-      - name: Export app
-        run: |
-          mkdir -p build/app
-          cp -R build/Chowser.xcarchive/Products/Applications/Chowser.app build/app/
-
-      - name: Create DMG
-        run: |
-          mkdir -p release dmg_staging
-          cp -R build/app/Chowser.app dmg_staging/
-          ln -s /Applications dmg_staging/Applications
-          hdiutil create \
-            -volname "Chowser ${{ steps.version.outputs.VERSION }}" \
-            -srcfolder dmg_staging \
-            -ov \
-            -format UDZO \
-            "release/Chowser-${{ steps.version.outputs.VERSION }}.dmg"
-          rm -rf dmg_staging
+          chmod +x scripts/release.sh
+          scripts/release.sh "${{ steps.version.outputs.VERSION }}"
+        env:
+          # Override signing for CI (unsigned build)
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGNING_ALLOWED: "NO"
 
       - name: Verify DMG
         run: |
@@ -66,6 +46,8 @@ jobs:
           body: |
             ## Chowser v${{ steps.version.outputs.VERSION }}
             
+            A lightweight macOS browser chooser with **profiles support**, **smart routing rules**, and **rule portability**. Intercept links anywhere and open them in the right browser, every time.
+            
             ### Installation
             1. Download `Chowser-${{ steps.version.outputs.VERSION }}.dmg` below
             2. Open the DMG and drag Chowser to Applications
@@ -74,6 +56,8 @@ jobs:
             5. Click the menu bar icon → **Set as Default Browser**
             
             > **Note**: This build is unsigned. On first launch, right-click → Open to bypass Gatekeeper.
+            
+            📖 **[Setup Guide & AI-Powered Configuration →](https://chowser.sreerams.in)**
           files: release/Chowser-${{ steps.version.outputs.VERSION }}.dmg
           draft: false
           prerelease: false

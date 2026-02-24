@@ -50,7 +50,6 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
             save()
-            removeRoutingRulesWithMissingBrowsers()
         }
     }
 
@@ -98,7 +97,6 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         load()
         loadRoutingRules()
         loadHiddenBundleIDs()
-        removeRoutingRulesWithMissingBrowsers()
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {
@@ -612,6 +610,11 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
                 }
             }
         }
+
+        // Record frequency for suggestions
+        if let domain = url.host {
+            DomainFrequencyTracker.shared.record(domain: domain.lowercased(), browserBundleID: bundleId)
+        }
     }
 
     /// Generates the appropriate command line arguments for a browser launch.
@@ -693,15 +696,6 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     func resetHiddenBundleIDs() {
         hiddenBundleIDs = Constants.defaultHiddenBundleIDs
-    }
-
-    private func removeRoutingRulesWithMissingBrowsers() {
-        let validBrowserIdentities = Set(configuredBrowsers.map { "\($0.bundleId)|\($0.profile ?? "")" })
-        let filteredRules = routingRules.filter { validBrowserIdentities.contains("\($0.browserBundleId)|\($0.profile ?? "")") }
-
-        if filteredRules.count != routingRules.count {
-            routingRules = filteredRules
-        }
     }
 
     private func normalizedShortcut(_ key: String) -> String? {

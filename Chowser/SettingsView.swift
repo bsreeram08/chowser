@@ -9,7 +9,6 @@ struct SettingsView: View {
     @State private var showingAddRuleSheet = false
     @State private var selectedSection: SettingsSection = .browsers
     @State private var showingResetConfirmation = false
-    @State private var ruleTestInput = ""
     @State private var browserSearchText = ""
     @State private var ruleSearchText = ""
     @State private var newHiddenBundleId = ""
@@ -454,12 +453,6 @@ struct SettingsView: View {
             Divider()
                 .padding(.horizontal, 20)
 
-            if !browserManager.configuredBrowsers.isEmpty {
-                ruleDiagnosticsPanel
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-            }
-
             if !browserManager.configuredBrowsers.isEmpty && !browserManager.routingRules.isEmpty {
                 sectionSearchField(
                     placeholder: "Filter rules by name, host, path, or browser",
@@ -506,14 +499,12 @@ struct SettingsView: View {
                 List {
                     if hasRuleSearchQuery {
                         ForEach(filteredRoutingRules) { rule in
-                            ruleRow(rule: rule)
-                                .id(rule.id)
+                            RuleRowView(rule: rule, browserManager: browserManager, hasSearchQuery: true)
                         }
                         .onDelete(perform: removeFilteredRules)
                     } else {
                         ForEach(browserManager.routingRules) { rule in
-                            ruleRow(rule: rule)
-                                .id(rule.id)
+                            RuleRowView(rule: rule, browserManager: browserManager, hasSearchQuery: false)
                         }
                         .onMove { indices, destination in
                             browserManager.moveRoutingRules(from: indices, to: destination)
@@ -524,7 +515,6 @@ struct SettingsView: View {
                     }
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: true))
-                .animation(.easeInOut(duration: 0.2), value: browserManager.routingRules)
                 .accessibilityIdentifier("settings.rulesList")
             }
 
@@ -547,59 +537,6 @@ struct SettingsView: View {
         browserManager.routingRules.filter(\.isEnabled).count
     }
 
-    private var ruleDiagnosticsPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text("Route Preview")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            TextField("Try a URL (for example: github.com/orgs/openai)", text: $ruleTestInput)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
-                .accessibilityIdentifier("settings.rules.previewURLField")
-
-            Group {
-                if let previewURL = parsedRulePreviewURL {
-                    if let route = browserManager.resolvedRoute(for: previewURL) {
-                        Label(
-                            "Matches “\(route.rule.name)” → opens in \(route.browser.name)",
-                            systemImage: "checkmark.circle.fill"
-                        )
-                        .foregroundStyle(.green)
-                    } else {
-                        Label("No rule matched. Chowser will show the picker.", systemImage: "circle.dashed")
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Label("Enter a URL to preview routing.", systemImage: "info.circle")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.system(size: 11))
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.quaternary.opacity(0.08))
-        )
-    }
-
-    private var parsedRulePreviewURL: URL? {
-        let trimmedInput = ruleTestInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedInput.isEmpty else { return nil }
-
-        if let explicitURL = URL(string: trimmedInput), explicitURL.scheme != nil {
-            return explicitURL
-        }
-
-        return URL(string: "https://\(trimmedInput)")
-    }
-
     private func rulesStatusBadge(title: String, color: Color) -> some View {
         Text(title)
             .font(.system(size: 10, weight: .semibold))
@@ -607,185 +544,6 @@ struct SettingsView: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.12), in: Capsule())
-    }
-
-    private func ruleRow(rule: BrowserRoutingRule) -> some View {
-        let hostPatternIsValid = browserManager.isValidRoutingHostPattern(rule.hostPattern)
-
-        return HStack(spacing: 16) {
-            VStack(spacing: 4) {
-                Toggle("", isOn: ruleEnabledBinding(for: rule.id))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .accessibilityLabel("Enable rule \(rule.name)")
-                
-                Text(rule.isEnabled ? "ON" : "OFF")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(rule.isEnabled ? .green : .secondary)
-            }
-            .frame(width: 40)
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("RULE NAME")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        TextField("Rule name", text: ruleNameBinding(for: rule.id))
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 13, weight: .medium))
-                            .accessibilityIdentifier("settings.rule.nameField")
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("TARGET BROWSER")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        Picker("", selection: ruleBrowserBinding(for: rule.id)) {
-                            ForEach(browserManager.configuredBrowsers) { browser in
-                                Text(browser.name).tag(browser.identity)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .accessibilityIdentifier("settings.rule.browserPicker")
-                        .accessibilityLabel("Target browser")
-                    }
-                    .frame(width: 220)
-                }
-
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("HOST PATTERN")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        TextField("example.com or *.example.com", text: ruleHostBinding(for: rule.id))
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                            .accessibilityIdentifier("settings.rule.hostField")
-                        
-                        if !hostPatternIsValid {
-                            Label("Invalid host pattern", systemImage: "exclamationmark.triangle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.orange)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("PATH PREFIX")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        TextField("Optional", text: rulePathPrefixBinding(for: rule.id))
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                            .accessibilityIdentifier("settings.rule.pathField")
-                    }
-                    .frame(width: 220)
-                }
-
-                Text(ruleMatchSummary(rule))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, -4)
-            }
-            
-            Spacer()
-
-            Button(role: .destructive) {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    browserManager.removeRoutingRule(id: rule.id)
-                }
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red.opacity(0.75))
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("settings.rule.deleteButton")
-            .accessibilityLabel("Remove \(rule.name)")
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 4)
-        .contextMenu {
-            Button("Move Up") {
-                moveRoutingRule(id: rule.id, by: -1)
-            }
-            .disabled(hasRuleSearchQuery || !canMoveRoutingRule(id: rule.id, by: -1))
-
-            Button("Move Down") {
-                moveRoutingRule(id: rule.id, by: 1)
-            }
-            .disabled(hasRuleSearchQuery || !canMoveRoutingRule(id: rule.id, by: 1))
-
-            Button("Duplicate Rule") {
-                browserManager.duplicateRoutingRule(id: rule.id)
-            }
-
-            Divider()
-
-            Button("Remove Rule", role: .destructive) {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    browserManager.removeRoutingRule(id: rule.id)
-                }
-            }
-        }
-    }
-
-    private func ruleNameBinding(for ruleID: UUID) -> Binding<String> {
-        Binding(
-            get: { browserManager.routingRuleName(for: ruleID) },
-            set: { browserManager.updateRoutingRuleName(id: ruleID, to: $0) }
-        )
-    }
-
-    private func ruleHostBinding(for ruleID: UUID) -> Binding<String> {
-        Binding(
-            get: { browserManager.routingRuleHostPattern(for: ruleID) },
-            set: { browserManager.updateRoutingRuleHostPattern(id: ruleID, to: $0) }
-        )
-    }
-
-    private func rulePathPrefixBinding(for ruleID: UUID) -> Binding<String> {
-        Binding(
-            get: { browserManager.routingRulePathPrefix(for: ruleID) },
-            set: { browserManager.updateRoutingRulePathPrefix(id: ruleID, to: $0) }
-        )
-    }
-
-    private func ruleBrowserBinding(for ruleID: UUID) -> Binding<String> {
-        Binding(
-            get: {
-                let currentBundleId = browserManager.routingRuleBrowserBundleID(for: ruleID)
-                let currentProfile = browserManager.routingRuleProfile(for: ruleID)
-                if !currentBundleId.isEmpty, let browser = browserManager.configuredBrowsers.first(where: { $0.bundleId == currentBundleId && $0.profile == currentProfile }) {
-                    return browser.identity
-                }
-                return browserManager.configuredBrowsers.first?.identity ?? ""
-            },
-            set: { newValue in
-                if let browser = browserManager.configuredBrowsers.first(where: { $0.identity == newValue }) {
-                    browserManager.updateRoutingRuleBrowser(id: ruleID, to: browser.bundleId, profile: browser.profile)
-                }
-            }
-        )
-    }
-
-    private func ruleEnabledBinding(for ruleID: UUID) -> Binding<Bool> {
-        Binding(
-            get: { browserManager.routingRuleIsEnabled(for: ruleID) },
-            set: { browserManager.updateRoutingRuleIsEnabled(id: ruleID, to: $0) }
-        )
-    }
-
-    private func ruleMatchSummary(_ rule: BrowserRoutingRule) -> String {
-        let pathText: String
-        if let pathPrefix = rule.pathPrefix, !pathPrefix.isEmpty {
-            pathText = " + path \(pathPrefix)"
-        } else {
-            pathText = ""
-        }
-        let statusText = rule.isEnabled ? "Enabled" : "Disabled"
-        return "\(statusText): host \(rule.hostPattern)\(pathText)"
     }
 
     // MARK: - Import / Export
@@ -1084,28 +842,228 @@ struct SettingsView: View {
         browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: destinationOffset)
     }
 
-    private func canMoveRoutingRule(id: UUID, by delta: Int) -> Bool {
-        guard let currentIndex = browserManager.routingRules.firstIndex(where: { $0.id == id }) else {
+    private func getAppIcon(bundleId: String) -> NSImage? {
+        BrowserManager.icon(forBrowserBundleID: bundleId)
+    }
+}
+
+// MARK: - Rule Row View
+
+private struct RuleRowView: View {
+    let rule: BrowserRoutingRule
+    var browserManager: BrowserManager
+    let hasSearchQuery: Bool
+
+    @State private var editingName: String
+    @State private var editingHost: String
+    @State private var editingPath: String
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case name, host, path
+    }
+
+    init(rule: BrowserRoutingRule, browserManager: BrowserManager, hasSearchQuery: Bool) {
+        self.rule = rule
+        self.browserManager = browserManager
+        self.hasSearchQuery = hasSearchQuery
+        self._editingName = State(initialValue: rule.name)
+        self._editingHost = State(initialValue: rule.hostPattern)
+        self._editingPath = State(initialValue: rule.pathPrefix ?? "")
+    }
+
+    private var hostPatternIsValid: Bool {
+        browserManager.isValidRoutingHostPattern(editingHost)
+    }
+
+    private var matchSummary: String {
+        let pathText = (rule.pathPrefix?.isEmpty == false) ? " + path \(rule.pathPrefix!)" : ""
+        let statusText = rule.isEnabled ? "Enabled" : "Disabled"
+        return "\(statusText): host \(rule.hostPattern)\(pathText)"
+    }
+
+    private var browserIdentity: Binding<String> {
+        Binding(
+            get: {
+                let identity = "\(rule.browserBundleId)|\(rule.profile ?? "")"
+                if browserManager.configuredBrowsers.contains(where: { $0.identity == identity }) {
+                    return identity
+                }
+                return browserManager.configuredBrowsers.first?.identity ?? ""
+            },
+            set: { newValue in
+                if let browser = browserManager.configuredBrowsers.first(where: { $0.identity == newValue }) {
+                    browserManager.updateRoutingRuleBrowser(id: rule.id, to: browser.bundleId, profile: browser.profile)
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(spacing: 4) {
+                Toggle("", isOn: Binding(
+                    get: { rule.isEnabled },
+                    set: { browserManager.updateRoutingRuleIsEnabled(id: rule.id, to: $0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel("Enable rule \(rule.name)")
+
+                Text(rule.isEnabled ? "ON" : "OFF")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(rule.isEnabled ? .green : .secondary)
+            }
+            .frame(width: 40)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("RULE NAME")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Rule name", text: $editingName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 13, weight: .medium))
+                            .focused($focusedField, equals: .name)
+                            .onSubmit { commitField(.name) }
+                            .accessibilityIdentifier("settings.rule.nameField")
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TARGET BROWSER")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: browserIdentity) {
+                            ForEach(browserManager.configuredBrowsers) { browser in
+                                Text(browser.name).tag(browser.identity)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("settings.rule.browserPicker")
+                        .accessibilityLabel("Target browser")
+                    }
+                    .frame(width: 220)
+                }
+
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("HOST PATTERN")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("example.com or *.example.com", text: $editingHost)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .focused($focusedField, equals: .host)
+                            .onSubmit { commitField(.host) }
+                            .accessibilityIdentifier("settings.rule.hostField")
+
+                        if !hostPatternIsValid {
+                            Label("Invalid host pattern", systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("PATH PREFIX")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Optional", text: $editingPath)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .focused($focusedField, equals: .path)
+                            .onSubmit { commitField(.path) }
+                            .accessibilityIdentifier("settings.rule.pathField")
+                    }
+                    .frame(width: 220)
+                }
+
+                Text(matchSummary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, -4)
+            }
+
+            Spacer()
+
+            Button(role: .destructive) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    browserManager.removeRoutingRule(id: rule.id)
+                }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red.opacity(0.75))
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("settings.rule.deleteButton")
+            .accessibilityLabel("Remove \(rule.name)")
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .onChange(of: focusedField) { oldValue, _ in
+            if let field = oldValue {
+                commitField(field)
+            }
+        }
+        .onChange(of: rule) { _, newRule in
+            if focusedField != .name { editingName = newRule.name }
+            if focusedField != .host { editingHost = newRule.hostPattern }
+            if focusedField != .path { editingPath = newRule.pathPrefix ?? "" }
+        }
+        .contextMenu {
+            Button("Move Up") {
+                moveRule(by: -1)
+            }
+            .disabled(hasSearchQuery || !canMoveRule(by: -1))
+
+            Button("Move Down") {
+                moveRule(by: 1)
+            }
+            .disabled(hasSearchQuery || !canMoveRule(by: 1))
+
+            Button("Duplicate Rule") {
+                browserManager.duplicateRoutingRule(id: rule.id)
+            }
+
+            Divider()
+
+            Button("Remove Rule", role: .destructive) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    browserManager.removeRoutingRule(id: rule.id)
+                }
+            }
+        }
+    }
+
+    private func commitField(_ field: Field) {
+        switch field {
+        case .name:
+            browserManager.updateRoutingRuleName(id: rule.id, to: editingName)
+        case .host:
+            browserManager.updateRoutingRuleHostPattern(id: rule.id, to: editingHost)
+        case .path:
+            browserManager.updateRoutingRulePathPrefix(id: rule.id, to: editingPath)
+        }
+    }
+
+    private func canMoveRule(by delta: Int) -> Bool {
+        guard let currentIndex = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }) else {
             return false
         }
-
         let destinationIndex = currentIndex + delta
         return destinationIndex >= 0 && destinationIndex < browserManager.routingRules.count
     }
 
-    private func moveRoutingRule(id: UUID, by delta: Int) {
-        guard canMoveRoutingRule(id: id, by: delta),
-              let currentIndex = browserManager.routingRules.firstIndex(where: { $0.id == id }) else {
+    private func moveRule(by delta: Int) {
+        guard let currentIndex = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }) else {
             return
         }
-
         let destinationIndex = currentIndex + delta
         let destinationOffset = delta > 0 ? destinationIndex + 1 : destinationIndex
         browserManager.moveRoutingRules(from: IndexSet(integer: currentIndex), to: destinationOffset)
-    }
-
-    private func getAppIcon(bundleId: String) -> NSImage? {
-        BrowserManager.icon(forBrowserBundleID: bundleId)
     }
 }
 

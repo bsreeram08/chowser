@@ -10,7 +10,8 @@ import AppKit
 
 struct ContentView: View {
     var browserManager = BrowserManager.shared
-    @Environment(\.openWindow) var openWindow
+    // openWindow is no longer used — Settings is a `Settings` scene now,
+    // opened via NSApp.sendAction(Selector(("showSettingsWindow:")))
     @State private var hoveredBrowserId: UUID?
     @State private var keyboardSelectedBrowserId: UUID?
     @State private var appeared = false
@@ -71,7 +72,7 @@ struct ContentView: View {
         .frame(width: 364)
         .modifier(PickerSurfaceModifier())
         .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.85)) {
                 appeared = true
             }
 
@@ -123,10 +124,8 @@ struct ContentView: View {
             syncKeyboardSelection(with: browserManager.configuredBrowsers)
         }
         .scaleEffect(appeared ? 1.0 : 0.9)
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("openSettingsWindow"))) { _ in
-            openWindow(id: "settings")
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        // The openSettingsWindow notification is no longer needed — AppDelegate.openSettings()
+        // calls NSApp.sendAction(Selector(("showSettingsWindow:"))) directly.
         // Present the Configure Rule sheet when the user taps the button.
         .sheet(isPresented: $showingConfigureRule) {
             if let url = browserManager.currentURL {
@@ -155,8 +154,7 @@ struct ContentView: View {
             Spacer()
             
             Button(action: {
-                openWindow(id: "settings")
-                NSApp.activate(ignoringOtherApps: true)
+                (NSApp.delegate as? AppDelegate)?.openSettings()
             }) {
                 Image(systemName: "gear")
                     .font(.system(size: 12, weight: .medium))
@@ -235,8 +233,7 @@ struct ContentView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                     Button("Open Settings") {
-                        openWindow(id: "settings")
-                        NSApp.activate(ignoringOtherApps: true)
+                        (NSApp.delegate as? AppDelegate)?.openSettings()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -332,7 +329,7 @@ struct ContentView: View {
         .accessibilityHint("Opens the link in \(browser.name). Shortcut key: \(browser.shortcutKey), with Shift and Option variants supported for keyboard layouts. You can also type \(browser.name.prefix(1)) to select it and press Return.")
         .accessibilityAddTraits(isKeyboardSelected ? .isSelected : [])
         .transition(.opacity.combined(with: .move(edge: .top)))
-        .animation(.spring(response: 0.3, dampingFraction: 0.7).delay(Double(index) * 0.03), value: appeared)
+        .animation(.spring(response: 0.15, dampingFraction: 0.85), value: appeared)
     }
     
     // MARK: - Dismiss
@@ -342,7 +339,7 @@ struct ContentView: View {
         // Close the picker window(s) — don't hide the entire app.
         // As an LSUIElement app, Chowser naturally stays in the background.
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue == "picker" {
-            window.close()
+            window.orderOut(nil)
         }
     }
 
@@ -608,6 +605,13 @@ struct ConfigureRuleView: View {
     @State private var ruleName = ""
     @State private var hostPattern = ""
     @State private var selectedBrowserIdentity = ""
+    
+    enum Field: Hashable {
+        case ruleName
+        case hostPattern
+    }
+    
+    @FocusState private var focusedField: Field?
 
     // Inline validation: rule name, host pattern, and browser must all be valid.
     private var isFormValid: Bool {
@@ -628,6 +632,10 @@ struct ConfigureRuleView: View {
         .frame(width: 340)
         .onAppear {
             prefillFromURL()
+            // Auto-focus the rule name field
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                focusedField = .ruleName
+            }
         }
         .accessibilityIdentifier("picker.configureRule.root")
     }
@@ -664,6 +672,7 @@ struct ConfigureRuleView: View {
                 TextField("e.g. github", text: $ruleName)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
+                    .focused($focusedField, equals: .ruleName)
                     .accessibilityIdentifier("picker.configureRule.nameField")
             }
 

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Setup - Chowser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#09090b',
+                        surface: '#18181b',
+                        border: '#27272a',
+                        primary: '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass {
+            background: rgba(24, 24, 27, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+
+<body class="bg-[#09090b] text-zinc-100 font-sans min-h-screen">
+    <nav class="fixed top-0 w-full glass z-50 transition-all duration-300">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
+            <a href="index.html" class="flex items-center gap-3">
+                <div
+                    class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10 shadow-lg text-white font-bold text-lg leading-none shrink-0">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current opacity-90">
+                        <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
+                    </svg>
+                </div>
+                <span class="font-bold text-xl tracking-tight text-white">Chowser</span>
+            </a>
+            <div class="flex items-center gap-4 sm:gap-6 text-sm font-medium text-zinc-400">
+                <a href="index.html#features" class="hover:text-white transition-colors hidden sm:block">Features</a>
+                <a href="agentic-setup.html" class="hover:text-white transition-colors">AI Setup</a>
+                <a href="security-setup.html" class="hover:text-white transition-colors hidden sm:block">Security</a>
+                <a href="index.html#rules" class="hover:text-white transition-colors hidden sm:block">Rules</a>
+                <a href="https://github.com/bsreeram08/chowser" target="_blank"
+                    class="text-zinc-300 hover:text-white transition-colors flex items-center gap-2 shrink-0">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current">
+                        <path
+                            d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+                    </svg>
+                    <span class="hidden sm:inline">GitHub</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="pt-32 pb-20 px-6 max-w-4xl mx-auto">
+        <div class="mb-12">
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight mb-6 text-white/90">Agentic Setup</h1>
+            <p class="text-xl text-zinc-500 leading-relaxed font-medium">
+                Let an AI agent configure Chowser for you. Copy the prompt below and paste it into Claude, ChatGPT, or
+                Cursor.
+            </p>
+        </div>
+
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-zinc-600 uppercase tracking-widest">The AI Prompt</span>
+                <button onclick="copyPrompt()"
+                    class="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-all border border-white/10 text-sm font-semibold">
+                    <span id="copy-label">Copy to Clipboard</span>
+                </button>
+            </div>
+
+            <div
+                class="bg-black/40 rounded-2xl border border-white/10 p-8 font-mono text-sm text-zinc-300 leading-relaxed overflow-x-auto shadow-2xl">
+                <pre id="prompt-text" class="whitespace-pre-wrap">I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac.
+It's a browser chooser app that intercepts links. I need you to:
+
+## Step 1: Discover my browsers and profiles
+
+Scan my Mac for all installed browsers and their profiles:
+
+- Chromium browsers (Chrome, Brave, Edge, Vivaldi, Arc, Opera):
+  Check ~/Library/Application Support/{BrowserName}/Local State
+  Parse the JSON → profile.info_cache → each key is a profile directory name
+  (e.g. "Default", "Profile 1", "Profile 2")
+
+- Firefox-based (Firefox, Zen, LibreWolf, Waterfox):
+  Check ~/Library/Application Support/{BrowserName}/profiles.ini
+  Parse the INI → each [Profile*] section → Name= is the profile name
+
+- Safari: No profiles, just add it as-is.
+
+For each browser+profile combo, produce a JSON object:
+{ "name": "Chrome - Work", "bundleId": "com.google.Chrome", "shortcutKey": "1", "profile": "Profile 1" }
+
+Save ALL of them as a JSON array in a file called ChowserBrowsers.json.
+
+## Step 2: Generate routing rules
+
+Based on my needs: [EDIT THIS — e.g. "work stuff in Chrome Work profile, personal browsing in Safari, dev docs in Firefox"]
+
+For each rule, produce a JSON object:
+{ "name": "Work GitHub", "hostPattern": "*.github.com", "pathPrefix": "/my-company", "browserBundleId": "com.google.Chrome", "profile": "Profile 1", "isEnabled": true }
+
+hostPattern supports exact match (github.com) or wildcard (*.github.com).
+pathPrefix is optional — only set it if you need path-level routing.
+
+Save ALL rules as a JSON array in a file called ChowserRules.json.
+
+## Step 3: Import into Chowser
+
+Tell me to open Chowser → Menu Bar Icon → Settings:
+- Browsers tab → click ⋯ menu → Import Browsers → select ChowserBrowsers.json
+- Rules tab → click ⋯ menu → Import Rules → select ChowserRules.json</pre>
+            </div>
+        </div>
+
+        <div class="mt-12 p-8 rounded-3xl bg-blue-500/5 border border-blue-500/10">
+            <h3 class="text-xl font-bold mb-4 text-blue-400">Why use this?</h3>
+            <p class="text-zinc-400 leading-relaxed">
+                Chowser is powerful because it supports specific browser profiles. However, finding the exact profile
+                directory names manually can be tedious. This prompt leverages your AI's ability to read your file
+                system (with your permission) to automate the entire onboarding process.
+            </p>
+        </div>
+    </main>
+
+    <script>
+        function copyPrompt() {
+            const text = document.getElementById('prompt-text').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const label = document.getElementById('copy-label');
+                label.textContent = 'Copied!';
+                setTimeout(() => label.textContent = 'Copy to Clipboard', 2000);
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -12,12 +12,24 @@ import ServiceManagement
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var pickerWindowObserver: NSObjectProtocol?
+    private var pickerPanel: ChowserPanel?
+    private var isHandlingURL = false
+    private var settingsWindowController: NSWindowController?
+
+    // Custom NSPanel subclass to support Spotlight-like behavior.
+    // .nonactivatingPanel allows the app to appear on top of full-screen apps 
+    // without triggering a Space switch. Overriding canBecomeKey allows it 
+    // to still handle keyboard shortcuts and text input.
+    class ChowserPanel: NSPanel {
+        override var canBecomeKey: Bool { true }
+        override var canBecomeMain: Bool { true }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusBar()
-        startObservingPickerWindows()
-        configureVisiblePickerWindows()
-
+        // We handle the picker manually as an NSPanel now.
+        // startObservingPickerWindows() is no longer needed for the picker.
+        
         if AppEnvironment.shouldOpenSettingsOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self.revealSettingsWindow(retries: 8)
@@ -39,6 +51,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {
+        isHandlingURL = true
+        defer {
+            // Delay resetting the flag slightly to catch any trailing reopen events
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.isHandlingURL = false
+            }
+        }
+
         guard let url = urls.first else { return }
         let manager = BrowserManager.shared
         manager.currentURL = url
@@ -52,13 +72,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         showPicker()
     }
     
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        // When dock icon is clicked (if visible), show settings
-        if !flag {
-            openSettings()
-        }
-        return true
-    }
+    // applicationShouldHandleReopen is intentionally NOT implemented.
+    //
+    // Chowser is an LSUIElement (menu-bar-only) app with no Dock icon.
+    // This callback would only fire if somehow the app is re-activated via
+    // Dock or Exposé, which should never happen in normal use. Including it
+    // causes a race with URL-open events (macOS fires reopen before open:)
+    // and leads to erroneous Settings window launches during link clicks.
+    //
+    // If Settings needs to be opened, the user uses the menu bar icon.
     
     // MARK: - Status Bar
     
@@ -111,61 +133,97 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func openSettings() {
+        // Activate so the Settings window comes to the user's current space.
         NSApp.activate(ignoringOtherApps: true)
 
-        if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+        // Reuse the existing window if it already exists (avoids recreating state).
+        if let controller = settingsWindowController, let window = controller.window {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
             return
         }
 
-        NotificationCenter.default.post(name: Notification.Name("openSettingsWindow"), object: nil)
+        // Create a fresh, AppKit-managed window hosting the SwiftUI SettingsView.
+        // This is the same pattern as the picker panel and avoids SwiftUI scene
+        // lifecycle problems (auto-opening on activation, sendAction responder issues).
+        let hostingController = NSHostingController(rootView: SettingsView())
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Chowser Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.setContentSize(NSSize(width: 900, height: 600))
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let controller = NSWindowController(window: window)
+        settingsWindowController = controller
+        controller.showWindow(nil)
     }
 
 
     
     private func showPicker() {
-        NSApp.activate(ignoringOtherApps: true)
         revealPickerWindow(retries: 8)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            self.configureVisiblePickerWindows()
-        }
     }
 
     private func revealPickerWindow(retries: Int) {
-        guard retries > 0 else { return }
-
-        if let pickerWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "picker" }) {
-            configurePickerWindow(pickerWindow)
-            NSApp.activate(ignoringOtherApps: true)
-            pickerWindow.makeMain()
-            pickerWindow.makeKeyAndOrderFront(nil)
-            pickerWindow.orderFrontRegardless()
+        if let panel = pickerPanel {
+            configurePickerAndShow(panel)
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            self.revealPickerWindow(retries: retries - 1)
+        let panel = createPickerPanel()
+        self.pickerPanel = panel
+        configurePickerAndShow(panel)
+    }
+
+    private func createPickerPanel() -> ChowserPanel {
+        let panel = ChowserPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 364, height: 400),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
+            backing: .buffered,
+            defer: false
+        )
+        panel.identifier = NSUserInterfaceItemIdentifier("picker")
+        panel.isFloatingPanel = true
+        panel.level = .mainMenu + 1
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.backgroundColor = .clear
+        panel.isMovableByWindowBackground = true
+        panel.hasShadow = false // PickerSurfaceModifier handles shadow
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        
+        let hostingView = NSHostingView(rootView: ContentView())
+        panel.contentView = hostingView
+        
+        return panel
+    }
+
+    private func configurePickerAndShow(_ panel: NSPanel) {
+        configurePickerWindow(panel)
+        
+        // Center on active screen (where the mouse is)
+        if let mouseLocation = NSEvent.mouseLocation as Optional<NSPoint>,
+           let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) ?? NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let windowFrame = panel.frame
+            let newOrigin = NSPoint(
+                x: screenFrame.origin.x + (screenFrame.width - windowFrame.width) / 2,
+                y: screenFrame.origin.y + (screenFrame.height - windowFrame.height) / 2
+            )
+            panel.setFrameOrigin(newOrigin)
         }
+        
+        // NSApp.activate(ignoringOtherApps: true) is REMOVED to prevent space-jumping.
+        // Instead, we just make the panel key and front.
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     private func revealSettingsWindow(retries: Int) {
-        guard retries > 0 else { return }
-
+        // Used only in UI testing via AppEnvironment.shouldOpenSettingsOnLaunch.
         NSApp.activate(ignoringOtherApps: true)
-
-        if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
-            return
-        }
-
-        if let settingsWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            settingsWindow.orderFrontRegardless()
-            return
-        }
-
-        NotificationCenter.default.post(name: Notification.Name("openSettingsWindow"), object: nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            self.revealSettingsWindow(retries: retries - 1)
-        }
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
     
     @objc private func setDefaultBrowser() {
@@ -176,50 +234,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    private func startObservingPickerWindows() {
-        pickerWindowObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard
-                let window = notification.object as? NSWindow,
-                window.identifier?.rawValue == "picker"
-            else {
-                return
-            }
-            self?.configurePickerWindow(window)
-        }
-    }
-
-    private func configureVisiblePickerWindows() {
-        for window in NSApp.windows where window.identifier?.rawValue == "picker" {
-            configurePickerWindow(window)
-        }
-    }
 
     private func configurePickerWindow(_ window: NSWindow) {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
-        window.styleMask.remove(.miniaturizable)
         window.isMovableByWindowBackground = true
         window.isOpaque = false
         window.backgroundColor = .clear
-        // The picker card draws its own shadow; disable window shadow/chrome artifacts.
         window.hasShadow = false
+        
+        if window is NSPanel {
+            window.level = .mainMenu + 1
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        } else {
+            window.level = .floating
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        }
+
         if #available(macOS 15.0, *) {
             window.toolbar = nil
-            // Keep the titled/full-size style so the window can reliably become key for keyboard shortcuts.
-            window.styleMask.insert(.titled)
             window.styleMask.insert(.fullSizeContentView)
             window.titlebarSeparatorStyle = .none
         } else {
             window.styleMask.insert(.fullSizeContentView)
             window.titlebarSeparatorStyle = .none
         }
+        
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
     }
+
 
 }

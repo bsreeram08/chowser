@@ -353,9 +353,9 @@ struct BrowserManagerTests {
         #expect(manager2.routingRules[0].browserBundleId == "org.mozilla.firefox")
     }
 
-    @Test("Removing a browser removes rules targeting that browser")
+    @Test("Removing a browser preserves rules targeting that browser")
     @MainActor
-    func removingBrowserPrunesRules() {
+    func removingBrowserPreservesRules() {
         let defaults = makeTestDefaults()
         let manager = BrowserManager(defaults: defaults)
 
@@ -374,7 +374,11 @@ struct BrowserManagerTests {
         manager.removeBrowser(id: chrome.id)
 
         #expect(manager.configuredBrowsers.count == 1)
-        #expect(manager.routingRules.isEmpty)
+        // Rules are preserved so the user can reassign them
+        #expect(manager.routingRules.count == 1)
+        // But resolvedRoute skips them since the target browser is gone
+        let url = URL(string: "https://github.com")!
+        #expect(manager.resolvedRoute(for: url) == nil)
     }
 
     @Test("resolvedRoute returns both matching rule and browser")
@@ -652,9 +656,9 @@ struct BrowserManagerTests {
         #expect(route?.rule.profile == "Profile 1")
     }
 
-    @Test("Removing browser with profile prunes matching rules only")
+    @Test("Removing browser with profile preserves all rules")
     @MainActor
-    func removingBrowserWithProfilePrunesCorrectRules() {
+    func removingBrowserWithProfilePreservesRules() {
         let defaults = makeTestDefaults()
         let manager = BrowserManager(defaults: defaults)
 
@@ -682,8 +686,13 @@ struct BrowserManagerTests {
         manager.removeBrowser(id: work.id)
 
         #expect(manager.configuredBrowsers.count == 1)
-        #expect(manager.routingRules.count == 1)
-        #expect(manager.routingRules[0].name == "Personal Reddit")
+        // Both rules are preserved — orphaned rules can be reassigned by the user
+        #expect(manager.routingRules.count == 2)
+        // Only the Personal Reddit rule resolves since its browser is still configured
+        let redditURL = URL(string: "https://reddit.com")!
+        let githubURL = URL(string: "https://github.com")!
+        #expect(manager.resolvedRoute(for: redditURL)?.rule.name == "Personal Reddit")
+        #expect(manager.resolvedRoute(for: githubURL) == nil)
     }
 
     @Test("Import/export preserves profile in routing rules")

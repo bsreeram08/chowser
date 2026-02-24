@@ -54,38 +54,16 @@
     }
 
     .glass-card {
-      background: linear-gradient(145deg, rgba(39, 39, 42, 0.6) 0%, rgba(24, 24, 27, 0.8) 100%);
-      backdrop-filter: blur(16px);
+      background: rgba(24, 24, 27, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.5);
     }
 
-    /* Glow blobs — contained so they never cause overflow */
+    /* Glow blobs removed for a cleaner, more native feel */
     .glow-blob {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.4;
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    .glow-1 {
-      top: -5%;
-      left: -5%;
-      width: min(400px, 60vw);
-      height: min(400px, 60vw);
-      background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
-      animation: float 8s ease-in-out infinite alternate;
-    }
-
-    .glow-2 {
-      bottom: -5%;
-      right: -5%;
-      width: min(500px, 70vw);
-      height: min(500px, 70vw);
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
-      animation: float 12s ease-in-out infinite alternate-reverse;
+      display: none;
     }
 
     html {
@@ -165,16 +143,19 @@
   <!-- Navigation -->
   <nav class="fixed top-0 w-full glass z-50 transition-all duration-300">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
-      <div class="flex items-center gap-3">
+      <a href="index.html" class="flex items-center gap-3">
         <div
-          class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold text-xl leading-none shrink-0">
-          &#127760;
+          class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10 shadow-lg text-white font-bold text-lg leading-none shrink-0">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current opacity-90">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
+          </svg>
         </div>
         <span class="font-bold text-xl tracking-tight text-white">Chowser</span>
-      </div>
+      </a>
       <div class="flex items-center gap-4 sm:gap-6 text-sm font-medium text-zinc-400">
         <a href="#features" class="hover:text-white transition-colors hidden sm:block">Features</a>
-        <a href="#setup" class="hover:text-white transition-colors hidden sm:block">Setup</a>
+        <a href="agentic-setup.html" class="hover:text-white transition-colors">AI Setup</a>
+        <a href="security-setup.html" class="hover:text-white transition-colors hidden sm:block">Security</a>
         <a href="#rules" class="hover:text-white transition-colors hidden sm:block">Rules</a>
         <a href="https://github.com/bsreeram08/chowser" target="_blank"
           class="text-zinc-300 hover:text-white transition-colors flex items-center gap-2 shrink-0">
@@ -290,84 +271,55 @@
         <!-- Browser list -->
         <div class="p-[6px] flex flex-col gap-[4px]">
           <!-- Safari -->
-          <div class="flex items-center gap-[10px] p-[10px] rounded-[10px] bg-white/[0.1] cursor-pointer">
+          <div
+            class="flex items-center gap-[10px] p-[10px] rounded-[10px] bg-white/[0.08] cursor-pointer ring-1 ring-inset ring-white/5">
             <div
-              class="w-[32px] h-[32px] rounded-[8px] bg-gradient-to-br from-[#1b8cff] to-[#0151c6] flex items-center justify-center text-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] ring-1 ring-inset ring-white/20 shrink-0">
-              <svg class="w-5 h-5 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M12 20.33a8.33 8.33 0 1 1 0-16.66 8.33 8.33 0 0 1 0 16.66Z" />
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="m15.34 8.66-2.22 4.68-4.68 2.22 2.22-4.68 4.68-2.22Z" />
+              class="w-[32px] h-[32px] rounded-[8px] bg-[#1b8cff] flex items-center justify-center text-white shadow-sm shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m16.2 7.8-2.2 4.6-4.6 2.2 2.2-4.6 4.6-2.2z" />
               </svg>
             </div>
             <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Safari</span>
             <div class="flex-1"></div>
             <div
-              class="bg-white/10 px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-400 shadow-sm shrink-0">
+              class="bg-white/10 px-[5px] py-[3px] rounded-[4px] text-[10px] font-semibold font-mono text-zinc-300 shrink-0">
               1</div>
           </div>
           <!-- Firefox -->
           <div
-            class="flex items-center gap-[10px] p-[10px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors">
+            class="flex items-center gap-[10px] p-[10px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors group">
             <div
-              class="w-[32px] h-[32px] rounded-[8px] bg-gradient-to-br from-[#ff9500] to-[#ff3b30] flex items-center justify-center text-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] ring-1 ring-inset ring-white/20 shrink-0">
-              <svg class="w-5 h-5 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+              class="w-[32px] h-[32px] rounded-[8px] bg-[#ff7139] flex items-center justify-center text-white shadow-sm shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
             </div>
             <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Firefox</span>
             <div class="flex-1"></div>
             <div
-              class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-500 shadow-sm shrink-0">
+              class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-semibold font-mono text-zinc-500 shrink-0 group-hover:text-zinc-400">
               2</div>
           </div>
           <!-- Chrome Profile -->
           <div
-            class="flex items-center gap-[10px] p-[10px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors">
+            class="flex items-center gap-[10px] p-[10px] rounded-[10px] hover:bg-white/[0.05] cursor-pointer transition-colors group">
             <div
-              class="w-[32px] h-[32px] rounded-[8px] bg-[#f8f9fa] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.3)] ring-1 ring-inset ring-black/10 overflow-hidden relative shrink-0">
-              <div class="absolute inset-0 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" height="48" width="48">
-                  <defs>
-                    <linearGradient id="a" x1="3.2173" y1="15" x2="44.7812" y2="15" gradientUnits="userSpaceOnUse">
-                      <stop offset="0" stop-color="#d93025" />
-                      <stop offset="1" stop-color="#ea4335" />
-                    </linearGradient>
-                    <linearGradient id="b" x1="20.7219" y1="47.6791" x2="41.5039" y2="11.6837"
-                      gradientUnits="userSpaceOnUse">
-                      <stop offset="0" stop-color="#fcc934" />
-                      <stop offset="1" stop-color="#fbbc04" />
-                    </linearGradient>
-                    <linearGradient id="c" x1="26.5981" y1="46.5015" x2="5.8161" y2="10.506"
-                      gradientUnits="userSpaceOnUse">
-                      <stop offset="0" stop-color="#1e8e3e" />
-                      <stop offset="1" stop-color="#34a853" />
-                    </linearGradient>
-                  </defs>
-                  <circle cx="24" cy="23.9947" r="12" style="fill:#fff" />
-                  <path
-                    d="M24,12H44.7812a23.9939,23.9939,0,0,0-41.5639.0029L13.6079,30l.0093-.0024A11.9852,11.9852,0,0,1,24,12Z"
-                    style="fill:url(#a)" />
-                  <circle cx="24" cy="24" r="9.5" style="fill:#1a73e8" />
-                  <path
-                    d="M34.3913,30.0029,24.0007,48A23.994,23.994,0,0,0,44.78,12.0031H23.9989l-.0025.0093A11.985,11.985,0,0,1,34.3913,30.0029Z"
-                    style="fill:url(#b)" />
-                  <path
-                    d="M13.6086,30.0031,3.218,12.006A23.994,23.994,0,0,0,24.0025,48L34.3931,30.0029l-.0067-.0068a11.9852,11.9852,0,0,1-20.7778.007Z"
-                    style="fill:url(#c)" />
-                </svg>
-              </div>
+              class="w-[32px] h-[32px] rounded-[8px] bg-[#4285F4] flex items-center justify-center text-white shadow-sm shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="4" />
+                <path d="m12 8 4 6.9-8-.1z" />
+              </svg>
             </div>
             <div class="flex flex-col gap-0.5 min-w-0">
               <span class="text-[13px] font-medium text-zinc-100 tracking-[0.01em]">Google Chrome</span>
-              <span class="text-[10px] text-zinc-500 font-mono">Work Profile</span>
+              <span class="text-[10px] text-zinc-500 font-mono tracking-tighter">Work Profile</span>
             </div>
             <div class="flex-1"></div>
             <div
-              class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-medium font-mono text-zinc-500 shadow-sm shrink-0">
+              class="bg-white/[0.04] px-[5px] py-[3px] rounded-[4px] text-[10px] font-semibold font-mono text-zinc-500 shrink-0 group-hover:text-zinc-400">
               3</div>
           </div>
         </div>
@@ -378,7 +330,8 @@
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
           </svg>
-          <span class="text-[10px] text-zinc-500 tracking-wide font-medium">1–9 select • Type initial • ↑/↓ navigate •
+          <span class="text-[10px] text-zinc-600 tracking-tight font-semibold uppercase">1–9 select • Type initial • ↑/↓
+            navigate •
             Return open • Esc close</span>
         </div>
         <!-- Configure Rule button -->
@@ -398,11 +351,12 @@
   </main>
 
   <!-- Setup Section -->
-  <section id="setup" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-zinc-800/50 bg-zinc-900/20">
+  <section id="setup" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-white/10 bg-[#0c0c0e]">
     <div class="max-w-4xl mx-auto reveal">
       <div class="text-center mb-12 sm:mb-16">
-        <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight">Seamless Installation</h2>
-        <p class="text-zinc-400 max-w-2xl mx-auto text-sm sm:text-base">Get up and running in seconds. Chowser is
+        <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight text-white/90">Seamless Installation</h2>
+        <p class="text-zinc-500 max-w-2xl mx-auto text-sm sm:text-base font-medium">Get up and running in seconds.
+          Chowser is
           designed to be lightweight and unobtrusive.</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -423,17 +377,25 @@
         </div>
         <!-- Step 2 -->
         <div
-          class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-500/50 transition-colors">
+          class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group border-amber-500/20 bg-amber-500/5 hover:border-amber-500/50 transition-colors">
           <div
-            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-100 opacity-0">
+            class="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-100 opacity-0">
           </div>
           <div
-            class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-lg mb-4 text-amber-500">
             2</div>
-          <h3 class="text-xl font-bold mb-2">Launch & Bypass Warning</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Launch Chowser from Applications. Because this is an unsigned
-            build, on the first launch, you must <strong>Right-click &rarr; Open</strong> to bypass macOS Gatekeeper.
-          </p>
+          <h3 class="text-xl font-bold mb-2">Bypass Security Warning</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed mb-4">Because this is an <strong>unsigned build</strong>,
+            macOS will block the initial launch. You MUST bypass Gatekeeper:</p>
+          <div
+            class="bg-black/40 rounded-xl p-3 border border-amber-500/20 text-xs text-amber-200/80 leading-relaxed font-medium">
+            <span class="text-amber-400 font-bold">CRITICAL:</span> Right-click (or Control-click) the app and select
+            <strong>Open</strong>. When the warning appears, click <strong>Open Anyway</strong>.
+          </div>
+          <a href="security-setup.html"
+            class="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
+            View detailed security guide &rarr;
+          </a>
         </div>
         <!-- Step 3 -->
         <div
@@ -470,27 +432,21 @@
     <div class="max-w-4xl mx-auto reveal">
       <div
         class="glass-card p-6 sm:p-12 rounded-2xl sm:rounded-[32px] border border-blue-500/20 shadow-[0_0_50px_-10px_rgba(59,130,246,0.15)] relative overflow-hidden">
-        <div class="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
-          <svg class="w-64 h-64" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
-          </svg>
-        </div>
         <div class="relative z-10">
           <div
             class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold mb-6">
             ✨ AI SETUP</div>
           <h2 class="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6 tracking-tight">AI-Powered Configuration</h2>
           <p class="text-zinc-400 text-sm sm:text-lg mb-6 sm:mb-8 leading-relaxed max-w-2xl">
-            Skip manual setup. Copy the prompt below, paste it into <strong>Claude, ChatGPT, or Cursor</strong>, and
-            your AI agent will scan your Mac, find every browser and profile, generate routing rules, and give you
-            ready-to-import JSON files.
+            Skip manual setup. Run the command below in your terminal to fetch the setup instructions and pipe them
+            directly into your clipboard, then paste them into <strong>Claude, ChatGPT, or Cursor</strong>.
           </p>
 
-          <!-- Single comprehensive prompt -->
+          <!-- Curl command block -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Copy this prompt</span>
-              <button onclick="copyPrompt()"
+              <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Copy terminal command</span>
+              <button onclick="copyCurl()"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-all border border-zinc-700 text-zinc-400 hover:text-white active:scale-95 text-xs font-medium"
                 title="Copy to clipboard">
                 <svg id="copy-icon" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
@@ -506,47 +462,8 @@
               </button>
             </div>
             <div
-              class="bg-black/60 rounded-xl sm:rounded-2xl border border-zinc-800 p-4 sm:p-6 text-xs sm:text-sm text-zinc-300 leading-relaxed shadow-2xl overflow-x-auto">
-              <pre id="ai-prompt-text" class="whitespace-pre-wrap break-words font-mono">I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac.
-It's a browser chooser app that intercepts links. I need you to:
-
-## Step 1: Discover my browsers and profiles
-
-Scan my Mac for all installed browsers and their profiles:
-
-- Chromium browsers (Chrome, Brave, Edge, Vivaldi, Arc, Opera):
-  Check ~/Library/Application Support/{BrowserName}/Local State
-  Parse the JSON → profile.info_cache → each key is a profile directory name
-  (e.g. "Default", "Profile 1", "Profile 2")
-
-- Firefox-based (Firefox, Zen, LibreWolf, Waterfox):
-  Check ~/Library/Application Support/{BrowserName}/profiles.ini
-  Parse the INI → each [Profile*] section → Name= is the profile name
-
-- Safari: No profiles, just add it as-is.
-
-For each browser+profile combo, produce a JSON object:
-{ "name": "Chrome - Work", "bundleId": "com.google.Chrome", "shortcutKey": "1", "profile": "Profile 1" }
-
-Save ALL of them as a JSON array in a file called ChowserBrowsers.json.
-
-## Step 2: Generate routing rules
-
-Based on my needs: [EDIT THIS — e.g. "work stuff in Chrome Work profile, personal browsing in Safari, dev docs in Firefox"]
-
-For each rule, produce a JSON object:
-{ "name": "Work GitHub", "hostPattern": "*.github.com", "pathPrefix": "/my-company", "browserBundleId": "com.google.Chrome", "profile": "Profile 1", "isEnabled": true }
-
-hostPattern supports exact match (github.com) or wildcard (*.github.com).
-pathPrefix is optional — only set it if you need path-level routing.
-
-Save ALL rules as a JSON array in a file called ChowserRules.json.
-
-## Step 3: Import into Chowser
-
-Tell me to open Chowser → Menu Bar Icon → Settings:
-- Browsers tab → click ⋯ menu → Import Browsers → select ChowserBrowsers.json
-- Rules tab → click ⋯ menu → Import Rules → select ChowserRules.json</pre>
+              class="bg-black/60 rounded-xl sm:rounded-2xl border border-zinc-800 p-6 text-sm sm:text-lg text-primary leading-relaxed shadow-2xl overflow-x-auto font-mono flex items-center justify-between group">
+              <code id="curl-text">curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy</code>
             </div>
           </div>
         </div>
@@ -555,8 +472,8 @@ Tell me to open Chowser → Menu Bar Icon → Settings:
   </section>
 
   <script>
-    function copyPrompt() {
-      const text = document.getElementById('ai-prompt-text').innerText;
+    function copyCurl() {
+      const text = document.getElementById('curl-text').innerText;
       navigator.clipboard.writeText(text).then(() => {
         document.getElementById('copy-icon').classList.add('hidden');
         document.getElementById('check-icon').classList.remove('hidden');
@@ -570,19 +487,16 @@ Tell me to open Chowser → Menu Bar Icon → Settings:
     }
   </script>
 
-  <!-- Rules & Configuration Section -->
-  <section id="rules" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-zinc-800/50">
-    <div
-      class="absolute left-0 top-1/2 -translate-y-1/2 w-64 h-64 bg-primary/5 rounded-full blur-3xl -ml-32 pointer-events-none">
-    </div>
+  <section id="rules" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-white/5">
     <div class="max-w-4xl mx-auto reveal">
       <div class="mb-10 sm:mb-12">
-        <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight">Smart Routing Rules</h2>
-        <p class="text-zinc-400 max-w-2xl text-sm sm:text-lg">Never pick a browser manually again. Set up powerful rules
+        <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight text-white/90">Smart Routing Rules</h2>
+        <p class="text-zinc-500 max-w-2xl text-sm sm:text-lg font-medium">Never pick a browser manually again. Set up
+          powerful rules
           to auto-route specific domains to work, personal, or testing browsers.</p>
       </div>
 
-      <div class="glass-card rounded-2xl border border-zinc-700/80 overflow-hidden">
+      <div class="glass-card rounded-xl border border-white/10 overflow-hidden shadow-2xl">
         <div class="grid grid-cols-1 md:grid-cols-[1fr_1.5fr]">
           <!-- Rules Explanation -->
           <div class="p-6 sm:p-8 bg-zinc-800/20 border-b md:border-b-0 md:border-r border-zinc-700/50">
@@ -628,26 +542,48 @@ Tell me to open Chowser → Menu Bar Icon → Settings:
             </ul>
           </div>
           <!-- Code/Visual Example -->
-          <div class="p-6 sm:p-8 bg-zinc-900 flex flex-col justify-center">
-            <div
-              class="bg-[#1e1e1e] rounded-xl border border-zinc-700/50 p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto shadow-inner">
-              <div class="flex gap-2 mb-3 px-2">
-                <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
-                <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
-                <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+          <div class="p-6 sm:p-8 bg-[#09090b] flex flex-col justify-center">
+            <div class="bg-[#141417] rounded-xl border border-white/10 p-4 sm:p-5 shadow-inner">
+              <div class="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Active Rules Sequence</span>
+                <span class="text-[10px] text-primary font-bold">Priority Order</span>
               </div>
-              <div class="text-zinc-400 space-y-2 px-2">
-                <p><span class="text-pink-400"># Open work links in Chrome</span></p>
-                <p>IF url <span class="text-blue-400">contains</span> <span
-                    class="text-amber-300">"github.com/company"</span></p>
-                <p class="pl-4">&rarr; OPEN IN <span class="text-green-400">Google Chrome</span></p>
-                <p class="mt-4"><span class="text-pink-400"># Open banking in Safari</span></p>
-                <p>IF domain <span class="text-blue-400">matches</span> <span
-                    class="text-amber-300">"*.chase.com"</span></p>
-                <p class="pl-4">&rarr; OPEN IN <span class="text-green-400">Safari</span></p>
-                <p class="mt-4"><span class="text-pink-400"># Fallback behavior</span></p>
-                <p>ELSE</p>
-                <p class="pl-4">&rarr; SHOW <span class="text-purple-400">Browser Picker</span></p>
+              <div class="space-y-3">
+                <!-- Rule 1 -->
+                <div class="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/5 group">
+                  <div
+                    class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold">
+                    1</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-[12px] font-bold text-zinc-200 truncate">Work Tools</div>
+                    <div class="text-[10px] text-zinc-500 truncate font-mono">github.com/my-org/*</div>
+                  </div>
+                  <div class="text-[10px] font-bold text-green-500/90 whitespace-nowrap">Chrome (Work)</div>
+                </div>
+                <!-- Rule 2 -->
+                <div class="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                  <div
+                    class="w-5 h-5 rounded bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold">
+                    2</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-[12px] font-bold text-zinc-200 truncate">Social Media</div>
+                    <div class="text-[10px] text-zinc-500 truncate font-mono">twitter.com/*</div>
+                  </div>
+                  <div class="text-[10px] font-bold text-zinc-500">Safari</div>
+                </div>
+                <!-- Fallback Indicator -->
+                <div class="pt-2 border-t border-white/5 mt-2">
+                  <div class="flex items-center gap-3 px-2">
+                    <div class="w-5 h-5 flex items-center justify-center">
+                      <svg class="w-3 h-3 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                          d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </div>
+                    <span class="text-[10px] font-bold text-zinc-600 uppercase">First match wins • Then Fallback to
+                      Picker</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="mt-4 sm:mt-6 flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-500">
@@ -669,7 +605,7 @@ Tell me to open Chowser → Menu Bar Icon → Settings:
   <section id="features" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-zinc-800/50 bg-zinc-900/10">
     <div class="max-w-6xl mx-auto reveal">
       <div class="text-center mb-12 sm:mb-16">
-        <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight">New in v1.8.0</h2>
+        <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight">New in v2.0.0</h2>
         <p class="text-zinc-400 max-w-2xl mx-auto text-sm sm:text-base">More power, less clutter. We've added the
           features power users requested most.</p>
       </div>
@@ -733,13 +669,18 @@ Tell me to open Chowser → Menu Bar Icon → Settings:
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
       <div class="flex items-center gap-2">
         <div
-          class="w-6 h-6 rounded bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs">
-          &#127760;</div>
+          class="w-6 h-6 rounded bg-zinc-800 flex items-center justify-center border border-white/10 text-white shadow-sm">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 fill-current opacity-90">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
+          </svg>
+        </div>
         <span class="font-semibold text-zinc-300">Chowser</span>
       </div>
       <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-zinc-500">
         <a href="https://github.com/bsreeram08/chowser" class="hover:text-white transition-colors">GitHub</a>
         <a href="https://github.com/bsreeram08/chowser/releases" class="hover:text-white transition-colors">Releases</a>
+        <a href="security-setup.html" class="hover:text-white transition-colors">Security Setup</a>
+        <a href="agentic-setup.html" class="hover:text-white transition-colors">AI Setup</a>
         <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE" class="hover:text-white transition-colors">MIT
           License</a>
       </div>

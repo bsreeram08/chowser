@@ -10,21 +10,14 @@ import SwiftUI
 @main
 struct ChowserApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @Environment(\.openWindow) var openWindow
 
     var body: some Scene {
-        Window("Chowser", id: "picker") {
-            ContentView()
+        // All window management (picker, settings) is handled in AppDelegate.
+        // We use Settings { EmptyView() } purely as a required scene placeholder.
+        // The actual Settings UI is hosted in an NSWindowController in AppDelegate,
+        // which gives us explicit control over when it opens (never auto-presents).
+        Settings {
+            EmptyView()
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
-        
-        Window("Settings", id: "settings") {
-            SettingsView()
-        }
-        .windowStyle(.titleBar)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
     }
 }

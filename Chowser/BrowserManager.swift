@@ -22,6 +22,27 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     var browserBundleId: String
     var profile: String?
     var isEnabled: Bool = true
+    var sourceAppBundleId: String? = nil
+    var usePrivateMode: Bool = false
+}
+
+extension BrowserRoutingRule {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, hostPattern, pathPrefix, browserBundleId, profile, isEnabled, sourceAppBundleId, usePrivateMode
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        hostPattern = try c.decode(String.self, forKey: .hostPattern)
+        pathPrefix = try c.decodeIfPresent(String.self, forKey: .pathPrefix)
+        browserBundleId = try c.decode(String.self, forKey: .browserBundleId)
+        profile = try c.decodeIfPresent(String.self, forKey: .profile)
+        isEnabled = (try c.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? true
+        sourceAppBundleId = try c.decodeIfPresent(String.self, forKey: .sourceAppBundleId)
+        usePrivateMode = (try c.decodeIfPresent(Bool.self, forKey: .usePrivateMode)) ?? false
+    }
 }
 
 @MainActor
@@ -73,6 +94,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     }
 
     var currentURL: URL?
+    var currentSourceAppBundleId: String? = nil
     var lastOpenedBrowserBundleIDForTesting: String?
 
     var hiddenBundleIDs: Set<String> = [] {
@@ -302,7 +324,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     // MARK: - Routing Rules
 
-    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil) {
+    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false) {
         guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
 
         let normalizedHost = normalizedHostPattern(hostPattern)
@@ -317,7 +339,9 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
                 hostPattern: normalizedHost,
                 pathPrefix: normalizedPathPrefix(pathPrefix),
                 browserBundleId: browserBundleId,
-                profile: profile
+                profile: profile,
+                sourceAppBundleId: sourceAppBundleId.flatMap { $0.isEmpty ? nil : $0 },
+                usePrivateMode: usePrivateMode
             )
         )
     }
@@ -344,7 +368,9 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
             pathPrefix: original.pathPrefix,
             browserBundleId: original.browserBundleId,
             profile: original.profile,
-            isEnabled: original.isEnabled
+            isEnabled: original.isEnabled,
+            sourceAppBundleId: original.sourceAppBundleId,
+            usePrivateMode: original.usePrivateMode
         )
         routingRules.insert(duplicate, at: index + 1)
     }
@@ -407,6 +433,16 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         routingRules[index].isEnabled = isEnabled
     }
 
+    func updateRoutingRuleSourceApp(id: UUID, to bundleId: String?) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        routingRules[index].sourceAppBundleId = bundleId.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    func updateRoutingRuleUsePrivateMode(id: UUID, to usePrivateMode: Bool) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        routingRules[index].usePrivateMode = usePrivateMode
+    }
+
     func resolvedRoute(for url: URL) -> (rule: BrowserRoutingRule, browser: BrowserConfig)? {
         let host = (url.host ?? "").lowercased()
         guard !host.isEmpty else { return nil }
@@ -416,6 +452,9 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         for rule in routingRules where rule.isEnabled {
             guard hostMatches(host, pattern: rule.hostPattern) else { continue }
             guard pathMatches(path, prefix: rule.pathPrefix) else { continue }
+            if let ruleSource = rule.sourceAppBundleId, !ruleSource.isEmpty {
+                guard ruleSource == (currentSourceAppBundleId ?? "") else { continue }
+            }
             guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId && $0.profile == rule.profile }) else { continue }
 
             return (rule, browser)
@@ -566,7 +605,31 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         return NSImage(size: NSSize(width: 64, height: 64))
     }
 
-    func open(url: URL, withBrowserBundleID bundleId: String, profile: String? = nil) {
+    private enum BrowserFamily {
+        case chromium, firefox, other
+    }
+
+    private static func browserFamily(for bundleId: String) -> BrowserFamily {
+        if bundleId.localizedCaseInsensitiveContains("Chrome") ||
+           bundleId.localizedCaseInsensitiveContains("Brave") ||
+           bundleId.localizedCaseInsensitiveContains("Edge") ||
+           bundleId.localizedCaseInsensitiveContains("Vivaldi") ||
+           bundleId.localizedCaseInsensitiveContains("Arc") ||
+           bundleId == "company.thebrowser.Browser" ||
+           bundleId.localizedCaseInsensitiveContains("Chromium") ||
+           bundleId.localizedCaseInsensitiveContains("Opera") {
+            return .chromium
+        }
+        if bundleId.localizedCaseInsensitiveContains("Firefox") ||
+           bundleId.localizedCaseInsensitiveContains("Zen") ||
+           bundleId.localizedCaseInsensitiveContains("LibreWolf") ||
+           bundleId.localizedCaseInsensitiveContains("Waterfox") {
+            return .firefox
+        }
+        return .other
+    }
+
+    func open(url: URL, withBrowserBundleID bundleId: String, profile: String? = nil, usePrivateMode: Bool = false) {
         if AppEnvironment.shouldDisableExternalURLOpen {
             lastOpenedBrowserBundleIDForTesting = bundleId
             return
@@ -591,7 +654,7 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
         // Using /usr/bin/open -n -a <App> --args ... exactly replicates the terminal
         // command that was confirmed reliable in local CLI testing and is consistent
         // regardless of whether the browser is already running.
-        if let info = Self.launchInfo(forBundleID: bundleId, profile: profile, customArguments: customArgs, url: url) {
+        if let info = Self.launchInfo(forBundleID: bundleId, profile: profile, customArguments: customArgs, url: url, usePrivateMode: usePrivateMode) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             // -n forces a new instance; --args passes everything after it directly to the app.
@@ -619,54 +682,66 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
 
     /// Generates the appropriate command line arguments for a browser launch.
     /// Supports {profile} and {url} placeholders in customArguments.
-    static func launchInfo(forBundleID bundleId: String, profile: String?, customArguments: String?, url: URL) -> (arguments: [String], type: String)? {
-        // 1. Check for custom arguments first
+    static func launchInfo(forBundleID bundleId: String, profile: String?, customArguments: String?, url: URL, usePrivateMode: Bool = false) -> (arguments: [String], type: String)? {
+        // 1. Check for custom arguments first (user controls args; private mode not injected)
         if let custom = customArguments, !custom.isEmpty {
             let processed = custom
                 .replacingOccurrences(of: "{profile}", with: profile ?? "")
                 .replacingOccurrences(of: "{url}", with: url.absoluteString)
-            
-            // Split by whitespace but respect quotes if we wanted to be fancy. 
-            // For now, simple split is usually enough for flags.
             var args = processed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            
-            // If the user didn't include {url}, append it at the end
             if !custom.contains("{url}") {
                 args.append(url.absoluteString)
             }
-            
             return (arguments: args, type: "custom")
         }
 
-        // 2. Fall back to smart defaults if we have a profile
+        let family = browserFamily(for: bundleId)
+
+        // 2. Private mode with no profile — force Process launch with private flag
+        if usePrivateMode && profile == nil {
+            switch family {
+            case .chromium:
+                return (arguments: ["--incognito", url.absoluteString], type: "chromium-private")
+            case .firefox:
+                return (arguments: ["-private", url.absoluteString], type: "firefox-private")
+            case .other:
+                return nil // Falls back to NSWorkspace; no private mode supported
+            }
+        }
+
+        // 3. Fall back to smart defaults when we have a profile
         guard let profile = profile else { return nil }
 
-        let isChromium = bundleId.localizedCaseInsensitiveContains("Chrome") ||
-                        bundleId.localizedCaseInsensitiveContains("Brave") ||
-                        bundleId.localizedCaseInsensitiveContains("Edge") ||
-                        bundleId.localizedCaseInsensitiveContains("Vivaldi") ||
-                        bundleId.localizedCaseInsensitiveContains("Arc") ||
-                        bundleId == "company.thebrowser.Browser" ||
-                        bundleId.localizedCaseInsensitiveContains("Chromium") ||
-                        bundleId.localizedCaseInsensitiveContains("Opera")
-        
-        let isFirefox = bundleId.localizedCaseInsensitiveContains("Firefox") ||
-                        bundleId.localizedCaseInsensitiveContains("Zen") ||
-                        bundleId.localizedCaseInsensitiveContains("LibreWolf") ||
-                        bundleId.localizedCaseInsensitiveContains("Waterfox")
-
-        if isChromium {
-            return (arguments: ["--profile-directory=\(profile)", url.absoluteString], type: "chromium")
-        } else if isFirefox {
-            return (arguments: ["-P", profile, url.absoluteString], type: "firefox")
+        switch family {
+        case .chromium:
+            let args = usePrivateMode
+                ? ["--incognito", "--profile-directory=\(profile)", url.absoluteString]
+                : ["--profile-directory=\(profile)", url.absoluteString]
+            return (arguments: args, type: "chromium")
+        case .firefox:
+            let args = usePrivateMode
+                ? ["-private", "-P", profile, url.absoluteString]
+                : ["-P", profile, url.absoluteString]
+            return (arguments: args, type: "firefox")
+        case .other:
+            return nil
         }
-        
-        return nil
     }
 
     func isValidRoutingHostPattern(_ hostPattern: String) -> Bool {
         let normalizedPattern = normalizedHostPattern(hostPattern)
         return isValidHostPattern(normalizedPattern)
+    }
+
+    /// Public normalization helper for rule host patterns (used by view closures).
+    func normalizedRoutingHostPattern(_ pattern: String) -> String {
+        normalizedHostPattern(pattern)
+    }
+
+    /// Replaces an existing routing rule (matched by ID) with an updated value.
+    func updateRoutingRule(_ rule: BrowserRoutingRule) {
+        guard let index = routingRules.firstIndex(where: { $0.id == rule.id }) else { return }
+        routingRules[index] = rule
     }
 
     private func clearPersistedBrowserList() {
@@ -804,6 +879,6 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
             return true
         }
 
-        return path.hasPrefix(normalizedPrefix)
+        return path.lowercased().hasPrefix(normalizedPrefix.lowercased())
     }
 }

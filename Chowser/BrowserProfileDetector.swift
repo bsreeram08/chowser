@@ -6,16 +6,30 @@ struct BrowserProfile {
 }
 
 enum BrowserProfileDetector {
-    
+
+    private static var profileCache: [String: [BrowserProfile]] = [:]
+
+    /// Clears the profile cache — call when the Settings window opens to pick up newly added profiles.
+    static func clearCache() {
+        profileCache = [:]
+    }
+
     static func detectProfiles(for bundleId: String) -> [BrowserProfile] {
-        if bundleId.contains("Chrome") || bundleId == "com.brave.Browser" || bundleId == "com.microsoft.edgemac" || bundleId == "com.vivaldi.Vivaldi" {
+        if let cached = profileCache[bundleId] { return cached }
+        let profiles = detectProfilesUncached(for: bundleId)
+        profileCache[bundleId] = profiles
+        return profiles
+    }
+
+    private static func detectProfilesUncached(for bundleId: String) -> [BrowserProfile] {
+        if bundleId.contains("Chrome") || bundleId == "com.brave.Browser" || bundleId == "com.microsoft.edgemac" || bundleId == "com.vivaldi.Vivaldi" || bundleId == "company.thebrowser.Browser" || bundleId == "company.thebrowser.Dia" {
             return detectChromiumProfiles(bundleId: bundleId)
         } else if bundleId == "org.mozilla.firefox" || bundleId == "app.zen-browser.zen" {
             return detectFirefoxProfiles(bundleId: bundleId)
         }
         return []
     }
-    
+
     private static func detectChromiumProfiles(bundleId: String) -> [BrowserProfile] {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let pathSuffix: String
@@ -24,9 +38,11 @@ enum BrowserProfileDetector {
         case "com.brave.Browser": pathSuffix = "BraveSoftware/Brave-Browser/Local State"
         case "com.microsoft.edgemac": pathSuffix = "Microsoft Edge/Local State"
         case "com.vivaldi.Vivaldi": pathSuffix = "Vivaldi/Local State"
+        case "company.thebrowser.Browser": pathSuffix = "Arc/User Data/Local State"
+        case "company.thebrowser.Dia": pathSuffix = "Dia/User Data/Local State"
         default: return []
         }
-        
+
         let localStateURL = appSupport.appendingPathComponent(pathSuffix)
         guard let data = try? Data(contentsOf: localStateURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -34,26 +50,26 @@ enum BrowserProfileDetector {
               let infoCache = profile["info_cache"] as? [String: [String: Any]] else {
             return []
         }
-        
+
         var profiles: [BrowserProfile] = []
         for (key, info) in infoCache {
             let name = info["name"] as? String ?? key
             profiles.append(BrowserProfile(id: key, name: name))
         }
-        
+
         return profiles.sorted(by: { $0.name < $1.name })
     }
-    
+
     private static func detectFirefoxProfiles(bundleId: String) -> [BrowserProfile] {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let pathSuffix = bundleId == "org.mozilla.firefox" ? "Firefox/profiles.ini" : "Zen/profiles.ini"
         let iniURL = appSupport.appendingPathComponent(pathSuffix)
-        
+
         guard let content = try? String(contentsOf: iniURL) else { return [] }
-        
+
         var profiles: [BrowserProfile] = []
         let lines = content.components(separatedBy: .newlines)
-        
+
         var currentName: String?
         for line in lines {
             if line.hasPrefix("[Profile") {
@@ -65,7 +81,7 @@ enum BrowserProfileDetector {
                 }
             }
         }
-        
+
         return profiles.sorted(by: { $0.name < $1.name })
     }
 }

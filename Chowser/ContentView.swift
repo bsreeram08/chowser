@@ -10,8 +10,6 @@ import AppKit
 
 struct ContentView: View {
     var browserManager = BrowserManager.shared
-    // openWindow is no longer used — Settings is a `Settings` scene now,
-    // opened via NSApp.sendAction(Selector(("showSettingsWindow:")))
     @State private var hoveredBrowserId: UUID?
     @State private var keyboardSelectedBrowserId: UUID?
     @State private var appeared = false
@@ -19,49 +17,29 @@ struct ContentView: View {
     @State private var focusObserver: NSObjectProtocol?
     @State private var keyEventMonitor: Any?
     @State private var showingConfigureRule = false
+    @State private var urlCopied = false
+    @State private var privateMode = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerSection
-            
-            Divider()
-                .opacity(0.3)
-            
-            // URL display
+        VStack(alignment: .center, spacing: 10) {
+            // URL bubble — floating pill above the browser bar
             if let url = browserManager.currentURL {
-                urlDisplay(url: url)
+                urlBubble(url: url)
             }
-            
-            // Browser list
-            browserList
 
+            // Main browser bar pill or empty state
+            if browserManager.configuredBrowsers.isEmpty {
+                emptyStatePill
+            } else {
+                browserBarPill
+            }
+
+            // Keyboard hints row
             if !browserManager.configuredBrowsers.isEmpty {
-                pickerHintBar
+                keyboardHintsRow
             }
 
-            // "Configure Rule" button — lets the user create a routing rule from the current URL.
-            if !browserManager.configuredBrowsers.isEmpty && browserManager.currentURL != nil {
-                Divider()
-                    .opacity(0.2)
-                    .padding(.horizontal, 14)
-
-                Button(action: { showingConfigureRule = true }) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 10, weight: .medium))
-                        Text("Configure Rule")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("picker.configureRuleButton")
-                .accessibilityLabel("Configure a routing rule for this URL")
-            }
-
+            // Hidden test label for UI tests
             if AppEnvironment.isUITesting {
                 Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
                     .font(.system(size: 1))
@@ -69,35 +47,31 @@ struct ContentView: View {
                     .accessibilityIdentifier("picker.lastOpenedBrowser")
             }
         }
-        .frame(width: 364)
-        .modifier(PickerSurfaceModifier())
+        .frame(width: pickerWidth)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 14) // room for pill shadows/stroke to breathe
+        .scaleEffect(appeared ? 1.0 : 0.94)
+        .opacity(appeared ? 1.0 : 0.0)
         .onAppear {
-            withAnimation(.spring(response: 0.15, dampingFraction: 0.85)) {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                 appeared = true
             }
-
             syncKeyboardSelection(with: browserManager.configuredBrowsers)
             installKeyEventMonitor()
 
             if !AppEnvironment.isUITesting {
-                // Close when the picker window itself loses focus (click outside).
-                // Use DispatchQueue.main.async so the window is available.
                 DispatchQueue.main.async {
                     guard let window = NSApp.windows.first(where: {
-                        $0.isVisible && $0.identifier?.rawValue == "picker"
-                        && $0.contentView != nil
+                        $0.isVisible && $0.identifier?.rawValue == "picker" && $0.contentView != nil
                     }) else { return }
-                    
+
                     focusObserver = NotificationCenter.default.addObserver(
                         forName: NSWindow.didResignKeyNotification,
                         object: window,
                         queue: .main
                     ) { _ in
-                        // Debounce: tolerate transient focus losses.
                         dismissTask?.cancel()
                         let work = DispatchWorkItem {
-                            // Only dismiss if the picker window is still not key
-                            // and no sheet (e.g. Configure Rule) is attached to it.
                             if let w = NSApp.windows.first(where: {
                                 $0.identifier?.rawValue == "picker" && $0.isVisible
                             }), !w.isKeyWindow, w.attachedSheet == nil {
@@ -111,7 +85,6 @@ struct ContentView: View {
             }
         }
         .onDisappear {
-            // Clean up observer to prevent accumulation
             if let observer = focusObserver {
                 NotificationCenter.default.removeObserver(observer)
                 focusObserver = nil
@@ -123,10 +96,6 @@ struct ContentView: View {
         .onChange(of: browserManager.configuredBrowsers) {
             syncKeyboardSelection(with: browserManager.configuredBrowsers)
         }
-        .scaleEffect(appeared ? 1.0 : 0.9)
-        // The openSettingsWindow notification is no longer needed — AppDelegate.openSettings()
-        // calls NSApp.sendAction(Selector(("showSettingsWindow:"))) directly.
-        // Present the Configure Rule sheet when the user taps the button.
         .sheet(isPresented: $showingConfigureRule) {
             if let url = browserManager.currentURL {
                 ConfigureRuleView(
@@ -138,248 +107,358 @@ struct ContentView: View {
             }
         }
     }
-    
-    // MARK: - Header
-    
-    private var headerSection: some View {
-        HStack(spacing: 0) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
-            
-            Text("Open with…")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(.primary)
-            
-            Spacer()
-            
-            Button(action: {
-                (NSApp.delegate as? AppDelegate)?.openSettings()
-            }) {
-                Image(systemName: "gear")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .modifier(PickerCircleButtonBackgroundModifier())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("picker.openSettingsButton")
-            .accessibilityLabel("Open Settings")
-            .accessibilityHint("Opens the Chowser settings window")
-            
 
-            Button(action: dismissPicker) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .modifier(PickerCircleButtonBackgroundModifier())
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.cancelAction)
-            .accessibilityIdentifier("picker.closeButton")
-            .accessibilityLabel("Close browser picker")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-    }
-    
-    // MARK: - URL Display
-    
-    private func urlDisplay(url: URL) -> some View {
+    // MARK: - URL Bubble
+
+    private func urlBubble(url: URL) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "link")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(url.host ?? url.absoluteString)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                
-                Text(url.path.isEmpty ? "/" : url.path)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+
+            Text(url.host ?? url.absoluteString)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer(minLength: 0)
+
+            Button(action: { copyCurrentURL(url) }) {
+                Image(systemName: urlCopied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(urlCopied ? Color.green : .white.opacity(0.35))
+                    .contentTransition(.symbolEffect(.replace))
             }
-            
-            Spacer()
+            .buttonStyle(.plain)
+            .help("Copy URL (⌘C)")
+            .accessibilityLabel("Copy URL")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.white.opacity(0.03))
+        .padding(.vertical, 9)
+        .background(Capsule().fill(pillBackground))
+        .overlay(Capsule().stroke(.white.opacity(0.1), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.35), radius: 14, y: 5)
         .accessibilityIdentifier("picker.urlDisplay")
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("URL: \(url.absoluteString)")
     }
-    
-    // MARK: - Browser List
-    
-    private var browserList: some View {
-        Group {
-            if browserManager.configuredBrowsers.isEmpty {
-                VStack(spacing: 10) {
-                    Image(nsImage: BrowserManager.currentAppIcon())
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 42, height: 42)
-                        .opacity(0.9)
-                    Text("No browsers configured")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("Open Settings to add at least one browser.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Button("Open Settings") {
-                        (NSApp.delegate as? AppDelegate)?.openSettings()
+
+    // MARK: - Browser Bar Pill
+
+    private var browserBarPill: some View {
+        let browsers = browserManager.configuredBrowsers
+        let hasActions = browserManager.currentURL != nil
+        let showScroll = browsers.count > 8
+
+        return HStack(alignment: .top, spacing: 4) {
+            if showScroll {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 2) {
+                        ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                            browserIconButton(browser: browser, index: index)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .accessibilityIdentifier("picker.emptyState.openSettingsButton")
+                    .padding(.horizontal, 2)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                VStack(spacing: 4) {
-                    ForEach(Array(browserManager.configuredBrowsers.enumerated()), id: \.element.id) { index, browser in
-                        browserRow(browser: browser, index: index)
-                    }
+                ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                    browserIconButton(browser: browser, index: index)
                 }
             }
+
+            if hasActions {
+                Rectangle()
+                    .fill(.white.opacity(0.15))
+                    .frame(width: 1)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 4)
+
+                privateModeButton
+                addRuleButton
+            }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(pillBackground))
+        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.45), radius: 22, y: 8)
     }
 
-    private var pickerHintBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "keyboard")
-                .font(.system(size: 9))
-                .foregroundStyle(.quaternary)
-
-            Text("1–9 select • Type initial • Tab/↑/↓ navigate • Return open • Esc close")
-                .font(.system(size: 10))
-                .foregroundStyle(.quaternary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 8)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Keyboard shortcuts: one to nine opens directly, typing a browser initial moves selection, tab or arrows navigate, return opens, escape closes.")
-    }
-    
-    private func browserRow(browser: BrowserConfig, index: Int) -> some View {
+    private func browserIconButton(browser: BrowserConfig, index: Int) -> some View {
+        let isSelected = keyboardSelectedBrowserId == browser.id
         let isHovered = hoveredBrowserId == browser.id
-        let isKeyboardSelected = keyboardSelectedBrowserId == browser.id
-        let isHighlighted = isHovered || isKeyboardSelected
-        
+
         return Button(action: {
-            openUrl(with: browser)
+            let usePrivate = privateMode || NSEvent.modifierFlags.contains(.option)
+            openUrl(with: browser, usePrivateMode: usePrivate)
         }) {
-            HStack(spacing: 10) {
-                // App icon
-                Group {
-                    if let icon = getAppIcon(bundleId: browser.bundleId) {
+            VStack(spacing: 2) {
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(isSelected ? 0.15 : (isHovered ? 0.07 : 0)))
+                        .frame(width: 48, height: 48)
+
+                    if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
                         Image(nsImage: icon)
                             .resizable()
                             .interpolation(.high)
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     } else {
                         Image(systemName: "globe")
                             .font(.system(size: 18))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.6))
+                            .frame(width: 32, height: 32)
                     }
                 }
-                .frame(width: 32, height: 32)
-                
-                // Browser name
-                Text(browser.name)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.primary)
-                
-                Spacer()
-                
-                // Keyboard shortcut badge
-                Text(browser.shortcutKey)
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .modifier(PickerShortcutBadgeBackgroundModifier())
+                .overlay(alignment: .bottomTrailing) {
+                    Text(browser.shortcutKey)
+                        .font(.system(size: 7, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1.5)
+                        .background(Capsule().fill(.black.opacity(0.55)))
+                        .padding(2)
+                }
+
+                // Selection indicator dot
+                Circle()
+                    .fill(isSelected ? Color.accentColor : Color.clear)
+                    .frame(width: 4, height: 4)
+
+                // Browser name label
+                Text(displayName(for: browser))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(isSelected ? 0.85 : 0.45))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: 52)
             }
-            .padding(.leading, 10)
-            .padding(.trailing, 6)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isHighlighted ? .white.opacity(0.1) : .clear)
-            )
-            .contentShape(.rect(cornerRadius: 10))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("picker.browserRow")
+        .accessibilityLabel("Open in \(browser.name)")
+        .help(toolTip(for: browser))
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.65)) {
                 hoveredBrowserId = hovering ? browser.id : nil
-                if hovering {
-                    keyboardSelectedBrowserId = browser.id
-                }
+                if hovering { keyboardSelectedBrowserId = browser.id }
             }
         }
-        .accessibilityLabel("Open in \(browser.name)")
-        .accessibilityHint("Opens the link in \(browser.name). Shortcut key: \(browser.shortcutKey), with Shift and Option variants supported for keyboard layouts. You can also type \(browser.name.prefix(1)) to select it and press Return.")
-        .accessibilityAddTraits(isKeyboardSelected ? .isSelected : [])
-        .transition(.opacity.combined(with: .move(edge: .top)))
-        .animation(.spring(response: 0.15, dampingFraction: 0.85), value: appeared)
+        .scaleEffect(isHovered ? 1.08 : (isSelected ? 1.04 : 1.0))
+        .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isHovered)
+        .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isSelected)
+        .opacity(appeared ? 1 : 0)
+        .scaleEffect(appeared ? 1 : 0.5)
+        .animation(
+            .spring(response: 0.38, dampingFraction: 0.6).delay(Double(index) * 0.045),
+            value: appeared
+        )
     }
-    
+
+    private var privateModeButton: some View {
+        VStack(spacing: 2) {
+            Button(action: {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) {
+                    privateMode.toggle()
+                }
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(privateMode ? Color.purple.opacity(0.22) : Color.clear)
+                        .frame(width: 38, height: 38)
+                    Image(systemName: privateMode ? "eye.slash.fill" : "eye")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(privateMode ? Color.purple : .white.opacity(0.45))
+                }
+                .frame(width: 48, height: 48) // matches browser icon frame
+            }
+            .buttonStyle(.plain)
+            .help(privateMode ? "Private mode on – click to disable (P)" : "Enable private mode (P)")
+            .accessibilityLabel(privateMode ? "Disable private mode" : "Enable private mode")
+
+            Color.clear.frame(width: 4, height: 4) // dot-row spacer
+
+            Text("Private")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(privateMode ? Color.purple.opacity(0.8) : .white.opacity(0.35))
+                .lineLimit(1)
+        }
+    }
+
+    private var addRuleButton: some View {
+        VStack(spacing: 2) {
+            Button(action: { showingConfigureRule = true }) {
+                ZStack {
+                    Color.clear.frame(width: 38, height: 38)
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .frame(width: 48, height: 48) // matches browser icon frame
+            }
+            .buttonStyle(.plain)
+            .help("Add routing rule (R)")
+            .accessibilityIdentifier("picker.configureRuleButton")
+            .accessibilityLabel("Add routing rule for this URL")
+
+            Color.clear.frame(width: 4, height: 4) // dot-row spacer
+
+            Text("Rule")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.white.opacity(0.35))
+                .lineLimit(1)
+        }
+    }
+
+    // MARK: - Keyboard Hints Row
+
+    private var keyboardHintsRow: some View {
+        HStack(spacing: 6) {
+            keyHintChip(keys: ["P"], label: "PRIVATE", isActive: privateMode)
+            keyHintChip(keys: ["R"], label: "RULE", isDisabled: browserManager.currentURL == nil)
+            keyHintChip(keys: ["Esc"], label: "CLOSE")
+            Spacer()
+            keyHintChip(keys: ["↵"], label: "LAUNCH", isAccent: true)
+        }
+        .padding(.horizontal, 2)
+        .opacity(appeared ? 1 : 0)
+        .animation(.easeIn(duration: 0.2).delay(0.3), value: appeared)
+    }
+
+    private func keyHintChip(keys: [String], label: String, isActive: Bool = false, isAccent: Bool = false, isDisabled: Bool = false) -> some View {
+        let opacity: Double = isDisabled ? 0.3 : 1.0
+        return HStack(spacing: 3) {
+            ForEach(keys, id: \.self) { key in
+                Text(key)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(isAccent ? .white : (isActive ? Color.purple : .white.opacity(0.55)))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(
+                                isAccent ? Color.accentColor.opacity(0.75) :
+                                    (isActive ? Color.purple.opacity(0.3) : .white.opacity(0.1))
+                            )
+                    )
+            }
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(
+                    isAccent ? Color.accentColor :
+                        (isActive ? Color.purple : .white.opacity(0.32))
+                )
+        }
+        .opacity(opacity)
+    }
+
+    // MARK: - Empty State
+
+    private var emptyStatePill: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: BrowserManager.currentAppIcon())
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 28, height: 28)
+                .opacity(0.7)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No browsers configured")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.85))
+                Text("Open Settings from the menu bar to add a browser.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Capsule().fill(pillBackground))
+        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.4), radius: 18, y: 6)
+        .accessibilityIdentifier("picker.emptyState")
+    }
+
+    // MARK: - Layout
+
+    private var pillBackground: Color {
+        Color(red: 0.118, green: 0.118, blue: 0.118)
+    }
+
+    private var pickerWidth: CGFloat {
+        let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
+        let iconSize: CGFloat = 52  // 48pt circle + small horizontal margin
+        let iconSpacing: CGFloat = 2
+        let actionsWidth: CGFloat = browserManager.currentURL != nil ? (1 + 16 + 38 + 4 + 38) : 0
+        let horizontalPad: CGFloat = 20
+        let computed = horizontalPad + count * iconSize + max(0, count - 1) * iconSpacing + actionsWidth
+        return max(270, min(620, computed))
+    }
+
+    private func displayName(for browser: BrowserConfig) -> String {
+        guard browser.profile != nil,
+              let dash = browser.name.range(of: " - ") else {
+            return browser.name
+        }
+        return String(browser.name[..<dash.lowerBound])
+    }
+
+    private func displayProfileLabel(for browser: BrowserConfig) -> String? {
+        guard browser.profile != nil else { return nil }
+        if let dash = browser.name.range(of: " - ") {
+            let suffix = String(browser.name[dash.upperBound...])
+            return suffix.isEmpty ? nil : suffix
+        }
+        return browser.profile
+    }
+
+    private func toolTip(for browser: BrowserConfig) -> String {
+        var tip = browser.name
+        if let label = displayProfileLabel(for: browser) {
+            tip += " – \(label)"
+        }
+        return tip
+    }
+
     // MARK: - Dismiss
-    
+
     private func dismissPicker() {
+        privateMode = false
+        showingConfigureRule = false
         browserManager.currentURL = nil
-        // Close the picker window(s) — don't hide the entire app.
-        // As an LSUIElement app, Chowser naturally stays in the background.
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue == "picker" {
             window.orderOut(nil)
         }
     }
 
-    // MARK: - Helpers
-    
-    private func getAppIcon(bundleId: String) -> NSImage? {
-        BrowserManager.icon(forBrowserBundleID: bundleId)
+    // MARK: - Browser Action
+
+    private func openUrl(with browser: BrowserConfig, usePrivateMode: Bool = false) {
+        guard let url = browserManager.currentURL else { return }
+        dismissPicker()
+        browserManager.open(url: url, withBrowserBundleID: browser.bundleId, profile: browser.profile, usePrivateMode: usePrivateMode)
     }
 
-    private func openUrl(with browser: BrowserConfig) {
-        guard let url = browserManager.currentURL else { return }
-        
-        // Dismiss immediately — don't wait for the browser to open
-        dismissPicker()
-        // Pass browser.profile so profile-based launch args (--profile-directory etc.) are used.
-        browserManager.open(url: url, withBrowserBundleID: browser.bundleId, profile: browser.profile)
+    private func copyCurrentURL(_ url: URL) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        withAnimation(.spring(response: 0.2)) { urlCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.spring(response: 0.2)) { urlCopied = false }
+        }
     }
+
+    // MARK: - Keyboard Selection
 
     private func syncKeyboardSelection(with browsers: [BrowserConfig]) {
-        guard !browsers.isEmpty else {
-            keyboardSelectedBrowserId = nil
-            return
-        }
-
-        if let selectedId = keyboardSelectedBrowserId,
-           browsers.contains(where: { $0.id == selectedId }) {
-            return
-        }
-
+        guard !browsers.isEmpty else { keyboardSelectedBrowserId = nil; return }
+        if let selectedId = keyboardSelectedBrowserId, browsers.contains(where: { $0.id == selectedId }) { return }
         keyboardSelectedBrowserId = browsers.first?.id
     }
 
     private func installKeyEventMonitor() {
         removeKeyEventMonitor()
-
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if handlePickerKeyDown(event) {
-                return nil
-            }
-            return event
+            self.handlePickerKeyDown(event) ? nil : event
         }
     }
 
@@ -391,196 +470,143 @@ struct ContentView: View {
     }
 
     private func handlePickerKeyDown(_ event: NSEvent) -> Bool {
-        guard isPickerEvent(event) else {
-            return false
+        guard isPickerEvent(event) else { return false }
+
+        // Escape — close sheet if open, otherwise dismiss picker
+        if event.keyCode == 53 {
+            if showingConfigureRule { showingConfigureRule = false; return true }
+            dismissPicker()
+            return true
         }
 
+        // Cmd+C — copy URL
+        if event.modifierFlags.contains(.command) && event.keyCode == 8 {
+            if let url = browserManager.currentURL { copyCurrentURL(url) }
+            return true
+        }
+
+        // Number keys — open by shortcut
         if let shortcutKey = normalizedShortcutKey(from: event) {
-            return openBrowser(matchingShortcutKey: shortcutKey)
+            let usePrivateMode = privateMode || event.modifierFlags.contains(.option)
+            return openBrowser(matchingShortcutKey: shortcutKey, usePrivateMode: usePrivateMode)
+        }
+
+        // Letter shortcuts (handled before general initial-navigation)
+        if let letter = normalizedLetterKey(from: event) {
+            switch letter {
+            case "p":
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) { privateMode.toggle() }
+                return true
+            case "r":
+                if browserManager.currentURL != nil { showingConfigureRule = true }
+                return true
+            default:
+                return selectNextBrowser(matchingInitial: letter)
+            }
         }
 
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if let letterKey = normalizedLetterKey(from: event) {
-            return selectNextBrowser(matchingInitial: letterKey)
-        }
 
         if event.keyCode == 48 { // tab
-            let blockedTabModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .function]
-            if modifiers.intersection(blockedTabModifiers).isEmpty {
+            let blocked: NSEvent.ModifierFlags = [.command, .control, .option, .function]
+            if modifiers.intersection(blocked).isEmpty {
                 moveSelection(by: modifiers.contains(.shift) ? -1 : 1)
                 return true
             }
         }
 
-        let disallowedNavigationModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .function, .shift]
-        if !modifiers.intersection(disallowedNavigationModifiers).isEmpty {
-            return false
-        }
+        // .option excluded so ⌥+Return triggers private-mode open
+        let disallowed: NSEvent.ModifierFlags = [.command, .control, .function, .shift]
+        if !modifiers.intersection(disallowed).isEmpty { return false }
 
         switch event.keyCode {
-        case 125: // down arrow
-            moveSelection(by: 1)
-            return true
-        case 126: // up arrow
-            moveSelection(by: -1)
-            return true
-        case 36, 76, 49: // return, keypad enter, space
-            return openSelectedBrowser()
-        case 53: // escape
-            dismissPicker()
-            return true
-        default:
-            return false
+        case 125: moveSelection(by: 1); return true       // ↓
+        case 126: moveSelection(by: -1); return true      // ↑
+        case 123: moveSelection(by: -1); return true      // ←
+        case 124: moveSelection(by: 1); return true       // →
+        case 36, 76, 49:                                  // return / enter / space
+            let usePrivateMode = privateMode || event.modifierFlags.contains(.option)
+            return openSelectedBrowser(usePrivateMode: usePrivateMode)
+        default: return false
         }
     }
 
     private func normalizedShortcutKey(from event: NSEvent) -> String? {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let blockedShortcutModifiers: NSEvent.ModifierFlags = [.control, .function]
-        if !modifiers.intersection(blockedShortcutModifiers).isEmpty {
-            return nil
-        }
-
-        if let key = digitKeycodeMap[event.keyCode] {
-            return key
-        }
-
-        guard let characters = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
-              characters.count == 1,
-              let character = characters.first,
-              character.isNumber else {
-            return nil
-        }
-
-        return String(character)
+        guard modifiers.intersection([.control, .function]).isEmpty else { return nil }
+        if let key = digitKeycodeMap[event.keyCode] { return key }
+        guard let chars = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
+              chars.count == 1, let c = chars.first, c.isNumber else { return nil }
+        return String(c)
     }
 
     private func normalizedLetterKey(from event: NSEvent) -> Character? {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let blockedLetterModifiers: NSEvent.ModifierFlags = [.command, .control, .function, .option]
-        if !modifiers.intersection(blockedLetterModifiers).isEmpty {
-            return nil
-        }
-
-        guard let characters = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
-              characters.count == 1,
-              let character = characters.lowercased().first,
-              String(character).rangeOfCharacter(from: .letters) != nil else {
-            return nil
-        }
-
-        return character
+        guard modifiers.intersection([.command, .control, .function, .option]).isEmpty else { return nil }
+        guard let chars = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
+              chars.count == 1,
+              let c = chars.lowercased().first,
+              String(c).rangeOfCharacter(from: .letters) != nil else { return nil }
+        return c
     }
 
     private func isPickerEvent(_ event: NSEvent) -> Bool {
-        if event.window?.identifier?.rawValue == "picker" {
-            return true
-        }
-
-        if NSApp.keyWindow?.identifier?.rawValue == "picker" {
-            return true
-        }
-
-        if NSApp.mainWindow?.identifier?.rawValue == "picker" {
-            return true
-        }
-
-        return false
+        event.window?.identifier?.rawValue == "picker"
+            || NSApp.keyWindow?.identifier?.rawValue == "picker"
+            || NSApp.mainWindow?.identifier?.rawValue == "picker"
     }
 
     private var digitKeycodeMap: [UInt16: String] {
-        [
-            // Number row (layout-independent physical key positions)
-            18: "1",
-            19: "2",
-            20: "3",
-            21: "4",
-            23: "5",
-            22: "6",
-            26: "7",
-            28: "8",
-            25: "9",
-
-            // Numeric keypad
-            83: "1",
-            84: "2",
-            85: "3",
-            86: "4",
-            87: "5",
-            88: "6",
-            89: "7",
-            91: "8",
-            92: "9",
-        ]
+        [18:"1", 19:"2", 20:"3", 21:"4", 23:"5", 22:"6", 26:"7", 28:"8", 25:"9",
+         83:"1", 84:"2", 85:"3", 86:"4", 87:"5", 88:"6", 89:"7", 91:"8", 92:"9"]
     }
 
-    private func openBrowser(matchingShortcutKey shortcutKey: String) -> Bool {
-        guard let browser = browserManager.configuredBrowsers.first(where: { $0.shortcutKey == shortcutKey }) else {
-            return false
-        }
-
+    private func openBrowser(matchingShortcutKey key: String, usePrivateMode: Bool = false) -> Bool {
+        guard let browser = browserManager.configuredBrowsers.first(where: { $0.shortcutKey == key }) else { return false }
         keyboardSelectedBrowserId = browser.id
-        openUrl(with: browser)
+        openUrl(with: browser, usePrivateMode: usePrivateMode)
         return true
     }
 
     private func selectNextBrowser(matchingInitial initial: Character) -> Bool {
         let normalizedInitial = String(initial).lowercased()
-        let matchingBrowsers = browserManager.configuredBrowsers.filter { browser in
-            let normalizedName = browser.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard let firstCharacter = normalizedName.first else {
-                return false
-            }
-            return String(firstCharacter) == normalizedInitial
+        let matching = browserManager.configuredBrowsers.filter {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().first.map { String($0) } == normalizedInitial
         }
-
-        guard !matchingBrowsers.isEmpty else {
-            return false
-        }
-
+        guard !matching.isEmpty else { return false }
         if let selectedId = keyboardSelectedBrowserId,
-           let currentIndex = matchingBrowsers.firstIndex(where: { $0.id == selectedId }) {
-            let nextIndex = (currentIndex + 1) % matchingBrowsers.count
-            keyboardSelectedBrowserId = matchingBrowsers[nextIndex].id
+           let currentIndex = matching.firstIndex(where: { $0.id == selectedId }) {
+            keyboardSelectedBrowserId = matching[(currentIndex + 1) % matching.count].id
         } else {
-            keyboardSelectedBrowserId = matchingBrowsers.first?.id
+            keyboardSelectedBrowserId = matching.first?.id
         }
-
         return true
     }
 
     private func moveSelection(by delta: Int) {
         let browsers = browserManager.configuredBrowsers
-        guard !browsers.isEmpty else {
-            keyboardSelectedBrowserId = nil
-            return
-        }
-
+        guard !browsers.isEmpty else { keyboardSelectedBrowserId = nil; return }
         guard let currentId = keyboardSelectedBrowserId,
               let currentIndex = browsers.firstIndex(where: { $0.id == currentId }) else {
             keyboardSelectedBrowserId = browsers.first?.id
             return
         }
-
-        let nextIndex = (currentIndex + delta + browsers.count) % browsers.count
-        keyboardSelectedBrowserId = browsers[nextIndex].id
+        keyboardSelectedBrowserId = browsers[(currentIndex + delta + browsers.count) % browsers.count].id
     }
 
-    private func openSelectedBrowser() -> Bool {
+    private func openSelectedBrowser(usePrivateMode: Bool = false) -> Bool {
         let browsers = browserManager.configuredBrowsers
         guard !browsers.isEmpty else { return false }
-
         guard let selectedId = keyboardSelectedBrowserId,
               let browser = browsers.first(where: { $0.id == selectedId }) else {
             if let first = browsers.first {
                 keyboardSelectedBrowserId = first.id
-                openUrl(with: first)
+                openUrl(with: first, usePrivateMode: usePrivateMode)
                 return true
             }
             return false
         }
-
-        openUrl(with: browser)
+        openUrl(with: browser, usePrivateMode: usePrivateMode)
         return true
     }
 }
@@ -588,269 +614,6 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .onAppear {
-            BrowserManager.shared.currentURL = URL(string: "https://sreerams.in")
+            BrowserManager.shared.currentURL = URL(string: "https://github.com/nickcoutsos")
         }
-}
-
-// MARK: - Configure Rule View
-
-/// Compact sheet for creating a routing rule directly from the intercepted URL context.
-/// Pre-populates rule name and host pattern from the intercepted URL's domain.
-struct ConfigureRuleView: View {
-    var browserManager: BrowserManager
-    let interceptedURL: URL
-    @Binding var isPresented: Bool
-    var onSave: () -> Void
-
-    @State private var ruleName = ""
-    @State private var hostPattern = ""
-    @State private var selectedBrowserIdentity = ""
-    
-    enum Field: Hashable {
-        case ruleName
-        case hostPattern
-    }
-    
-    @FocusState private var focusedField: Field?
-
-    // Inline validation: rule name, host pattern, and browser must all be valid.
-    private var isFormValid: Bool {
-        !ruleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && browserManager.isValidRoutingHostPattern(hostPattern)
-            && !selectedBrowserIdentity.isEmpty
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            formFields
-            Divider()
-            footer
-        }
-        .frame(width: 340)
-        .onAppear {
-            prefillFromURL()
-            // Auto-focus the rule name field
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                focusedField = .ruleName
-            }
-        }
-        .accessibilityIdentifier("picker.configureRule.root")
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        HStack {
-            Text("Configure Rule")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-            Spacer()
-            Button(action: { isPresented = false }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
-    }
-
-    // MARK: Form Fields
-
-    private var formFields: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Rule Name — auto-suggested as the domain name (e.g. "github").
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Rule Name")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                TextField("e.g. github", text: $ruleName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                    .focused($focusedField, equals: .ruleName)
-                    .accessibilityIdentifier("picker.configureRule.nameField")
-            }
-
-            // URL Pattern — pre-filled with the intercepted URL's host.
-            VStack(alignment: .leading, spacing: 4) {
-                Text("URL Pattern")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                TextField("example.com or *.example.com", text: $hostPattern)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
-                    .accessibilityIdentifier("picker.configureRule.hostField")
-
-                if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && !browserManager.isValidRoutingHostPattern(hostPattern) {
-                    Text("Invalid pattern. Use example.com or *.example.com")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.red)
-                }
-            }
-
-            // Browser picker — dropdown of all configured browsers.
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Open In")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Picker("Browser", selection: $selectedBrowserIdentity) {
-                    ForEach(browserManager.configuredBrowsers) { browser in
-                        Text(browser.name).tag(browser.identity)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .accessibilityIdentifier("picker.configureRule.browserPicker")
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
-    }
-
-    // MARK: Footer
-
-    private var footer: some View {
-        HStack {
-            Button("Cancel") {
-                isPresented = false
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("picker.configureRule.cancelButton")
-
-            Spacer()
-
-            Button("Save Rule") {
-                // Persist the new rule using the existing rules store.
-                if let browser = browserManager.configuredBrowsers.first(where: { $0.identity == selectedBrowserIdentity }) {
-                    browserManager.addRoutingRule(
-                        name: ruleName,
-                        hostPattern: hostPattern,
-                        pathPrefix: nil,
-                        browserBundleId: browser.bundleId,
-                        profile: browser.profile
-                    )
-                }
-                isPresented = false
-                onSave()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!isFormValid)
-            .accessibilityIdentifier("picker.configureRule.saveButton")
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-
-    // MARK: Helpers
-
-    /// Pre-populate form fields from the intercepted URL's domain.
-    private func prefillFromURL() {
-        let host = interceptedURL.host ?? ""
-        hostPattern = host
-
-        // Suggest the second-level domain as the rule name (e.g. "github" from "github.com").
-        let components = host.split(separator: ".")
-        if components.count >= 2 {
-            ruleName = String(components[components.count - 2])
-        } else {
-            ruleName = host
-        }
-
-        selectedBrowserIdentity = browserManager.configuredBrowsers.first?.identity ?? ""
-    }
-}
-
-private struct PickerSurfaceModifier: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceTransparency {
-            content
-                .background(Color(nsColor: .windowBackgroundColor))
-                .clipShape(.rect(cornerRadius: 16))
-                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
-                .padding(1)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(.separator.opacity(0.5), lineWidth: 1)
-                )
-        } else
-        if #available(macOS 26.0, *) {
-            content
-                .padding(1)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(.white.opacity(0.1), lineWidth: 0.8)
-                )
-        } else {
-            content
-                .background(.ultraThinMaterial)
-                .clipShape(.rect(cornerRadius: 16))
-                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
-                .padding(1)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(.white.opacity(0.15), lineWidth: 1)
-                )
-        }
-    }
-}
-
-private struct PickerCircleButtonBackgroundModifier: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceTransparency {
-            content
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(Circle())
-        } else
-        if #available(macOS 26.0, *) {
-            content
-                .glassEffect(.regular.interactive(), in: Circle())
-        } else {
-            content
-                .background(.white.opacity(0.05))
-                .clipShape(Circle())
-        }
-    }
-}
-
-private struct PickerShortcutBadgeBackgroundModifier: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceTransparency {
-            content
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .stroke(.separator.opacity(0.5), lineWidth: 1)
-                )
-        } else
-        if #available(macOS 26.0, *) {
-            content
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-        } else {
-            content
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(.white.opacity(0.06))
-                        .stroke(.white.opacity(0.08), lineWidth: 0.5)
-                )
-        }
-    }
 }

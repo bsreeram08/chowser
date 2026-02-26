@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 import ServiceManagement
+import Carbon
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
@@ -23,6 +24,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     class ChowserPanel: NSPanel {
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Register our own Apple Event handler for URL opens BEFORE Cocoa installs its
+        // default handler (which fires after WillFinish). This lets us capture the
+        // source application's PID for app-based routing rules.
+        guard !AppEnvironment.isUITesting else { return }
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -50,22 +64,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
-    func application(_ application: NSApplication, open urls: [URL]) {
-        isHandlingURL = true
-        defer {
-            // Delay resetting the flag slightly to catch any trailing reopen events
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.isHandlingURL = false
+    @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
+        // Extract the source application's bundle ID from the Apple Event sender.
+        if let pidDescriptor = event.attributeDescriptor(forKeyword: AEKeyword(keyAddressAttr))?
+                .coerce(toDescriptorType: typeKernelProcessID) {
+            let pidData = pidDescriptor.data
+            let pid = pidData.withUnsafeBytes { $0.load(as: pid_t.self) }
+            if let app = NSRunningApplication(processIdentifier: pid) {
+                BrowserManager.shared.currentSourceAppBundleId = app.bundleIdentifier
             }
         }
 
+        guard let urlStr = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
+              let url = URL(string: urlStr) else { return }
+        self.application(NSApp, open: [url])
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        isHandlingURL = true
+        defer {
+            // Delay resetting the isHandlingURL flag slightly to catch trailing reopen events.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.isHandlingURL = false
+            }
+            // Clear source app tracking immediately after routing logic completes.
+            BrowserManager.shared.currentSourceAppBundleId = nil
+        }
+
         guard let url = urls.first else { return }
+
+        // Feature 4: Handle chowser:// internal scheme (from Share Extension).
+        if url.scheme == "chowser", url.host == "open",
+           let targetStr = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+               .queryItems?.first(where: { $0.name == "url" })?.value,
+           let target = URL(string: targetStr),
+           target.scheme == "http" || target.scheme == "https" {
+            self.application(application, open: [target])
+            return
+        }
+
         let manager = BrowserManager.shared
         manager.currentURL = url
 
         if let route = manager.resolvedRoute(for: url) {
             manager.currentURL = nil
-            manager.open(url: url, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile)
+            manager.open(url: url, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: route.rule.usePrivateMode)
             return
         }
 
@@ -112,9 +155,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let defaultBrowserItem = NSMenuItem(title: "Set as Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
         defaultBrowserItem.target = self
         menu.addItem(defaultBrowserItem)
-        
+
         menu.addItem(NSMenuItem.separator())
-        
+
+        let clipboardItem = NSMenuItem(title: "Open Clipboard URL…", action: #selector(openClipboardURL), keyEquivalent: "")
+        clipboardItem.target = self
+        menu.addItem(clipboardItem)
+
+        let clipboardPrivateItem = NSMenuItem(title: "Open Clipboard URL in Private…", action: #selector(openClipboardURLPrivate), keyEquivalent: "")
+        clipboardPrivateItem.target = self
+        clipboardPrivateItem.toolTip = "Hold ⌥ in the picker to open in private mode"
+        menu.addItem(clipboardPrivateItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let quitItem = NSMenuItem(title: "Quit Chowser", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
@@ -136,8 +190,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Activate so the Settings window comes to the user's current space.
         NSApp.activate(ignoringOtherApps: true)
 
+        // Clear profile cache so newly added browser profiles are detected.
+        BrowserProfileDetector.clearCache()
+
         // Reuse the existing window if it already exists (avoids recreating state).
         if let controller = settingsWindowController, let window = controller.window {
+            if !window.isVisible {
+                controller.showWindow(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
             return
@@ -161,6 +221,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
 
     
+    func closePicker() {
+        pickerPanel?.orderOut(nil)
+        BrowserManager.shared.currentURL = nil
+    }
+
     private func showPicker() {
         revealPickerWindow(retries: 8)
     }
@@ -178,7 +243,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func createPickerPanel() -> ChowserPanel {
         let panel = ChowserPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 364, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 400),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
             backing: .buffered,
             defer: false
@@ -194,6 +259,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         
         let hostingView = NSHostingView(rootView: ContentView())
+        hostingView.sizingOptions = [.preferredContentSize]
         panel.contentView = hostingView
         
         return panel
@@ -229,7 +295,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func setDefaultBrowser() {
         BrowserManager.setAsDefaultBrowser()
     }
-    
+
+    @objc private func openClipboardURL() {
+        guard let url = clipboardURL() else { NSSound.beep(); return }
+        application(NSApp, open: [url])
+    }
+
+    @objc private func openClipboardURLPrivate() {
+        guard let url = clipboardURL() else { NSSound.beep(); return }
+        application(NSApp, open: [url])
+        // User holds ⌥ in the picker to activate private mode.
+    }
+
+    private func clipboardURL() -> URL? {
+        guard let s = NSPasteboard.general.string(forType: .string)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: s),
+              url.scheme == "http" || url.scheme == "https" else { return nil }
+        return url
+    }
+
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }

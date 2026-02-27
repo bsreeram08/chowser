@@ -8,6 +8,25 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Visual Effect View Wrapper
+struct VisualEffectBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
 struct ContentView: View {
     var browserManager = BrowserManager.shared
     @State private var hoveredBrowserId: UUID?
@@ -20,92 +39,145 @@ struct ContentView: View {
     @State private var urlCopied = false
     @State private var privateMode = false
 
-    var body: some View {
-        VStack(alignment: .center, spacing: 10) {
-            // URL bubble — floating pill above the browser bar
-            if let url = browserManager.currentURL {
-                urlBubble(url: url)
-            }
+    @ViewBuilder
+    private var panelContent: some View {
+        if showingConfigureRule, let url = browserManager.currentURL {
+            ConfigureRuleView(
+                browserManager: browserManager,
+                interceptedURL: url,
+                isPresented: $showingConfigureRule,
+                onSave: { dismissPicker() }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        } else {
+            VStack(alignment: .center, spacing: 0) {
+                // URL bubble — header of the panel
+                if let url = browserManager.currentURL {
+                    urlBubble(url: url)
+                    Divider().opacity(0.5)
+                }
 
-            // Main browser bar pill or empty state
-            if browserManager.configuredBrowsers.isEmpty {
-                emptyStatePill
-            } else {
-                browserBarPill
-            }
+                // Main browser bar or empty state
+                if browserManager.configuredBrowsers.isEmpty {
+                    emptyStatePill
+                } else {
+                    browserBarPill
+                }
 
-            // Keyboard hints row
-            if !browserManager.configuredBrowsers.isEmpty {
-                keyboardHintsRow
-            }
+                // Keyboard hints row — footer
+                if !browserManager.configuredBrowsers.isEmpty {
+                    Divider().opacity(0.5)
+                    keyboardHintsRow
+                }
 
-            // Hidden test label for UI tests
-            if AppEnvironment.isUITesting {
-                Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
-                    .font(.system(size: 1))
-                    .foregroundStyle(.clear)
-                    .accessibilityIdentifier("picker.lastOpenedBrowser")
+                // Hidden test label for UI tests
+                if AppEnvironment.isUITesting {
+                    Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
+                        .font(.system(size: 1))
+                        .foregroundStyle(.clear)
+                        .accessibilityIdentifier("picker.lastOpenedBrowser")
+                }
             }
+            .frame(width: pickerWidth)
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
-        .frame(width: pickerWidth)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 14) // room for pill shadows/stroke to breathe
-        .scaleEffect(appeared ? 1.0 : 0.94)
-        .opacity(appeared ? 1.0 : 0.0)
-        .onAppear {
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                appeared = true
+    }
+
+    var body: some View {
+        panelContent
+            .fixedSize(horizontal: false, vertical: true)
+            .background(panelBackground)
+            .overlay(panelOverlay)
+            .padding(64) // Increased room for softer, wider glowing shadows
+            .scaleEffect(appeared ? 1.0 : 0.96)
+            .opacity(appeared ? 1.0 : 0.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: privateMode)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showingConfigureRule)
+            .onAppear(perform: handleAppear)
+            .onDisappear(perform: handleDisappear)
+            .onChange(of: browserManager.configuredBrowsers) {
+                syncKeyboardSelection(with: browserManager.configuredBrowsers)
             }
-            syncKeyboardSelection(with: browserManager.configuredBrowsers)
-            installKeyEventMonitor()
+    }
 
-            if !AppEnvironment.isUITesting {
-                DispatchQueue.main.async {
-                    guard let window = NSApp.windows.first(where: {
-                        $0.isVisible && $0.identifier?.rawValue == "picker" && $0.contentView != nil
-                    }) else { return }
+    @ViewBuilder
+    private var panelBackground: some View {
+        ZStack {
+            // 1. Isolate the shadow safely so it perfectly traces a RoundedRectangle 
+            // without being dragged into a box shape by the VisualEffectView NSView bounds.
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black)
+                    .shadow(
+                        color: privateMode ? Color.purple.opacity(0.7) : .black.opacity(0.25),
+                        radius: privateMode ? 20 : 10,
+                        y: privateMode ? 0 : 4
+                    )
+                
+                // Punch out the center completely so the NSVisualEffectView can see the desktop through the window
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black)
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
 
-                    focusObserver = NotificationCenter.default.addObserver(
-                        forName: NSWindow.didResignKeyNotification,
-                        object: window,
-                        queue: .main
-                    ) { _ in
-                        dismissTask?.cancel()
-                        let work = DispatchWorkItem {
-                            if let w = NSApp.windows.first(where: {
-                                $0.identifier?.rawValue == "picker" && $0.isVisible
-                            }), !w.isKeyWindow, w.attachedSheet == nil {
-                                dismissPicker()
-                            }
+            // 2. Frosted glass backdrop blur beneath the tint
+            VisualEffectBackground(material: .menu, blendingMode: .behindWindow)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            
+            // 3. The actual color tint
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(privateMode ? Color(red: 0.15, green: 0.05, blue: 0.25).opacity(0.85) : Color(NSColor.windowBackgroundColor).opacity(0.65))
+        }
+    }
+
+    @ViewBuilder
+    private var panelOverlay: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(privateMode ? Color.purple.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 0.5)
+    }
+
+    private func handleAppear() {
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+            appeared = true
+        }
+        syncKeyboardSelection(with: browserManager.configuredBrowsers)
+        installKeyEventMonitor()
+
+        if !AppEnvironment.isUITesting {
+            DispatchQueue.main.async {
+                guard let window = NSApp.windows.first(where: {
+                    $0.isVisible && $0.identifier?.rawValue == "picker" && $0.contentView != nil
+                }) else { return }
+
+                focusObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didResignKeyNotification,
+                    object: window,
+                    queue: .main
+                ) { _ in
+                    dismissTask?.cancel()
+                    let work = DispatchWorkItem {
+                        if let w = NSApp.windows.first(where: {
+                            $0.identifier?.rawValue == "picker" && $0.isVisible
+                        }), !w.isKeyWindow, w.attachedSheet == nil {
+                            dismissPicker()
                         }
-                        dismissTask = work
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
                     }
+                    dismissTask = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
                 }
             }
         }
-        .onDisappear {
-            if let observer = focusObserver {
-                NotificationCenter.default.removeObserver(observer)
-                focusObserver = nil
-            }
-            removeKeyEventMonitor()
-            dismissTask?.cancel()
-            dismissTask = nil
+    }
+
+    private func handleDisappear() {
+        if let observer = focusObserver {
+            NotificationCenter.default.removeObserver(observer)
+            focusObserver = nil
         }
-        .onChange(of: browserManager.configuredBrowsers) {
-            syncKeyboardSelection(with: browserManager.configuredBrowsers)
-        }
-        .sheet(isPresented: $showingConfigureRule) {
-            if let url = browserManager.currentURL {
-                ConfigureRuleView(
-                    browserManager: browserManager,
-                    interceptedURL: url,
-                    isPresented: $showingConfigureRule,
-                    onSave: { dismissPicker() }
-                )
-            }
-        }
+        removeKeyEventMonitor()
+        dismissTask?.cancel()
+        dismissTask = nil
     }
 
     // MARK: - URL Bubble
@@ -113,32 +185,45 @@ struct ContentView: View {
     private func urlBubble(url: URL) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "link")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
 
             Text(url.host ?? url.absoluteString)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
 
             Spacer(minLength: 0)
 
-            Button(action: { copyCurrentURL(url) }) {
-                Image(systemName: urlCopied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(urlCopied ? Color.green : .white.opacity(0.35))
-                    .contentTransition(.symbolEffect(.replace))
+            HStack(spacing: 8) {
+                Button(action: { showingConfigureRule = true }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(privateMode ? Color.purple.opacity(0.8) : Color.secondary)
+                        .padding(6)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .help("Add routing rule for this URL (R)")
+                .accessibilityIdentifier("picker.configureRuleButton")
+                .accessibilityLabel("Add routing rule")
+
+                Button(action: { copyCurrentURL(url) }) {
+                    Image(systemName: urlCopied ? "checkmark" : "doc.on.clipboard")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(urlCopied ? Color.green : (privateMode ? Color.purple.opacity(0.8) : Color.secondary))
+                        .contentTransition(.symbolEffect(.replace))
+                        .padding(6)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .help("Copy URL (⌘C)")
+                .accessibilityLabel("Copy URL")
             }
-            .buttonStyle(.plain)
-            .help("Copy URL (⌘C)")
-            .accessibilityLabel("Copy URL")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Capsule().fill(pillBackground))
-        .overlay(Capsule().stroke(.white.opacity(0.1), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.35), radius: 14, y: 5)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .accessibilityIdentifier("picker.urlDisplay")
     }
 
@@ -146,7 +231,6 @@ struct ContentView: View {
 
     private var browserBarPill: some View {
         let browsers = browserManager.configuredBrowsers
-        let hasActions = browserManager.currentURL != nil
         let showScroll = browsers.count > 8
 
         return HStack(alignment: .top, spacing: 4) {
@@ -164,23 +248,9 @@ struct ContentView: View {
                     browserIconButton(browser: browser, index: index)
                 }
             }
-
-            if hasActions {
-                Rectangle()
-                    .fill(.white.opacity(0.15))
-                    .frame(width: 1)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 4)
-
-                privateModeButton
-                addRuleButton
-            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(pillBackground))
-        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.45), radius: 22, y: 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
     }
 
     private func browserIconButton(browser: BrowserConfig, index: Int) -> some View {
@@ -191,47 +261,49 @@ struct ContentView: View {
             let usePrivate = privateMode || NSEvent.modifierFlags.contains(.option)
             openUrl(with: browser, usePrivateMode: usePrivate)
         }) {
-            VStack(spacing: 2) {
+            VStack(spacing: 4) {
                 ZStack {
-                    Circle()
-                        .fill(.white.opacity(isSelected ? 0.15 : (isHovered ? 0.07 : 0)))
-                        .frame(width: 48, height: 48)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? (privateMode ? Color.purple.opacity(0.3) : Color.primary.opacity(0.12)) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(isSelected ? (privateMode ? Color.purple.opacity(0.5) : Color.primary.opacity(0.08)) : Color.clear, lineWidth: 1)
+                        )
+                        .frame(width: 54, height: 54)
 
                     if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
                         Image(nsImage: icon)
                             .resizable()
                             .interpolation(.high)
-                            .frame(width: 32, height: 32)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .frame(width: 34, height: 34)
+                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                     } else {
                         Image(systemName: "globe")
                             .font(.system(size: 18))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(Color.secondary)
                             .frame(width: 32, height: 32)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
                     Text(browser.shortcutKey)
-                        .font(.system(size: 7, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 1.5)
-                        .background(Capsule().fill(.black.opacity(0.55)))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color.primary.opacity(0.9))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color(NSColor.windowBackgroundColor).opacity(0.95)))
+                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
                         .padding(2)
+                        .offset(x: 2, y: 2)
                 }
 
-                // Selection indicator dot
-                Circle()
-                    .fill(isSelected ? Color.accentColor : Color.clear)
-                    .frame(width: 4, height: 4)
-
-                // Browser name label
+                // Selection & Browser name label
                 Text(displayName(for: browser))
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(isSelected ? 0.85 : 0.45))
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? (privateMode ? Color.purple : Color.primary) : Color.primary.opacity(0.6))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(width: 52)
+                    .frame(width: 58)
             }
         }
         .buttonStyle(.plain)
@@ -244,70 +316,15 @@ struct ContentView: View {
                 if hovering { keyboardSelectedBrowserId = browser.id }
             }
         }
-        .scaleEffect(isHovered ? 1.08 : (isSelected ? 1.04 : 1.0))
-        .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isHovered)
-        .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isSelected)
+        .scaleEffect(isHovered ? 1.05 : (isSelected ? 1.02 : 1.0))
+        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isHovered)
+        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isSelected)
         .opacity(appeared ? 1 : 0)
-        .scaleEffect(appeared ? 1 : 0.5)
+        .scaleEffect(appeared ? 1 : 0.8)
         .animation(
-            .spring(response: 0.38, dampingFraction: 0.6).delay(Double(index) * 0.045),
+            .spring(response: 0.4, dampingFraction: 0.65).delay(Double(index) * 0.03),
             value: appeared
         )
-    }
-
-    private var privateModeButton: some View {
-        VStack(spacing: 2) {
-            Button(action: {
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) {
-                    privateMode.toggle()
-                }
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(privateMode ? Color.purple.opacity(0.22) : Color.clear)
-                        .frame(width: 38, height: 38)
-                    Image(systemName: privateMode ? "eye.slash.fill" : "eye")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(privateMode ? Color.purple : .white.opacity(0.45))
-                }
-                .frame(width: 48, height: 48) // matches browser icon frame
-            }
-            .buttonStyle(.plain)
-            .help(privateMode ? "Private mode on – click to disable (P)" : "Enable private mode (P)")
-            .accessibilityLabel(privateMode ? "Disable private mode" : "Enable private mode")
-
-            Color.clear.frame(width: 4, height: 4) // dot-row spacer
-
-            Text("Private")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(privateMode ? Color.purple.opacity(0.8) : .white.opacity(0.35))
-                .lineLimit(1)
-        }
-    }
-
-    private var addRuleButton: some View {
-        VStack(spacing: 2) {
-            Button(action: { showingConfigureRule = true }) {
-                ZStack {
-                    Color.clear.frame(width: 38, height: 38)
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.45))
-                }
-                .frame(width: 48, height: 48) // matches browser icon frame
-            }
-            .buttonStyle(.plain)
-            .help("Add routing rule (R)")
-            .accessibilityIdentifier("picker.configureRuleButton")
-            .accessibilityLabel("Add routing rule for this URL")
-
-            Color.clear.frame(width: 4, height: 4) // dot-row spacer
-
-            Text("Rule")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.35))
-                .lineLimit(1)
-        }
     }
 
     // MARK: - Keyboard Hints Row
@@ -320,7 +337,8 @@ struct ContentView: View {
             Spacer()
             keyHintChip(keys: ["↵"], label: "LAUNCH", isAccent: true)
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .opacity(appeared ? 1 : 0)
         .animation(.easeIn(duration: 0.2).delay(0.3), value: appeared)
     }
@@ -331,14 +349,14 @@ struct ContentView: View {
             ForEach(keys, id: \.self) { key in
                 Text(key)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(isAccent ? .white : (isActive ? Color.purple : .white.opacity(0.55)))
+                    .foregroundStyle(isAccent ? .white : (isActive ? Color.purple : Color.primary.opacity(0.6)))
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
                     .background(
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(
-                                isAccent ? Color.accentColor.opacity(0.75) :
-                                    (isActive ? Color.purple.opacity(0.3) : .white.opacity(0.1))
+                                isAccent ? Color.accentColor.opacity(0.8) :
+                                    (isActive ? Color.purple.opacity(0.2) : Color.primary.opacity(0.1))
                             )
                     )
             }
@@ -346,7 +364,7 @@ struct ContentView: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(
                     isAccent ? Color.accentColor :
-                        (isActive ? Color.purple : .white.opacity(0.32))
+                        (isActive ? Color.purple : Color.secondary)
                 )
         }
         .opacity(opacity)
@@ -359,39 +377,31 @@ struct ContentView: View {
             Image(nsImage: BrowserManager.currentAppIcon())
                 .resizable()
                 .interpolation(.high)
-                .frame(width: 28, height: 28)
-                .opacity(0.7)
+                .frame(width: 32, height: 32)
+                .opacity(0.8)
             VStack(alignment: .leading, spacing: 2) {
                 Text("No browsers configured")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
                 Text("Open Settings from the menu bar to add a browser.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Capsule().fill(pillBackground))
-        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.4), radius: 18, y: 6)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 24)
         .accessibilityIdentifier("picker.emptyState")
     }
 
     // MARK: - Layout
 
-    private var pillBackground: Color {
-        Color(red: 0.118, green: 0.118, blue: 0.118)
-    }
-
     private var pickerWidth: CGFloat {
         let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
-        let iconSize: CGFloat = 52  // 48pt circle + small horizontal margin
-        let iconSpacing: CGFloat = 2
-        let actionsWidth: CGFloat = browserManager.currentURL != nil ? (1 + 16 + 38 + 4 + 38) : 0
-        let horizontalPad: CGFloat = 20
-        let computed = horizontalPad + count * iconSize + max(0, count - 1) * iconSpacing + actionsWidth
-        return max(270, min(620, computed))
+        let iconSize: CGFloat = 58  // 54pt hit area + margin
+        let iconSpacing: CGFloat = 4
+        let horizontalPad: CGFloat = 36 // 18 each side
+        let computed = horizontalPad + count * iconSize + max(0, count - 1) * iconSpacing
+        return max(320, min(740, computed)) // Limits 
     }
 
     private func displayName(for browser: BrowserConfig) -> String {

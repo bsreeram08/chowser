@@ -5,7 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chowser – The Smart Browser Chooser for macOS</title>
-  <meta name="description" content="A keyboard-first macOS browser chooser with profiles, private mode, app-based routing, and smart rules. Pick the right browser for every link — automatically or in one keystroke.">
+  <meta name="description"
+    content="A keyboard-first macOS browser chooser with profiles, private mode, app-based routing, and smart rules. Pick the right browser for every link — automatically or in one keystroke.">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -33,22 +34,87 @@
     }
   </script>
   <style>
-    *,*::before,*::after{box-sizing:border-box}
-    html{scroll-behavior:smooth}
-    html,body{width:100%;max-width:100%;overflow-x:clip}
-    body{color:#f4f4f5;background-color:#09090b;-webkit-font-smoothing:antialiased}
-    .glass{background:rgba(24,24,27,0.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,0.08)}
-    .glass-card{background:rgba(24,24,27,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);box-shadow:0 4px 24px -1px rgba(0,0,0,0.5)}
-    .reveal{opacity:0;transform:translateY(28px);transition:all 0.75s cubic-bezier(.25,.46,.45,.94)}
-    .reveal.active{opacity:1;transform:translateY(0)}
-    ::-webkit-scrollbar{width:6px}
-    ::-webkit-scrollbar-track{background:#09090b}
-    ::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}
-    ::-webkit-scrollbar-thumb:hover{background:#52525b}
-    .delay-100{animation-delay:100ms}
-    .delay-200{animation-delay:200ms}
-    .delay-300{animation-delay:300ms}
-    .delay-400{animation-delay:400ms}
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    html,
+    body {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: clip
+    }
+
+    body {
+      color: #f4f4f5;
+      background-color: #09090b;
+      -webkit-font-smoothing: antialiased
+    }
+
+    .glass {
+      background: rgba(24, 24, 27, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08)
+    }
+
+    .glass-card {
+      background: rgba(24, 24, 27, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.5)
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: all 0.75s cubic-bezier(.25, .46, .45, .94)
+    }
+
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0)
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #09090b
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #3f3f46;
+      border-radius: 3px
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #52525b
+    }
+
+    .delay-100 {
+      animation-delay: 100ms
+    }
+
+    .delay-200 {
+      animation-delay: 200ms
+    }
+
+    .delay-300 {
+      animation-delay: 300ms
+    }
+
+    .delay-400 {
+      animation-delay: 400ms
+    }
   </style>
 </head>
 
@@ -58,8 +124,11 @@
   <nav class="fixed top-0 w-full glass z-50 transition-all duration-300" id="nav">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
       <a href="index.html" class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10 text-white shrink-0">
-          <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current opacity-90"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z"/></svg>
+        <div
+          class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10 text-white shrink-0">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current opacity-90">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
+          </svg>
         </div>
         <span class="font-bold text-xl tracking-tight text-white">Chowser</span>
       </a>
@@ -68,8 +137,12 @@
         <a href="agentic-setup.html" class="hover:text-white transition-colors">AI Setup</a>
         <a href="security-setup.html" class="hover:text-white transition-colors hidden sm:block">Security</a>
         <a href="#rules" class="hover:text-white transition-colors hidden sm:block">Rules</a>
-        <a href="https://github.com/bsreeram08/chowser" target="_blank" class="text-zinc-300 hover:text-white transition-colors flex items-center gap-2 shrink-0">
-          <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        <a href="https://github.com/bsreeram08/chowser" target="_blank"
+          class="text-zinc-300 hover:text-white transition-colors flex items-center gap-2 shrink-0">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current">
+            <path
+              d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+          </svg>
           <span class="hidden sm:inline">GitHub</span>
         </a>
       </div>
@@ -77,11 +150,13 @@
   </nav>
 
   <!-- Hero -->
-  <main class="relative pt-28 sm:pt-32 pb-16 sm:pb-20 px-4 sm:px-12 flex flex-col items-center justify-center min-h-[90vh]">
+  <main
+    class="relative pt-28 sm:pt-32 pb-16 sm:pb-20 px-4 sm:px-12 flex flex-col items-center justify-center min-h-[90vh]">
     <div class="text-center max-w-3xl mx-auto z-10 w-full">
 
       <!-- Badge -->
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/60 text-xs font-medium text-zinc-300 mb-8 animate-fade-in-up opacity-0">
+      <div
+        class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/60 text-xs font-medium text-zinc-300 mb-8 animate-fade-in-up opacity-0">
         <span class="flex h-2 w-2 relative">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
@@ -90,28 +165,36 @@
       </div>
 
       <!-- H1 -->
-      <h1 class="text-4xl sm:text-7xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-zinc-200 to-zinc-500 mb-6 animate-fade-in-up opacity-0 delay-100 leading-tight">
+      <h1
+        class="text-4xl sm:text-7xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-zinc-200 to-zinc-500 mb-6 animate-fade-in-up opacity-0 delay-100 leading-tight">
         Take Control of<br class="hidden sm:block"> Your Links
       </h1>
 
       <!-- Subtext -->
-      <p class="text-base sm:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up opacity-0 delay-200">
-        A keyboard-first browser chooser with profiles, private mode, app-based routing, and smart rules. Pick the right browser for every link — automatically or in one keystroke.
+      <p
+        class="text-base sm:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up opacity-0 delay-200">
+        A keyboard-first browser chooser with profiles, private mode, app-based routing, and smart rules. Pick the right
+        browser for every link — automatically or in one keystroke.
       </p>
 
       <!-- CTAs -->
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up opacity-0 delay-300">
         <a id="download-btn" href="https://github.com/bsreeram08/chowser/releases/latest"
           class="group relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-primary hover:bg-primary-hover text-white rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_rgba(59,130,246,0.4)] hover:shadow-[0_0_40px_-5px_rgba(59,130,246,0.6)] overflow-hidden">
-          <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
-          <svg class="w-5 h-5 relative z-10 group-hover:-translate-y-1 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
+          <div
+            class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out">
+          </div>
+          <svg class="w-5 h-5 relative z-10 group-hover:-translate-y-1 transition-transform duration-300"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           <span id="download-label" class="relative z-10">Download for Mac</span>
         </a>
-        <a href="#setup" class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700 text-white rounded-2xl font-semibold text-lg transition-all duration-300 backdrop-blur-md">
+        <a href="#setup"
+          class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700 text-white rounded-2xl font-semibold text-lg transition-all duration-300 backdrop-blur-md">
           View Setup Guide
         </a>
       </div>
@@ -122,171 +205,293 @@
           class="text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors flex items-center justify-center gap-2">
           <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+            </path>
           </svg>
           Fetching latest release...
         </a>
         <p id="error-msg" class="text-sm text-red-400 mt-2 hidden"></p>
       </div>
+
+      <!-- Interactive Demo Toggle -->
+      <div class="mt-8 flex justify-center animate-fade-in-up opacity-0 delay-400">
+        <button id="private-toggle"
+          class="flex items-center gap-2 px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-sm font-medium text-zinc-400 hover:text-white transition-all duration-300">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          Try Private Mode
+        </button>
+      </div>
     </div>
 
-    <!-- Pill UI Mockup -->
-    <div class="mt-16 sm:mt-20 z-10 animate-fade-in-up opacity-0 delay-400 transform hover:scale-[1.01] transition-transform duration-500 flex justify-center w-full">
-      <div class="flex flex-col items-center gap-[10px] font-sans select-none" style="filter:drop-shadow(0 24px 48px rgba(0,0,0,0.6))">
+    <!-- Unified Panel Mockup -->
+    <div
+      class="mt-16 sm:mt-20 z-10 animate-fade-in-up opacity-0 delay-400 transform transition-all duration-700 flex justify-center w-full relative"
+      id="mockup-container">
 
-        <!-- URL bubble -->
-        <div class="flex items-center gap-[8px] px-[14px] py-[9px] rounded-full border border-white/10" style="background:rgba(30,30,30,1);min-width:280px;max-width:360px;">
-          <svg class="w-[11px] h-[11px] shrink-0 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-          <span class="text-[12px] font-medium text-white/90 flex-1 truncate">github.com/bsreeram08/chowser</span>
-          <svg class="w-[10px] h-[10px] shrink-0 opacity-35" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3"/></svg>
+      <div id="mockup-panel"
+        class="flex flex-col w-full max-w-[380px] rounded-2xl border border-white/10 relative overflow-hidden transition-all duration-700"
+        style="background:rgba(30,30,30,0.65); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+
+        <!-- Header: URL Bubble -->
+        <div class="flex items-center gap-[8px] px-4 py-3 border-b border-white/5">
+          <svg class="w-[12px] h-[12px] shrink-0 opacity-40 text-white" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+          <span class="text-[13px] font-medium text-white flex-1 truncate">github.com/bsreeram08/chowser</span>
+
+          <div class="flex items-center gap-2">
+            <!-- Rule Button -->
+            <div
+              class="w-6 h-6 rounded flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
+              title="Add Rule">
+              <svg class="w-3.5 h-3.5 opacity-60 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <!-- Copy URL -->
+            <div
+              class="w-6 h-6 rounded flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
+              title="Copy URL">
+              <svg class="w-3.5 h-3.5 opacity-60 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3" />
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <!-- Browser bar pill -->
-        <div class="flex items-start gap-[4px] px-[10px] py-[8px] rounded-full border border-white/[0.12]" style="background:rgba(30,30,30,1);box-shadow:0 22px 44px rgba(0,0,0,0.55);">
+        <!-- Main Body: Browser Bar -->
+        <div class="flex items-start justify-center gap-1 sm:gap-2 px-2 py-4">
 
-          <!-- Safari (selected) -->
-          <div class="flex flex-col items-center gap-[2px]">
-            <div class="w-[48px] h-[48px] rounded-full flex items-center justify-center relative" style="background:rgba(255,255,255,0.15);">
-              <div class="w-[32px] h-[32px] rounded-[8px] bg-[#006CFF] flex items-center justify-center text-white">
-                <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.2 4.6-4.6 2.2 2.2-4.6 4.6-2.2z"/></svg>
+          <!-- Safari (Selected) -->
+          <div class="flex flex-col items-center gap-[4px] cursor-pointer group px-2">
+            <div
+              class="w-[52px] h-[52px] rounded-2xl flex items-center justify-center relative transition-colors duration-300"
+              style="background:rgba(255,255,255,0.15);">
+              <div
+                class="w-[36px] h-[36px] rounded-[10px] bg-[#006CFF] flex items-center justify-center text-white shadow-sm">
+                <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m16.2 7.8-2.2 4.6-4.6 2.2 2.2-4.6 4.6-2.2z" />
+                </svg>
               </div>
-              <span class="absolute bottom-[2px] right-[2px] text-[7px] font-bold font-mono text-white/80 bg-black/55 rounded-full px-[3px] py-[1.5px] leading-none">1</span>
+              <span
+                class="absolute -bottom-1 -right-1 z-10 text-[9px] font-bold font-mono text-zinc-300 bg-zinc-800 border border-zinc-700/50 rounded-md px-1 py-0.5 leading-none shadow-sm">1</span>
             </div>
-            <div class="w-[4px] h-[4px] rounded-full bg-blue-500"></div>
-            <span class="text-[9px] font-medium text-white/85 w-[52px] text-center truncate">Safari</span>
+            <span class="text-[11px] font-medium text-white/90 w-[56px] text-center truncate mt-1">Safari</span>
           </div>
 
           <!-- Firefox -->
-          <div class="flex flex-col items-center gap-[2px]">
-            <div class="w-[48px] h-[48px] rounded-full flex items-center justify-center relative" style="background:rgba(255,255,255,0);">
-              <div class="w-[32px] h-[32px] rounded-[8px] bg-[#FF6611] flex items-center justify-center text-white">
-                <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/></svg>
+          <div class="flex flex-col items-center gap-[4px] cursor-pointer group px-2">
+            <div
+              class="w-[52px] h-[52px] rounded-2xl flex items-center justify-center relative group-hover:bg-white/5 transition-colors duration-300">
+              <div
+                class="w-[36px] h-[36px] rounded-[10px] bg-[#FF6611] flex items-center justify-center text-white shadow-sm">
+                <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
               </div>
-              <span class="absolute bottom-[2px] right-[2px] text-[7px] font-bold font-mono text-white/80 bg-black/55 rounded-full px-[3px] py-[1.5px] leading-none">2</span>
+              <span
+                class="absolute -bottom-1 -right-1 z-10 text-[9px] font-bold font-mono text-zinc-400 bg-zinc-800 border border-zinc-700/50 rounded-md px-1 py-0.5 leading-none shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">2</span>
             </div>
-            <div class="w-[4px] h-[4px] rounded-full bg-transparent"></div>
-            <span class="text-[9px] font-medium text-white/45 w-[52px] text-center truncate">Firefox</span>
+            <span
+              class="text-[11px] font-medium text-white/50 group-hover:text-white/80 w-[56px] text-center truncate mt-1 transition-colors">Firefox</span>
           </div>
 
           <!-- Chrome -->
-          <div class="flex flex-col items-center gap-[2px]">
-            <div class="w-[48px] h-[48px] rounded-full flex items-center justify-center relative" style="background:rgba(255,255,255,0);">
-              <div class="w-[32px] h-[32px] rounded-[8px] bg-[#4285F4] flex items-center justify-center text-white">
-                <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m12 8 4 6.9-8-.1z"/></svg>
+          <div class="flex flex-col items-center gap-[4px] cursor-pointer group px-2">
+            <div
+              class="w-[52px] h-[52px] rounded-2xl flex items-center justify-center relative group-hover:bg-white/5 transition-colors duration-300">
+              <div
+                class="w-[36px] h-[36px] rounded-[10px] bg-[#4285F4] flex items-center justify-center text-white shadow-sm">
+                <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="m12 8 4 6.9-8-.1z" />
+                </svg>
               </div>
-              <span class="absolute bottom-[2px] right-[2px] text-[7px] font-bold font-mono text-white/80 bg-black/55 rounded-full px-[3px] py-[1.5px] leading-none">3</span>
+              <span
+                class="absolute -bottom-1 -right-1 z-10 text-[9px] font-bold font-mono text-zinc-400 bg-zinc-800 border border-zinc-700/50 rounded-md px-1 py-0.5 leading-none shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">3</span>
             </div>
-            <div class="w-[4px] h-[4px] rounded-full bg-transparent"></div>
-            <span class="text-[9px] font-medium text-white/45 w-[52px] text-center truncate">Chrome</span>
+            <span
+              class="text-[11px] font-medium text-white/50 group-hover:text-white/80 w-[56px] text-center truncate mt-1 transition-colors">Chrome</span>
           </div>
 
-          <!-- Vertical separator -->
-          <div class="w-[1px] self-stretch mx-[4px] my-[10px]" style="background:rgba(255,255,255,0.15);"></div>
-
-          <!-- Private button (48px outer, 38px inner circle) -->
-          <div class="flex flex-col items-center gap-[2px]">
-            <div class="w-[48px] h-[48px] flex items-center justify-center">
-              <div class="w-[38px] h-[38px] rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.06);">
-                <svg class="w-[14px] h-[14px] opacity-45" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </div>
-            </div>
-            <div class="w-[4px] h-[4px] rounded-full bg-transparent"></div>
-            <span class="text-[9px] font-medium text-white/35 w-[52px] text-center">Private</span>
-          </div>
-
-          <!-- Rule button (48px outer, 38px inner circle) -->
-          <div class="flex flex-col items-center gap-[2px]">
-            <div class="w-[48px] h-[48px] flex items-center justify-center">
-              <div class="w-[38px] h-[38px] rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.06);">
-                <svg class="w-[14px] h-[14px] opacity-45" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-              </div>
-            </div>
-            <div class="w-[4px] h-[4px] rounded-full bg-transparent"></div>
-            <span class="text-[9px] font-medium text-white/35 w-[52px] text-center">Rule</span>
-          </div>
         </div>
 
-        <!-- Keyboard hints -->
-        <div class="flex items-center gap-[6px] w-full px-[2px]">
-          <div class="flex items-center gap-[3px]">
-            <span class="text-[9px] font-bold font-mono text-white/55 bg-white/10 rounded-[3px] px-[4px] py-[2px]">P</span>
-            <span class="text-[9px] font-semibold text-white/32">PRIVATE</span>
+        <!-- Footer: Keyboard Hints -->
+        <div class="flex items-center gap-[8px] w-full px-4 py-2 border-t border-white/5 bg-black/20">
+          <div class="flex items-center gap-1.5 opacity-60">
+            <span
+              class="text-[10px] font-bold font-mono text-white bg-white/10 border border-white/10 rounded-[4px] px-1 py-0.5 shadow-sm">P</span>
+            <span class="text-[9px] font-semibold text-white tracking-wide">PRIVATE</span>
           </div>
-          <div class="flex items-center gap-[3px]">
-            <span class="text-[9px] font-bold font-mono text-white/55 bg-white/10 rounded-[3px] px-[4px] py-[2px]">R</span>
-            <span class="text-[9px] font-semibold text-white/32">RULE</span>
+          <div class="flex items-center gap-1.5 opacity-60">
+            <span
+              class="text-[10px] font-bold font-mono text-white bg-white/10 border border-white/10 rounded-[4px] px-1 py-0.5 shadow-sm">R</span>
+            <span class="text-[9px] font-semibold text-white tracking-wide">RULE</span>
           </div>
-          <div class="flex items-center gap-[3px]">
-            <span class="text-[9px] font-bold font-mono text-white/55 bg-white/10 rounded-[3px] px-[4px] py-[2px]">Esc</span>
-            <span class="text-[9px] font-semibold text-white/32">CLOSE</span>
+          <div class="flex items-center gap-1.5 opacity-60 hidden sm:flex">
+            <span
+              class="text-[10px] font-bold font-mono text-white bg-white/10 border border-white/10 rounded-[4px] px-1 py-0.5 shadow-sm">Esc</span>
+            <span class="text-[9px] font-semibold text-white tracking-wide">CLOSE</span>
           </div>
           <div class="flex-1"></div>
-          <div class="flex items-center gap-[3px]">
-            <span class="text-[9px] font-bold font-mono text-white bg-blue-500/75 rounded-[3px] px-[4px] py-[2px]">↵</span>
-            <span class="text-[9px] font-semibold text-blue-400">LAUNCH</span>
+          <div class="flex items-center gap-1.5">
+            <span
+              class="text-[10px] font-bold font-mono text-white bg-blue-500 rounded-[4px] px-1 py-0.5 shadow-sm">↵</span>
+            <span class="text-[9px] font-semibold text-blue-400 tracking-wide">LAUNCH</span>
           </div>
         </div>
 
       </div>
     </div>
+
+    <!-- AI Setup Teaser -->
+    <section id="ai-setup" class="py-12 sm:py-20 px-4 sm:px-12 relative z-20">
+
+      <div
+        class="glass-card p-6 sm:p-12 rounded-2xl sm:rounded-[32px] border border-blue-500/20 shadow-[0_0_50px_-10px_rgba(59,130,246,0.15)] relative overflow-hidden max-w-4xl mx-auto">
+        <div class="relative z-10">
+          <div
+            class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold mb-6 uppercase tracking-widest">
+            AI Setup
+          </div>
+          <h2 class="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6 tracking-tight">AI-Powered Configuration</h2>
+          <p class="text-zinc-400 text-sm sm:text-lg mb-6 sm:mb-8 leading-relaxed max-w-2xl">
+            Skip manual setup. Run the command below in Terminal to fetch the setup prompt and pipe it straight into
+            your clipboard, then paste into <strong>Claude, ChatGPT, or Cursor</strong>.
+          </p>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Copy terminal command</span>
+              <button onclick="copyCurl()"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-all border border-zinc-700 text-zinc-400 hover:text-white active:scale-95 text-xs font-medium">
+                <svg id="copy-icon" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  stroke-width="2">
+                  <path
+                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                <svg id="check-icon" class="w-3.5 h-3.5 hidden text-green-400" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor" stroke-width="2">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+                <span id="copy-label">Copy</span>
+              </button>
+            </div>
+            <div
+              class="bg-black/60 rounded-xl sm:rounded-2xl border border-zinc-800 p-6 text-sm sm:text-lg text-primary leading-relaxed shadow-2xl overflow-x-auto font-mono">
+              <code id="curl-text">curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy</code>
+            </div>
+          </div>
+          <p class="text-xs text-zinc-600 mt-3">
+            Run in Terminal — pipes the AI prompt to your clipboard. Then paste into your AI assistant.
+            <a href="agentic-setup.html" class="text-blue-400 hover:text-blue-300 ml-1">Full AI setup guide &rarr;</a>
+          </p>
+        </div>
+      </div>
+
+    </section>
+
   </main>
 
   <!-- Setup Section -->
-  <section id="setup" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-white/10 bg-[#0c0c0e]">
+  <section id="setup" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-white/5 bg-[#0c0c0e]">
     <div class="max-w-4xl mx-auto reveal">
       <div class="text-center mb-12 sm:mb-16">
         <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight text-white/90">Get Started in 4 Steps</h2>
-        <p class="text-zinc-500 max-w-2xl mx-auto text-sm sm:text-base font-medium">Up and running in under two minutes. Chowser lives quietly in your menu bar.</p>
+        <p class="text-zinc-500 max-w-2xl mx-auto text-sm sm:text-base font-medium">Up and running in under two minutes.
+          Chowser lives quietly in your menu bar.</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 
         <!-- Step 1 -->
-        <div class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
-          <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-lg mb-4 text-primary">1</div>
+        <div
+          class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            1</div>
           <h3 class="text-xl font-bold mb-2">Download &amp; Install</h3>
           <p class="text-zinc-400 text-sm leading-relaxed">
-            <a href="https://github.com/bsreeram08/chowser/releases/latest" class="setup-download-link text-primary hover:underline font-semibold">Download the latest .dmg</a> from GitHub Releases. Open it and drag Chowser into your Applications folder.
+            <a href="https://github.com/bsreeram08/chowser/releases/latest"
+              class="setup-download-link text-primary hover:underline font-semibold">Download the latest .dmg</a> from
+            GitHub Releases. Open it and drag Chowser into your Applications folder.
           </p>
         </div>
 
         <!-- Step 2 -->
-        <div class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group border-amber-500/20 bg-amber-500/5 hover:border-amber-500/40 transition-colors">
-          <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div class="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/25 flex items-center justify-center font-bold text-lg mb-4 text-amber-400">2</div>
+        <div
+          class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group border-amber-500/20 bg-amber-500/5 hover:border-amber-500/40 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/25 flex items-center justify-center font-bold text-lg mb-4 text-amber-400">
+            2</div>
           <h3 class="text-xl font-bold mb-2">Bypass Security Warning</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed mb-3">Because this is an <strong>unsigned build</strong>, macOS blocks the first launch. Right-click (Control-click) the app and choose <strong>Open</strong>, then confirm.</p>
-          <a href="security-setup.html" class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
+          <p class="text-zinc-400 text-sm leading-relaxed mb-3">Because this is an <strong>unsigned build</strong>,
+            macOS blocks the first launch. Right-click (Control-click) the app and choose <strong>Open</strong>, then
+            confirm.</p>
+          <a href="security-setup.html"
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
             View detailed security guide &rarr;
           </a>
         </div>
 
         <!-- Step 3 -->
-        <div class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
-          <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-lg mb-4 text-primary">3</div>
+        <div
+          class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            3</div>
           <h3 class="text-xl font-bold mb-2">Set as Default Browser</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Click the Chowser menu bar icon &rarr; <strong>Set as Default Browser</strong>. Chowser will now intercept every link you click.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Click the Chowser menu bar icon &rarr; <strong>Set as Default
+              Browser</strong>. Chowser will now intercept every link you click.</p>
         </div>
 
         <!-- Step 4 -->
-        <div class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
-          <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-lg mb-4 text-primary">4</div>
+        <div
+          class="glass-card p-5 sm:p-6 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity">
+          </div>
+          <div
+            class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center font-bold text-lg mb-4 text-primary">
+            4</div>
           <h3 class="text-xl font-bold mb-2">Configure &amp; Customize</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Open <strong>Settings</strong> from the menu bar icon. Add browsers, select specific profiles, and configure routing rules to auto-launch the right browser.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Open <strong>Settings</strong> from the menu bar icon. Add
+            browsers, select specific profiles, and configure routing rules to auto-launch the right browser.</p>
         </div>
 
       </div>
     </div>
   </section>
 
+
+
   <!-- Smart Routing Rules Section -->
   <section id="rules" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-white/5">
     <div class="max-w-4xl mx-auto reveal">
       <div class="mb-10 sm:mb-12">
         <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight text-white/90">Smart Routing Rules</h2>
-        <p class="text-zinc-500 max-w-2xl text-sm sm:text-lg font-medium">Set up powerful rules to auto-route specific domains to work, personal, or testing browsers — no picker needed.</p>
+        <p class="text-zinc-500 max-w-2xl text-sm sm:text-lg font-medium">Set up powerful rules to auto-route specific
+          domains to work, personal, or testing browsers — no picker needed.</p>
       </div>
 
       <div class="glass-card rounded-xl border border-white/10 overflow-hidden shadow-2xl">
@@ -295,39 +500,55 @@
           <div class="p-6 sm:p-8 bg-zinc-800/20 border-b md:border-b-0 md:border-r border-zinc-700/50">
             <h3 class="text-lg sm:text-xl font-bold mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               How Rules Work
             </h3>
             <p class="text-sm text-zinc-400 mb-6 leading-relaxed">
-              Rules run <strong>top-to-bottom</strong>. When you click a link, Chowser checks each rule in order — the <strong>first match wins</strong> and opens the URL directly in the assigned browser. No match falls back to the picker.
+              Rules run <strong>top-to-bottom</strong>. When you click a link, Chowser checks each rule in order — the
+              <strong>first match wins</strong> and opens the URL directly in the assigned browser. No match falls back
+              to the picker.
             </p>
             <ul class="space-y-4">
               <li class="flex items-start gap-3">
-                <div class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                <div
+                  class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
                 <div class="text-sm min-w-0">
                   <span class="text-white font-medium">Domain Matching</span>
-                  <p class="text-zinc-500 mt-1">Match exact domains or use wildcards — <code class="bg-zinc-800 px-1 py-0.5 rounded text-xs text-primary font-mono">*.google.com</code> catches all subdomains.</p>
+                  <p class="text-zinc-500 mt-1">Match exact domains or use wildcards — <code
+                      class="bg-zinc-800 px-1 py-0.5 rounded text-xs text-primary font-mono">*.google.com</code> catches
+                    all subdomains.</p>
                 </div>
               </li>
               <li class="flex items-start gap-3">
-                <div class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                <div
+                  class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
                 <div class="text-sm min-w-0">
                   <span class="text-white font-medium">Path Prefix</span>
-                  <p class="text-zinc-500 mt-1">Fine-grained control with path matching — e.g. <code class="bg-zinc-800 px-1 py-0.5 rounded text-xs text-primary font-mono">/my-org</code> routes only your org's repos.</p>
+                  <p class="text-zinc-500 mt-1">Fine-grained control with path matching — e.g. <code
+                      class="bg-zinc-800 px-1 py-0.5 rounded text-xs text-primary font-mono">/my-org</code> routes only
+                    your org's repos.</p>
                 </div>
               </li>
               <li class="flex items-start gap-3">
-                <div class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                <div
+                  class="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
                 <div class="text-sm min-w-0">
                   <span class="text-white font-medium">App-Based Routing</span>
-                  <p class="text-zinc-500 mt-1">Route by source app — links from Slack open in Chrome Work, links from Terminal open in Firefox Dev.</p>
+                  <p class="text-zinc-500 mt-1">Route by source app — links from Slack open in Chrome Work, links from
+                    Terminal open in Firefox Dev.</p>
                 </div>
               </li>
             </ul>
@@ -343,7 +564,9 @@
               <div class="space-y-3">
                 <!-- Rule 1 -->
                 <div class="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/5">
-                  <div class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold shrink-0">1</div>
+                  <div
+                    class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+                    1</div>
                   <div class="flex-1 min-w-0">
                     <div class="text-[12px] font-bold text-zinc-200 truncate">Work GitHub</div>
                     <div class="text-[10px] text-zinc-500 truncate font-mono">github.com/my-org/*</div>
@@ -352,7 +575,9 @@
                 </div>
                 <!-- Rule 2 -->
                 <div class="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/5">
-                  <div class="w-5 h-5 rounded bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">2</div>
+                  <div
+                    class="w-5 h-5 rounded bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+                    2</div>
                   <div class="flex-1 min-w-0">
                     <div class="text-[12px] font-bold text-zinc-200 truncate">Slack Links</div>
                     <div class="text-[10px] text-zinc-500 truncate font-mono">*.slack.com — from Slack</div>
@@ -361,7 +586,9 @@
                 </div>
                 <!-- Rule 3 -->
                 <div class="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/5">
-                  <div class="w-5 h-5 rounded bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold shrink-0">3</div>
+                  <div
+                    class="w-5 h-5 rounded bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+                    3</div>
                   <div class="flex-1 min-w-0">
                     <div class="text-[12px] font-bold text-zinc-200 truncate">Social</div>
                     <div class="text-[10px] text-zinc-500 truncate font-mono">twitter.com/*</div>
@@ -372,9 +599,13 @@
                 <div class="pt-2 border-t border-white/5">
                   <div class="flex items-center gap-3 px-2">
                     <div class="w-5 h-5 flex items-center justify-center">
-                      <svg class="w-3 h-3 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                      <svg class="w-3 h-3 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                          d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
                     </div>
-                    <span class="text-[10px] font-bold text-zinc-600 uppercase">First match wins · Then fallback to picker</span>
+                    <span class="text-[10px] font-bold text-zinc-600 uppercase">First match wins · Then fallback to
+                      picker</span>
                   </div>
                 </div>
               </div>
@@ -383,23 +614,28 @@
             <!-- Keyboard shortcut row -->
             <div class="mt-4 sm:mt-6 flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-500">
               <span class="flex items-center gap-1.5">
-                <kbd class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">1-9</kbd>
+                <kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">1-9</kbd>
                 Quick Pick
               </span>
               <span class="flex items-center gap-1.5">
-                <kbd class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">↑↓</kbd>
+                <kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">↑↓</kbd>
                 Navigate
               </span>
               <span class="flex items-center gap-1.5">
-                <kbd class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">P</kbd>
+                <kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">P</kbd>
                 Private
               </span>
               <span class="flex items-center gap-1.5">
-                <kbd class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">R</kbd>
+                <kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">R</kbd>
                 Rule
               </span>
               <span class="flex items-center gap-1.5">
-                <kbd class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">Esc</kbd>
+                <kbd
+                  class="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 font-sans font-medium text-zinc-300 shadow-sm">Esc</kbd>
                 Close
               </span>
             </div>
@@ -414,137 +650,132 @@
     <div class="max-w-6xl mx-auto reveal">
       <div class="text-center mb-12 sm:mb-16">
         <h2 class="text-2xl sm:text-4xl font-bold mb-4 tracking-tight">What's in v2.6.0</h2>
-        <p class="text-zinc-400 max-w-2xl mx-auto text-sm sm:text-base">More power, less clutter. Every feature power users asked for, built in.</p>
+        <p class="text-zinc-400 max-w-2xl mx-auto text-sm sm:text-base">More power, less clutter. Every feature power
+          users asked for, built in.</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
 
         <!-- Browser Profiles -->
-        <div class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-blue-500/30 transition-all group">
-          <div class="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
+        <div
+          class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-blue-500/30 transition-all group">
+          <div
+            class="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </div>
           <h3 class="text-xl font-bold mb-3">Browser Profiles</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Full support for <strong>Chrome, Brave, Edge</strong> and <strong>Firefox</strong> profiles. Route work links to your work profile and personal links to your home profile automatically.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Full support for <strong>Chrome, Brave, Edge</strong> and
+            <strong>Firefox</strong> profiles. Route work links to your work profile and personal links to your home
+            profile automatically.
+          </p>
           <p class="text-zinc-600 text-xs leading-relaxed mt-3">
-            <svg class="w-3 h-3 inline mr-1 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-            <strong class="text-amber-700">Arc &amp; Dia:</strong> profiles are detected and shown, but these browsers don't support switching profiles via CLI — links will open in the default profile.
+            <svg class="w-3 h-3 inline mr-1 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <strong class="text-amber-700">Arc &amp; Dia:</strong> profiles are detected and shown, but these browsers
+            don't support switching profiles via CLI — links will open in the default profile.
           </p>
         </div>
 
         <!-- Private Mode -->
-        <div class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-purple-500/30 transition-all group">
-          <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
+        <div
+          class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-purple-500/30 transition-all group">
+          <div
+            class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
           </div>
           <h3 class="text-xl font-bold mb-3">Private Mode</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Press <kbd class="bg-zinc-800 border border-zinc-700 rounded px-1 text-xs font-mono text-zinc-300">P</kbd> or click the eye button to toggle private mode. Session-scoped — all subsequent launches open incognito until you toggle off.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Press <kbd
+              class="bg-zinc-800 border border-zinc-700 rounded px-1 text-xs font-mono text-zinc-300">P</kbd> or click
+            the eye button to toggle private mode. Session-scoped — all subsequent launches open incognito until you
+            toggle off.</p>
         </div>
 
         <!-- App-Based Routing -->
-        <div class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-orange-500/30 transition-all group">
-          <div class="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 mb-6 group-hover:scale-110 transition-transform">
+        <div
+          class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-orange-500/30 transition-all group">
+          <div
+            class="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 mb-6 group-hover:scale-110 transition-transform">
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7" rx="1"/>
-              <rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/>
-              <rect x="14" y="14" width="7" height="7" rx="1"/>
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
           </div>
           <h3 class="text-xl font-bold mb-3">App-Based Routing</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Route by which app opened the link. Links clicked in Slack go to Chrome Work. Links from Terminal go to Firefox Dev. Fully configurable per source app.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Route by which app opened the link. Links clicked in Slack go
+            to Chrome Work. Links from Terminal go to Firefox Dev. Fully configurable per source app.</p>
         </div>
 
         <!-- Smart Rules -->
-        <div class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-green-500/30 transition-all group">
-          <div class="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-400 mb-6 group-hover:scale-110 transition-transform">
+        <div
+          class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-green-500/30 transition-all group">
+          <div
+            class="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-400 mb-6 group-hover:scale-110 transition-transform">
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <h3 class="text-xl font-bold mb-3">Smart Rules</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Domain + path matching with wildcard support. Matching rules auto-launch without showing the picker. Drag to reorder, toggle enable/disable per rule.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Domain + path matching with wildcard support. Matching rules
+            auto-launch without showing the picker. Drag to reorder, toggle enable/disable per rule.</p>
         </div>
 
         <!-- Clipboard Quick Actions -->
-        <div class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-teal-500/30 transition-all group">
-          <div class="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 mb-6 group-hover:scale-110 transition-transform">
+        <div
+          class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-teal-500/30 transition-all group">
+          <div
+            class="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 mb-6 group-hover:scale-110 transition-transform">
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+              <path
+                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
             </svg>
           </div>
           <h3 class="text-xl font-bold mb-3">Clipboard Quick Actions</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Open a URL from your clipboard directly via the menu bar icon — no need to click a link. Works for both normal and private mode browsing.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Open a URL from your clipboard directly via the menu bar icon
+            — no need to click a link. Works for both normal and private mode browsing.</p>
         </div>
 
         <!-- Rule Portability -->
-        <div class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-purple-500/30 transition-all group">
-          <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
+        <div
+          class="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-zinc-800 hover:border-purple-500/30 transition-all group">
+          <div
+            class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </div>
           <h3 class="text-xl font-bold mb-3">Rule Portability</h3>
-          <p class="text-zinc-400 text-sm leading-relaxed">Import and export your browser configs and routing rules as JSON. Share your setup across machines or back it up with a single click from the Settings menu.</p>
+          <p class="text-zinc-400 text-sm leading-relaxed">Import and export your browser configs and routing rules as
+            JSON. Share your setup across machines or back it up with a single click from the Settings menu.</p>
         </div>
 
       </div>
     </div>
   </section>
 
-  <!-- AI Setup Teaser -->
-  <section id="ai-setup" class="py-20 sm:py-24 px-4 sm:px-12 relative border-t border-zinc-800/50 bg-zinc-900/40">
-    <div class="max-w-4xl mx-auto reveal">
-      <div class="glass-card p-6 sm:p-12 rounded-2xl sm:rounded-[32px] border border-blue-500/20 shadow-[0_0_50px_-10px_rgba(59,130,246,0.15)] relative overflow-hidden">
-        <div class="relative z-10">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold mb-6 uppercase tracking-widest">
-            AI Setup
-          </div>
-          <h2 class="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6 tracking-tight">AI-Powered Configuration</h2>
-          <p class="text-zinc-400 text-sm sm:text-lg mb-6 sm:mb-8 leading-relaxed max-w-2xl">
-            Skip manual setup. Run the command below in Terminal to fetch the setup prompt and pipe it straight into your clipboard, then paste into <strong>Claude, ChatGPT, or Cursor</strong>.
-          </p>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Copy terminal command</span>
-              <button onclick="copyCurl()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-all border border-zinc-700 text-zinc-400 hover:text-white active:scale-95 text-xs font-medium">
-                <svg id="copy-icon" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
-                </svg>
-                <svg id="check-icon" class="w-3.5 h-3.5 hidden text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M5 13l4 4L19 7"/>
-                </svg>
-                <span id="copy-label">Copy</span>
-              </button>
-            </div>
-            <div class="bg-black/60 rounded-xl sm:rounded-2xl border border-zinc-800 p-6 text-sm sm:text-lg text-primary leading-relaxed shadow-2xl overflow-x-auto font-mono">
-              <code id="curl-text">curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy</code>
-            </div>
-          </div>
-          <p class="text-xs text-zinc-600 mt-3">
-            Run in Terminal — pipes the AI prompt to your clipboard. Then paste into your AI assistant.
-            <a href="agentic-setup.html" class="text-blue-400 hover:text-blue-300 ml-1">Full AI setup guide &rarr;</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- Footer -->
   <footer class="border-t border-zinc-800/50 bg-background py-10 px-4 sm:px-12">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded bg-zinc-800 flex items-center justify-center border border-white/10 text-white">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 fill-current opacity-90"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z"/></svg>
+          <svg viewBox="0 0 24 24" class="w-4 h-4 fill-current opacity-90">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
+          </svg>
         </div>
         <span class="font-semibold text-zinc-300">Chowser</span>
       </div>
@@ -553,7 +784,8 @@
         <a href="https://github.com/bsreeram08/chowser/releases" class="hover:text-white transition-colors">Releases</a>
         <a href="security-setup.html" class="hover:text-white transition-colors">Security Setup</a>
         <a href="agentic-setup.html" class="hover:text-white transition-colors">AI Setup</a>
-        <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE" class="hover:text-white transition-colors">MIT License</a>
+        <a href="https://github.com/bsreeram08/chowser/blob/main/LICENSE" class="hover:text-white transition-colors">MIT
+          License</a>
       </div>
     </div>
   </footer>
@@ -562,8 +794,8 @@
     // Nav scroll effect
     const nav = document.querySelector('nav');
     window.addEventListener('scroll', () => {
-      if (window.scrollY > 20) nav.classList.add('bg-zinc-900/80','border-b','border-zinc-800','shadow-sm');
-      else nav.classList.remove('bg-zinc-900/80','border-b','border-zinc-800','shadow-sm');
+      if (window.scrollY > 20) nav.classList.add('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
+      else nav.classList.remove('bg-zinc-900/80', 'border-b', 'border-zinc-800', 'shadow-sm');
     });
     // Reveal on scroll
     const revealObserver = new IntersectionObserver((entries, obs) => {
@@ -587,7 +819,7 @@
     }
 
     // GitHub release fetch
-    (async function() {
+    (async function () {
       const btn = document.getElementById('download-btn');
       const label = document.getElementById('download-label');
       const versionLink = document.getElementById('version-link');
@@ -604,13 +836,55 @@
         versionLink.innerHTML = '<svg class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> v' + version + ' for macOS 13.0+';
         versionLink.href = release.html_url;
         document.querySelectorAll('.setup-download-link').forEach(l => { l.href = dmg.browser_download_url; });
-      } catch(err) {
+      } catch (err) {
         label.textContent = 'View Releases';
         versionLink.innerHTML = 'Latest release on GitHub';
         versionLink.href = 'https://github.com/bsreeram08/chowser/releases/latest';
         if (errorMsg) { errorMsg.classList.remove('hidden'); errorMsg.textContent = 'Could not fetch download link automatically.'; }
       }
     })();
+
+    // Private Mode Toggle Demo
+    const mockContainer = document.getElementById('mockup-container');
+    const mockPanel = document.getElementById('mockup-panel');
+    const toggleBtn = document.getElementById('private-toggle');
+    const toggleIcon = toggleBtn.querySelector('svg');
+    let isPrivate = false;
+
+    toggleBtn.addEventListener('click', () => {
+      isPrivate = !isPrivate;
+      if (isPrivate) {
+        // Switch to Private Mode styling
+        mockPanel.style.background = 'rgba(38, 13, 64, 0.85)';
+        // Dual shadow: ambient purple glow + standard drop shadow
+        mockPanel.style.boxShadow = '0 4px 40px rgba(168, 85, 247, 0.4), 0 10px 40px rgba(0,0,0,0.4)';
+
+        // Update Button
+        toggleBtn.classList.remove('bg-zinc-900', 'text-zinc-400', 'border-zinc-800');
+        toggleBtn.classList.add('bg-purple-600/20', 'text-purple-300', 'border-purple-500/50');
+        toggleBtn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+          Exit Private Mode
+        `;
+
+        // Add a slight bounce scale
+        mockContainer.classList.add('scale-[1.02]');
+      } else {
+        // Revert to Normal Mode styling
+        mockPanel.style.background = 'rgba(30,30,30,0.65)';
+        mockPanel.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)';
+
+        // Revert Button
+        toggleBtn.classList.add('bg-zinc-900', 'text-zinc-400', 'border-zinc-800');
+        toggleBtn.classList.remove('bg-purple-600/20', 'text-purple-300', 'border-purple-500/50');
+        toggleBtn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          Try Private Mode
+        `;
+
+        mockContainer.classList.remove('scale-[1.02]');
+      }
+    });
   </script>
 </body>
 

@@ -105,15 +105,15 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a styled DMG (bumps version, tags, generates background)
-./scripts/release.sh 2.6.0
+./scripts/release.sh 2.6.1
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
 # 3. Generate a styled DMG background
 # 4. Create a DMG with icon positioning
-# 5. Create a git tag v2.6.0
-# 6. Output the DMG to release/Chowser-2.6.0.dmg
+# 5. Create a git tag v2.6.1
+# 6. Output the DMG to release/Chowser-2.6.1.dmg
 ```
 
 Releases are also automated via GitHub Actions — push a `v*` tag and it builds + publishes the release.

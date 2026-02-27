@@ -143,9 +143,16 @@ drawSquirclePlate(at: CGPoint(x: 495, y: 190))
 drawText()
 
 guard let image = context.makeImage() else { exit(1) }
-let outputPath = "dmg_background.png"
+
+// Use first command line argument as output path, or default to dmg_background.png
+let outputPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "dmg_background.png"
 let outputURL = URL(fileURLWithPath: outputPath) as CFURL
-let dest = CGImageDestinationCreateWithURL(outputURL, UTType.png.identifier as CFString, 1, nil)!
+
+guard let dest = CGImageDestinationCreateWithURL(outputURL, UTType.png.identifier as CFString, 1, nil) else {
+    print("❌ Failed to create image destination at \(outputPath)")
+    exit(1)
+}
+
 CGImageDestinationAddImage(dest, image, [kCGImagePropertyDPIWidth: 144, kCGImagePropertyDPIHeight: 144] as CFDictionary)
 CGImageDestinationFinalize(dest)
 

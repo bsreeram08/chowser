@@ -14,8 +14,12 @@ extension SettingsView {
     func updateFilteredRules() {
         guard hasRuleSearchQuery else { filteredRules = []; return }
         let query = ruleSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let browserNames = Dictionary(
+            browserManager.configuredBrowsers.map { ($0.bundleId, $0.name) },
+            uniquingKeysWith: { first, _ in first }
+        )
         filteredRules = browserManager.routingRules.filter { rule in
-            let targetBrowser = browserManager.configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId })?.name ?? ""
+            let targetBrowser = browserNames[rule.browserBundleId] ?? ""
             return rule.name.localizedStandardContains(query)
                 || rule.hostPattern.localizedStandardContains(query)
                 || (rule.pathPrefix ?? "").localizedStandardContains(query)
@@ -148,9 +152,8 @@ extension SettingsView {
                         }
                         .onDelete(perform: removeFilteredRules)
                     } else {
-                        let rules = browserManager.routingRules
-                        ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
-                            ruleRow(rule, index: index, totalCount: rules.count, hasSearchQuery: false)
+                        ForEach(browserManager.routingRules) { rule in
+                            ruleRow(rule, hasSearchQuery: false)
                         }
                         .onMove { indices, destination in
                             browserManager.moveRoutingRules(from: indices, to: destination)
@@ -160,6 +163,7 @@ extension SettingsView {
                         }
                     }
                 }
+                .id(UUID())
                 .listStyle(.inset(alternatesRowBackgrounds: true))
                 .accessibilityIdentifier("settings.rulesList")
                 .onChange(of: ruleSearchText) { updateFilteredRules() }
@@ -180,44 +184,49 @@ extension SettingsView {
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
         }
+        .sheet(item: $ruleToEdit) { rule in
+            EditRuleSheet(rule: rule, manager: browserManager, isPresented: Binding(
+                get: { ruleToEdit != nil },
+                set: { if !$0 { ruleToEdit = nil } }
+            ))
+        }
     }
 
     /// Creates a `RuleRowView` with all closure callbacks bound to `browserManager`.
     @ViewBuilder
-    func ruleRow(_ rule: BrowserRoutingRule, index: Int = 0, totalCount: Int = 0, hasSearchQuery: Bool) -> some View {
+    func ruleRow(_ rule: BrowserRoutingRule, hasSearchQuery: Bool) -> some View {
+        let currentIndex = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }) ?? 0
+        let canMoveUp = currentIndex > 0
+        let canMoveDown = currentIndex < browserManager.routingRules.count - 1
+        
         RuleRowView(
             rule: rule,
             configuredBrowsers: browserManager.configuredBrowsers,
             hasSearchQuery: hasSearchQuery,
-            canMoveUp: !hasSearchQuery && index > 0,
-            canMoveDown: !hasSearchQuery && index < totalCount - 1,
             onUpdate: { updated in
-                // Normalize host pattern before persisting.
-                var final = updated
-                let normalized = browserManager.normalizedRoutingHostPattern(updated.hostPattern)
-                if browserManager.isValidRoutingHostPattern(normalized) {
-                    final.hostPattern = normalized
-                    if final.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        final.name = normalized
-                    }
-                } else {
-                    final.hostPattern = rule.hostPattern // revert invalid host
-                }
-                browserManager.updateRoutingRule(final)
+                browserManager.updateRoutingRule(updated)
+            },
+            onEdit: {
+                ruleToEdit = rule
             },
             onDelete: { withAnimation(.easeInOut(duration: 0.2)) { browserManager.removeRoutingRule(id: rule.id) } },
             onDuplicate: { browserManager.duplicateRoutingRule(id: rule.id) },
             onMoveUp: {
-                guard index > 0 else { return }
+                guard let index = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }),
+                      index > 0 else { return }
                 browserManager.moveRoutingRules(from: IndexSet(integer: index), to: index - 1)
             },
             onMoveDown: {
-                guard index < totalCount - 1 else { return }
+                guard let index = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }),
+                      index < browserManager.routingRules.count - 1 else { return }
                 browserManager.moveRoutingRules(from: IndexSet(integer: index), to: index + 2)
             },
-            isValidHostPattern: { browserManager.isValidRoutingHostPattern($0) }
+            isValidHostPattern: { browserManager.isValidRoutingHostPattern($0) },
+            canMoveUp: canMoveUp,
+            canMoveDown: canMoveDown
         )
         .equatable()
+        .id(rule.id)
     }
 
     func rulesStatusBadge(title: String, color: Color) -> some View {

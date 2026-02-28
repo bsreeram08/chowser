@@ -142,6 +142,18 @@ extension SettingsView {
                             showingResetConfirmation = true
                         }
                         .accessibilityIdentifier("settings.resetButton")
+                        
+                        Divider()
+                            .padding(.vertical, 4)
+                            
+                        Text("Replay the Welcome & Setup experience.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            
+                        Button("Replay Onboarding") {
+                            OnboardingManager.shared.resetOnboarding()
+                            OnboardingManager.shared.showOnboardingWindow {}
+                        }
                     }
                     .padding(.vertical, 4)
                 } header: {

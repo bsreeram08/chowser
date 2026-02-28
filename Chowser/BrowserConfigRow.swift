@@ -7,82 +7,75 @@ import AppKit
 /// submit or focus loss — the same pattern as RuleRowView.
 struct BrowserConfigRow: View {
     let browser: BrowserConfig
-    var browserManager: BrowserManager
+    let currentShortcut: String
     let shortcutOptions: [String]
     let hasSearchQuery: Bool
 
-    @State private var editingName: String
-    @State private var editingCustomArgs: String
-    @State private var isHoveringName = false
-    @FocusState private var focusedField: Field?
+    // Callbacks
+    let onEdit: () -> Void
+    let onUpdateShortcut: (String) -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    let onDelete: () -> Void
+    let canMoveUp: Bool
+    let canMoveDown: Bool
 
-    private enum Field: Hashable {
-        case name, customArgs
-    }
+    @State private var isHoveringRow = false
 
-    init(browser: BrowserConfig, browserManager: BrowserManager, shortcutOptions: [String], hasSearchQuery: Bool) {
+    init(
+        browser: BrowserConfig,
+        currentShortcut: String,
+        shortcutOptions: [String],
+        hasSearchQuery: Bool,
+        onEdit: @escaping () -> Void,
+        onUpdateShortcut: @escaping (String) -> Void,
+        onMoveUp: @escaping () -> Void,
+        onMoveDown: @escaping () -> Void,
+        onDelete: @escaping () -> Void,
+        canMoveUp: Bool,
+        canMoveDown: Bool
+    ) {
         self.browser = browser
-        self.browserManager = browserManager
+        self.currentShortcut = currentShortcut
         self.shortcutOptions = shortcutOptions
         self.hasSearchQuery = hasSearchQuery
-        self._editingName = State(initialValue: browser.name)
-        self._editingCustomArgs = State(initialValue: browser.customArguments ?? "")
+        self.onEdit = onEdit
+        self.onUpdateShortcut = onUpdateShortcut
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
+        self.onDelete = onDelete
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                browserIconView
-                nameAndBundleView
-                Spacer()
-                shortcutPickerView
-                deleteButtonView
-            }
-            .padding(.vertical, 4)
-
-            DisclosureGroup {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Custom Launch Arguments")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-
-                    TextField("--profile-directory={profile} {url}", text: $editingCustomArgs)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
-                        .focused($focusedField, equals: .customArgs)
-                        .onSubmit { commitField(.customArgs) }
-
-                    Text("Placeholders: {profile}, {url}. Defaults used if empty.")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.leading, 40)
-                .padding(.vertical, 4)
-            } label: {
-                Text("Advanced")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.leading, 40)
+        HStack(spacing: 12) {
+            browserIconView
+            nameAndBundleView
+            Spacer()
+            shortcutPickerView
+            editButtonView
         }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isHoveringRow ? Color.secondary.opacity(0.08) : Color.clear)
+        )
+        .onHover { isHoveringRow = $0 }
         .contextMenu {
-            Button("Move Up") { moveBrowser(by: -1) }
-                .disabled(hasSearchQuery || !canMove(by: -1))
-            Button("Move Down") { moveBrowser(by: 1) }
-                .disabled(hasSearchQuery || !canMove(by: 1))
+            Button("Edit Browser…") { onEdit() }
+            Divider()
+            Button("Move Up") { onMoveUp() }
+                .disabled(hasSearchQuery || !canMoveUp)
+            Button("Move Down") { onMoveDown() }
+                .disabled(hasSearchQuery || !canMoveDown)
             Divider()
             Button("Remove Browser", role: .destructive) {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    browserManager.removeBrowser(id: browser.id)
+                    onDelete()
                 }
             }
-        }
-        .onChange(of: focusedField) { oldValue, _ in
-            if let field = oldValue { commitField(field) }
-        }
-        .onChange(of: browser) { _, newBrowser in
-            if focusedField != .name { editingName = newBrowser.name }
-            if focusedField != .customArgs { editingCustomArgs = newBrowser.customArguments ?? "" }
         }
     }
 
@@ -90,7 +83,7 @@ struct BrowserConfigRow: View {
 
     @ViewBuilder
     private var browserIconView: some View {
-        if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
+        if let icon = AppMetadataCache.shared.icon(for: browser.bundleId) {
             Image(nsImage: icon)
                 .resizable()
                 .interpolation(.high)
@@ -105,22 +98,17 @@ struct BrowserConfigRow: View {
 
     private var nameAndBundleView: some View {
         VStack(alignment: .leading, spacing: 2) {
-            TextField("Name", text: $editingName)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
-                .focused($focusedField, equals: .name)
-                .onSubmit { commitField(.name) }
-                .accessibilityIdentifier("settings.browser.nameField")
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill((isHoveringName || focusedField == .name)
-                              ? Color.secondary.opacity(0.12)
-                              : Color.clear)
-                )
-                .onHover { isHoveringName = $0 }
-                .help("Click to rename")
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(browser.name)
+                    .font(.system(size: 13, weight: .semibold))
+                
+                if let args = browser.customArguments, !args.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .help("Has custom launch arguments")
+                }
+            }
 
             if let profile = browser.profile {
                 Text("\(browser.bundleId) (\(profile))")
@@ -136,8 +124,8 @@ struct BrowserConfigRow: View {
 
     private var shortcutPickerView: some View {
         let shortcutBinding = Binding<String>(
-            get: { browserManager.shortcutKey(for: browser.id) },
-            set: { browserManager.updateShortcutKey(id: browser.id, to: $0) }
+            get: { currentShortcut },
+            set: { onUpdateShortcut($0) }
         )
 
         return HStack(spacing: 4) {
@@ -158,46 +146,30 @@ struct BrowserConfigRow: View {
         }
     }
 
-    private var deleteButtonView: some View {
-        Button(role: .destructive) {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                browserManager.removeBrowser(id: browser.id)
-            }
-        } label: {
-            Image(systemName: "trash")
-                .font(.system(size: 11))
-                .foregroundStyle(.red.opacity(0.75))
+    private var editButtonView: some View {
+        Button(action: onEdit) {
+            Text("Edit")
+                .font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(isHoveringRow ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
         }
-        .buttonStyle(.borderless)
-        .accessibilityIdentifier("settings.browser.deleteButton")
-        .accessibilityLabel("Remove \(browser.name)")
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.browser.editButton")
+        .accessibilityLabel("Edit \(browser.name)")
     }
 
-    // MARK: - Helpers
+    // Deletion removed from row, now in sheet
+}
 
-    private func commitField(_ field: Field) {
-        switch field {
-        case .name:
-            browserManager.updateBrowserName(id: browser.id, to: editingName)
-        case .customArgs:
-            browserManager.updateBrowserCustomArguments(id: browser.id, to: editingCustomArgs)
-        }
-    }
-
-    private func canMove(by delta: Int) -> Bool {
-        guard let currentIndex = browserManager.configuredBrowsers.firstIndex(where: { $0.id == browser.id }) else {
-            return false
-        }
-        let dest = currentIndex + delta
-        return dest >= 0 && dest < browserManager.configuredBrowsers.count
-    }
-
-    private func moveBrowser(by delta: Int) {
-        guard canMove(by: delta),
-              let currentIndex = browserManager.configuredBrowsers.firstIndex(where: { $0.id == browser.id }) else {
-            return
-        }
-        let dest = currentIndex + delta
-        browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: delta > 0 ? dest + 1 : dest)
+extension BrowserConfigRow: Equatable {
+    static func == (lhs: BrowserConfigRow, rhs: BrowserConfigRow) -> Bool {
+        lhs.browser == rhs.browser &&
+        lhs.currentShortcut == rhs.currentShortcut &&
+        lhs.shortcutOptions == rhs.shortcutOptions &&
+        lhs.hasSearchQuery == rhs.hasSearchQuery &&
+        lhs.canMoveUp == rhs.canMoveUp &&
+        lhs.canMoveDown == rhs.canMoveDown
     }
 }

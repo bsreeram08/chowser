@@ -12,6 +12,9 @@ struct SettingsView: View {
     @State var ruleSearchText = ""
     @State var filteredRules: [BrowserRoutingRule] = []
     @State var newHiddenBundleId = ""
+    
+    @State var browserToEdit: BrowserConfig? = nil
+    @State var ruleToEdit: BrowserRoutingRule? = nil
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 

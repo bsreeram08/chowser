@@ -129,6 +129,15 @@ func drawText() {
     "\(appName).app".draw(at: CGPoint(x: 165 - 35, y: 110), withAttributes: subAttrs)
     "Applications".draw(at: CGPoint(x: 495 - 35, y: 110), withAttributes: subAttrs)
     
+    // Onboarding Instructions
+    let step1Str = "Step 1: Drag to Applications"
+    let step1Size = step1Str.size(withAttributes: subAttrs)
+    step1Str.draw(at: CGPoint(x: 165 - (step1Size.width / 2), y: 80), withAttributes: subAttrs)
+    
+    let step2Str = "Step 2: Right-Click and select 'Open'"
+    let step2Size = step2Str.size(withAttributes: subAttrs)
+    step2Str.draw(at: CGPoint(x: 495 - (step2Size.width / 2), y: 80), withAttributes: subAttrs)
+    
     NSGraphicsContext.restoreGraphicsState()
 }
 

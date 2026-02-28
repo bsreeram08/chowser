@@ -40,9 +40,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupStatusBar()
-        // We handle the picker manually as an NSPanel now.
-        // startObservingPickerWindows() is no longer needed for the picker.
+        if !OnboardingManager.shared.hasCompletedOnboarding {
+            // First time launch: show onboarding
+            OnboardingManager.shared.showOnboardingWindow {
+                // Once onboarding is complete, setup the rest of the application
+                self.setupApplicationState()
+            }
+        } else {
+            generateStateAndSetupSystem()
+        }
+    }
+    
+    private func generateStateAndSetupSystem() {
+        setupApplicationState()
         
         if AppEnvironment.shouldOpenSettingsOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -56,8 +66,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
     }
+    
+    private func setupApplicationState() {
+        setupStatusBar()
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
+        BrowserManager.shared.flushPendingSaves()
         if let observer = pickerWindowObserver {
             NotificationCenter.default.removeObserver(observer)
             pickerWindowObserver = nil

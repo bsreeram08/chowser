@@ -5,57 +5,45 @@ struct RuleRowView: View {
     let rule: BrowserRoutingRule
     let configuredBrowsers: [BrowserConfig]
     let hasSearchQuery: Bool
-    let canMoveUp: Bool
-    let canMoveDown: Bool
 
-    // Callbacks — excluded from Equatable comparison intentionally
     let onUpdate: (BrowserRoutingRule) -> Void
+    let onEdit: () -> Void
     let onDelete: () -> Void
     let onDuplicate: () -> Void
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
-    let isValidHostPattern: (String) -> Bool
+    
+    // Explicit movement state
+    let canMoveUp: Bool
+    let canMoveDown: Bool
 
-    @State private var editingName: String
-    @State private var editingHost: String
-    @State private var editingPath: String
-    @FocusState private var focusedField: Field?
-
-    private enum Field: Hashable {
-        case name, host, path
-    }
+    @State private var isHoveringRow = false
 
     init(
         rule: BrowserRoutingRule,
         configuredBrowsers: [BrowserConfig],
         hasSearchQuery: Bool,
-        canMoveUp: Bool,
-        canMoveDown: Bool,
         onUpdate: @escaping (BrowserRoutingRule) -> Void,
+        onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onDuplicate: @escaping () -> Void,
         onMoveUp: @escaping () -> Void,
         onMoveDown: @escaping () -> Void,
-        isValidHostPattern: @escaping (String) -> Bool
+        isValidHostPattern: @escaping (String) -> Bool,
+        canMoveUp: Bool,
+        canMoveDown: Bool
     ) {
         self.rule = rule
         self.configuredBrowsers = configuredBrowsers
         self.hasSearchQuery = hasSearchQuery
-        self.canMoveUp = canMoveUp
-        self.canMoveDown = canMoveDown
         self.onUpdate = onUpdate
+        self.onEdit = onEdit
         self.onDelete = onDelete
         self.onDuplicate = onDuplicate
         self.onMoveUp = onMoveUp
         self.onMoveDown = onMoveDown
-        self.isValidHostPattern = isValidHostPattern
-        self._editingName = State(initialValue: rule.name)
-        self._editingHost = State(initialValue: rule.hostPattern)
-        self._editingPath = State(initialValue: rule.pathPrefix ?? "")
-    }
-
-    private var hostPatternIsValid: Bool {
-        isValidHostPattern(editingHost)
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
     }
 
     private var matchSummary: String {
@@ -63,7 +51,7 @@ struct RuleRowView: View {
         let statusText = rule.isEnabled ? "Enabled" : "Disabled"
         var summary = "\(statusText): host \(rule.hostPattern)\(pathText)"
         if let bundleId = rule.sourceAppBundleId, !bundleId.isEmpty {
-            let name = appDisplayName(for: bundleId) ?? bundleId
+            let name = AppMetadataCache.shared.displayName(for: bundleId) ?? bundleId
             summary += " from \(name)"
         }
         if rule.usePrivateMode {
@@ -72,24 +60,9 @@ struct RuleRowView: View {
         return summary
     }
 
-    private var browserIdentity: Binding<String> {
-        Binding(
-            get: {
-                let identity = "\(rule.browserBundleId)|\(rule.profile ?? "")"
-                if configuredBrowsers.contains(where: { $0.identity == identity }) {
-                    return identity
-                }
-                return configuredBrowsers.first?.identity ?? ""
-            },
-            set: { newValue in
-                if let browser = configuredBrowsers.first(where: { $0.identity == newValue }) {
-                    var updated = rule
-                    updated.browserBundleId = browser.bundleId
-                    updated.profile = browser.profile
-                    onUpdate(updated)
-                }
-            }
-        )
+    private var targetBrowserName: String {
+        let identity = "\(rule.browserBundleId)|\(rule.profile ?? "")"
+        return configuredBrowsers.first(where: { $0.identity == identity })?.name ?? rule.browserBundleId
     }
 
     var body: some View {
@@ -113,156 +86,86 @@ struct RuleRowView: View {
             }
             .frame(width: 40)
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("RULE NAME")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        TextField("Rule name", text: $editingName)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 13, weight: .medium))
-                            .focused($focusedField, equals: .name)
-                            .onSubmit { commitField(.name) }
-                            .accessibilityIdentifier("settings.rule.nameField")
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(rule.name)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(rule.hostPattern)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    if let path = rule.pathPrefix, !path.isEmpty {
+                        Text(path)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.tertiary)
                     }
-                    .frame(maxWidth: .infinity)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("TARGET BROWSER")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        Picker("", selection: browserIdentity) {
-                            ForEach(configuredBrowsers) { browser in
-                                Text(browser.name).tag(browser.identity)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .accessibilityIdentifier("settings.rule.browserPicker")
-                        .accessibilityLabel("Target browser")
-                    }
-                    .frame(width: 220)
                 }
 
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("HOST PATTERN")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        TextField("example.com or *.example.com", text: $editingHost)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                            .focused($focusedField, equals: .host)
-                            .onSubmit { commitField(.host) }
-                            .accessibilityIdentifier("settings.rule.hostField")
+                HStack(spacing: 4) {
+                    Text("Opens in")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
 
-                        if !hostPatternIsValid {
-                            Label("Invalid host pattern", systemImage: "exclamationmark.triangle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.orange)
+                    Text(targetBrowserName)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    if let source = rule.sourceAppBundleId, !source.isEmpty {
+                        Text("•")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        Text("From")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        
+                        if let icon = AppMetadataCache.shared.icon(for: source) {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 10, height: 10)
                         }
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("PATH PREFIX")
-                            .font(.system(size: 9, weight: .bold))
+                        
+                        Text(AppMetadataCache.shared.displayName(for: source) ?? source)
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
-                        TextField("Optional", text: $editingPath)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                            .focused($focusedField, equals: .path)
-                            .onSubmit { commitField(.path) }
-                            .accessibilityIdentifier("settings.rule.pathField")
                     }
-                    .frame(width: 220)
+                    
+                    if rule.usePrivateMode {
+                        Text("•")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        Image(systemName: "eyeglasses")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Text("Private")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("SOURCE APP")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        HStack(spacing: 6) {
-                            if let bundleId = rule.sourceAppBundleId,
-                               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-                                Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
-                                    .resizable()
-                                    .frame(width: 16, height: 16)
-                                Text(appDisplayName(for: bundleId) ?? bundleId)
-                                    .font(.system(size: 12))
-                                    .lineLimit(1)
-                                Button("Clear") {
-                                    var updated = rule
-                                    updated.sourceAppBundleId = nil
-                                    onUpdate(updated)
-                                }
-                                .buttonStyle(.borderless)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                            } else {
-                                Text("Any App")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            Spacer(minLength: 0)
-                            Button("Choose…") {
-                                chooseSourceApp()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("OPTIONS")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        Toggle("Private / Incognito", isOn: Binding(
-                            get: { rule.usePrivateMode },
-                            set: { newValue in
-                                var updated = rule
-                                updated.usePrivateMode = newValue
-                                onUpdate(updated)
-                            }
-                        ))
-                        .toggleStyle(.checkbox)
-                        .font(.system(size: 12))
-                    }
-                    .frame(width: 220)
-                }
-
-                Text(matchSummary)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, -4)
             }
 
             Spacer()
 
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red.opacity(0.75))
+            Button(action: onEdit) {
+                Text("Edit")
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(isHoveringRow ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("settings.rule.deleteButton")
-            .accessibilityLabel("Remove \(rule.name)")
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.rule.editButton")
+            .accessibilityLabel("Edit \(rule.name)")
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
-        .onChange(of: focusedField) { oldValue, _ in
-            if let field = oldValue {
-                commitField(field)
-            }
-        }
-        .onChange(of: rule) { _, newRule in
-            if focusedField != .name { editingName = newRule.name }
-            if focusedField != .host { editingHost = newRule.hostPattern }
-            if focusedField != .path { editingPath = newRule.pathPrefix ?? "" }
-        }
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isHoveringRow ? Color.secondary.opacity(0.08) : Color.clear)
+        )
+        .onHover { isHoveringRow = $0 }
         .contextMenu {
+            Button("Edit Rule…") { onEdit() }
+            Divider()
             Button("Move Up") { onMoveUp() }
                 .disabled(hasSearchQuery || !canMoveUp)
 
@@ -274,52 +177,6 @@ struct RuleRowView: View {
             Divider()
 
             Button("Remove Rule", role: .destructive) { onDelete() }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func commitField(_ field: Field) {
-        var updated = rule
-        switch field {
-        case .name:
-            let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
-            updated.name = trimmed.isEmpty ? rule.hostPattern : trimmed
-        case .host:
-            let trimmed = editingHost.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            updated.hostPattern = trimmed
-        case .path:
-            let trimmed = editingPath.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                updated.pathPrefix = nil
-            } else {
-                updated.pathPrefix = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
-            }
-        }
-        onUpdate(updated)
-    }
-
-    private func appDisplayName(for bundleId: String) -> String? {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else { return nil }
-        let bundle = Bundle(url: appURL)
-        return (bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
-            ?? (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String)
-    }
-
-    private func chooseSourceApp() {
-        let panel = NSOpenPanel()
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.applicationBundle]
-        panel.title = "Choose Source App"
-        panel.prompt = "Choose"
-        if panel.runModal() == .OK, let url = panel.url {
-            var updated = rule
-            updated.sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
-            onUpdate(updated)
         }
     }
 }

@@ -49,3 +49,7 @@ release/
 *.swp
 *.swo
 *~
+
+# Rust
+target/
+**/target/

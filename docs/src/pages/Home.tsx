@@ -44,6 +44,27 @@ export const Home: React.FC = () => {
         }
     };
 
+    const [downloadUrl, setDownloadUrl] = useState("https://github.com/bsreeram08/chowser/releases/latest");
+    const [isLoadingDownload, setIsLoadingDownload] = useState(true);
+
+    useEffect(() => {
+        const fetchLatestRelease = async () => {
+            try {
+                const response = await fetch('https://api.github.com/repos/bsreeram08/chowser/releases/latest');
+                const data = await response.json();
+                const dmgAsset = data.assets?.find((asset: any) => asset.name.endsWith('.dmg'));
+                if (dmgAsset) {
+                    setDownloadUrl(dmgAsset.browser_download_url);
+                }
+            } catch (error) {
+                console.error("Failed to fetch latest release:", error);
+            } finally {
+                setIsLoadingDownload(false);
+            }
+        };
+        fetchLatestRelease();
+    }, []);
+
     const handleCopy = () => {
         const url = selectedBrowser ? `rule:always_${selectedBrowser.toLowerCase()}` : (isPrivate ? "private.browsing.enabled" : "chowser.app/setup");
         navigator.clipboard.writeText(url);
@@ -84,7 +105,7 @@ export const Home: React.FC = () => {
                     {/* CTAs */}
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 w-full sm:w-auto px-4 sm:px-0">
                         <a
-                            href="https://github.com/bsreeram08/chowser/releases/latest"
+                            href={downloadUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full sm:w-auto"
@@ -92,10 +113,11 @@ export const Home: React.FC = () => {
                             <Button
                                 id="download"
                                 size="lg"
+                                disabled={isLoadingDownload && downloadUrl === "https://github.com/bsreeram08/chowser/releases/latest"}
                                 className="w-full h-14 sm:h-16 px-8 bg-primary hover:bg-primary/90 text-white rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_var(--color-primary)]/40 gap-3 group"
                             >
                                 <Download className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
-                                Download for Mac
+                                {isLoadingDownload ? "Finding Latest..." : "Download for Mac"}
                             </Button>
                         </a>
                         <Link to="/agentic-setup" className="w-full sm:w-auto">

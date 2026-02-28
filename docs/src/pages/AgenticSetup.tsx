@@ -35,16 +35,16 @@ export const AgenticSetup: React.FC = () => {
                     {/* Step 1 */}
                     <section className="relative group">
                         <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex">1</div>
-                        <Card className="bg-card/50 border-border/50 p-8 overflow-hidden relative">
-                            <div className="absolute top-0 right-0 p-8 opacity-5">
+                        <Card className="bg-card/50 border-border/50 p-6 sm:p-8 overflow-hidden relative">
+                            <div className="absolute top-0 right-0 p-8 opacity-5 hidden sm:block">
                                 <Terminal className="w-32 h-32" />
                             </div>
-                            <div className="space-y-6 relative">
-                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                            <div className="space-y-4 sm:space-y-6 relative">
+                                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                                     <Terminal className="w-5 h-5 text-primary" />
                                     Run Terminal Command
                                 </h2>
-                                <p className="text-muted-foreground">
+                                <p className="text-muted-foreground text-sm sm:text-base">
                                     This command fetches the full setup prompt and pipes it straight to your clipboard.
                                 </p>
 
@@ -69,16 +69,16 @@ export const AgenticSetup: React.FC = () => {
                     {/* Step 2 */}
                     <section className="relative group">
                         <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex">2</div>
-                        <Card className="bg-card/50 border-border/50 p-8 overflow-hidden relative">
-                            <div className="absolute top-0 right-0 p-8 opacity-5">
+                        <Card className="bg-card/50 border-border/50 p-6 sm:p-8 overflow-hidden relative">
+                            <div className="absolute top-0 right-0 p-8 opacity-5 hidden sm:block">
                                 <Bot className="w-32 h-32" />
                             </div>
-                            <div className="space-y-6 relative">
-                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                            <div className="space-y-4 sm:space-y-6 relative">
+                                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                                     <Wand2 className="w-5 h-5 text-purple-400" />
                                     Paste to AI Assistant
                                 </h2>
-                                <p className="text-muted-foreground leading-relaxed">
+                                <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
                                     Open your AI assistant (e.g., Cursor Composer, Claude, or ChatGPT) and paste the content.
                                     The AI will then:
                                 </p>

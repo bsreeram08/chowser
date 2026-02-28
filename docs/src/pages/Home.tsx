@@ -82,7 +82,7 @@ export const Home: React.FC = () => {
                     </p>
 
                     {/* CTAs */}
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 w-full sm:w-auto">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 w-full sm:w-auto px-4 sm:px-0">
                         <a
                             href="https://github.com/bsreeram08/chowser/releases/latest"
                             target="_blank"
@@ -92,15 +92,16 @@ export const Home: React.FC = () => {
                             <Button
                                 id="download"
                                 size="lg"
-                                className="w-full h-16 px-8 bg-primary hover:bg-primary/90 text-white rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_var(--color-primary)]/40 gap-3 group"
+                                className="w-full h-14 sm:h-16 px-8 bg-primary hover:bg-primary/90 text-white rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_var(--color-primary)]/40 gap-3 group"
                             >
                                 <Download className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
                                 Download for Mac
                             </Button>
                         </a>
                         <Link to="/agentic-setup" className="w-full sm:w-auto">
-                            <Button size="lg" variant="outline" className="w-full sm:w-auto h-16 px-8 bg-muted/20 hover:bg-muted/40 border-border/50 backdrop-blur-md rounded-2xl font-bold text-lg transition-all text-white">
-                                View Setup Guide
+                            <Button size="lg" variant="outline" className="w-full h-14 sm:h-16 px-8 bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur-md rounded-2xl font-bold text-base sm:text-lg transition-all text-white gap-2">
+                                <Zap className="w-4 h-4 text-primary" />
+                                AI Setup
                             </Button>
                         </Link>
                     </div>
@@ -127,7 +128,7 @@ export const Home: React.FC = () => {
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[400px] h-[180px] bg-primary/20 blur-[100px] -z-10 group-hover:bg-primary/30 transition-colors duration-700" />
 
                     <div className={cn(
-                        "flex flex-col w-full max-w-[380px] rounded-[24px] border border-white/10 relative overflow-hidden transition-all duration-700 shadow-2xl backdrop-blur-[32px]",
+                        "flex flex-col w-full max-w-[340px] sm:max-w-[380px] mx-auto rounded-[24px] border border-white/10 relative overflow-hidden transition-all duration-700 shadow-2xl backdrop-blur-[32px]",
                         isPrivate ? "bg-purple-950/40 border-purple-500/20" : "bg-black/60"
                     )}>
                         {/* Header: URL Bubble */}

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chowser Rust</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="background-blur"></div>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <h1>Chowser Rust</h1>
+          <p>Multiplatform Link Router</p>
+        </div>
+        <nav class="nav">
+          <button class="tab active" data-tab="picker">Picker</button>
+          <button class="tab" data-tab="browsers">Browsers</button>
+          <button class="tab" data-tab="rules">Rules</button>
+        </nav>
+        <div class="sidebar-status" id="defaultStatusSummary"></div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <div class="top-title">Route Links Intentionally</div>
+            <div class="top-subtitle" id="configPathLine"></div>
+          </div>
+          <div class="top-actions">
+            <button id="recheckDefaultBtn" class="button secondary">Recheck</button>
+            <button id="setupDefaultBtn" class="button secondary">Set Default</button>
+            <button id="reopenOnboardingBtn" class="button secondary">Onboarding</button>
+          </div>
+        </header>
+
+        <section class="statusline" id="statusline"></section>
+
+        <section id="panel-picker" class="panel visible"></section>
+        <section id="panel-browsers" class="panel"></section>
+        <section id="panel-rules" class="panel"></section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="onboardingModal">
+      <div class="modal">
+        <h2>Onboarding</h2>
+        <p class="subtitle">Configure imports and default browser checks before testing the picker.</p>
+
+        <div class="checklist" id="defaultChecklist"></div>
+
+        <div class="import-grid">
+          <label>
+            Browsers JSON path
+            <input id="browsersPathInput" type="text" />
+          </label>
+          <button id="importBrowsersBtn" class="button secondary">Import Browsers</button>
+
+          <label>
+            Rules JSON path
+            <input id="rulesPathInput" type="text" />
+          </label>
+          <button id="importRulesBtn" class="button secondary">Import Rules</button>
+        </div>
+
+        <div class="row-actions">
+          <button id="detectBrowsersBtn" class="button secondary">Detect Browsers</button>
+          <button id="openSetupBtn" class="button secondary">Set Default</button>
+        </div>
+
+        <div class="row-actions end">
+          <button id="skipOnboardingBtn" class="button secondary">Skip</button>
+          <button id="finishOnboardingBtn" class="button primary">Finish Setup</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

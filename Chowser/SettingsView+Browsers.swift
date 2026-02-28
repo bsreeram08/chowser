@@ -104,24 +104,12 @@ extension SettingsView {
                 List {
                     if hasBrowserSearchQuery {
                         ForEach(filteredBrowsers) { browser in
-                            BrowserConfigRow(
-                                browser: browser,
-                                browserManager: browserManager,
-                                shortcutOptions: shortcutOptions,
-                                hasSearchQuery: true
-                            )
-                            .id(browser.id)
+                            browserRow(for: browser, hasSearchQuery: true)
                         }
                         .onDelete(perform: removeFilteredBrowsers)
                     } else {
                         ForEach(browserManager.configuredBrowsers) { browser in
-                            BrowserConfigRow(
-                                browser: browser,
-                                browserManager: browserManager,
-                                shortcutOptions: shortcutOptions,
-                                hasSearchQuery: false
-                            )
-                            .id(browser.id)
+                            browserRow(for: browser, hasSearchQuery: false)
                         }
                         .onMove { indices, destination in
                             browserManager.moveBrowsers(from: indices, to: destination)
@@ -131,8 +119,8 @@ extension SettingsView {
                         }
                     }
                 }
+                .id(UUID())
                 .listStyle(.inset(alternatesRowBackgrounds: true))
-                .animation(.easeInOut(duration: 0.2), value: browserManager.configuredBrowsers)
                 .accessibilityIdentifier("settings.browserList")
             }
 
@@ -149,6 +137,12 @@ extension SettingsView {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
+        }
+        .sheet(item: $browserToEdit) { browser in
+            EditBrowserSheet(browser: browser, manager: browserManager, isPresented: Binding(
+                get: { browserToEdit != nil },
+                set: { if !$0 { browserToEdit = nil } }
+            ))
         }
     }
 
@@ -190,5 +184,40 @@ extension SettingsView {
         } catch {
             print("Import failed: \(error.localizedDescription)")
         }
+    }
+    
+    @ViewBuilder
+    private func browserRow(for browser: BrowserConfig, hasSearchQuery: Bool) -> some View {
+        let currentIndex = browserManager.configuredBrowsers.firstIndex(where: { $0.id == browser.id }) ?? 0
+        let canMoveUp = currentIndex > 0
+        let canMoveDown = currentIndex < browserManager.configuredBrowsers.count - 1
+        
+        BrowserConfigRow(
+            browser: browser,
+            currentShortcut: browserManager.shortcutKey(for: browser.id),
+            shortcutOptions: shortcutOptions,
+            hasSearchQuery: hasSearchQuery,
+            onEdit: {
+                browserToEdit = browser
+            },
+            onUpdateShortcut: { newShortcut in
+                browserManager.updateShortcutKey(id: browser.id, to: newShortcut)
+            },
+            onMoveUp: {
+                let dest = currentIndex - 1
+                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: dest)
+            },
+            onMoveDown: {
+                let dest = currentIndex + 1
+                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: dest + 1)
+            },
+            onDelete: {
+                browserManager.removeBrowser(id: browser.id)
+            },
+            canMoveUp: canMoveUp,
+            canMoveDown: canMoveDown
+        )
+        .equatable() // Uses Equatable conformance
+        .id(browser.id)
     }
 }

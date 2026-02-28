@@ -21,8 +21,14 @@ Chowser lives in your menu bar and uses zero resources when idle.
 
 - **Browser Picker** — Choose from your configured browsers with a single click
 - **Keyboard Shortcuts** — Press `1` through `9`, type a browser initial, or use `↑/↓` + Return for instant selection
-- **Browser Profiles** — Full support for Chrome, Brave, Edge, and Firefox profiles (Personal, Work, etc.)
-- **Smart Routing Rules** — Auto-open matching domains/paths in a specific browser, bypassing the picker
+- **Browser Profiles** — Full support for Chrome, Brave, Edge, Vivaldi, Arc, Dia, Firefox, Zen, LibreWolf, and Waterfox profiles
+- **Advanced Routing Rules** — Auto-open matching domains/paths (wildcard support) in a specific browser, bypassing the picker
+- **Private / Incognito Mode** — Open any link in private mode via keyboard shortcut (`P`) or per-rule toggle
+- **App-Based Routing** — Route links based on the source app that opened them (e.g., Slack links → Chrome Work)
+- **Quick Rule Creation** — Create routing rules directly from the picker when a URL is intercepted (press `R`)
+- **Domain Frequency Tracking** — Suggests auto-routing rules after you repeatedly open a domain in the same browser
+- **Clipboard URL** — Open URLs from your clipboard via the menu bar
+- **Interactive Onboarding** — Smart setup flow that detects if Chowser is already the default browser and guides you through configuration
 - **Rule Portability** — Import/Export both browser configs and routing rules as JSON
 - **Hidden Apps** — Hide non-browser apps (VLC, IINA, MX Player, etc.) that register as web handlers
 - **Menu Bar App** — Runs silently in the background, no Dock icon
@@ -105,15 +111,15 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a styled DMG (bumps version, tags, generates background)
-./scripts/release.sh 2.6.1
+./scripts/release.sh 2.7.0
 
 # This will:
 # 1. Update the version in Xcode project
 # 2. Build a Release archive
 # 3. Generate a styled DMG background
 # 4. Create a DMG with icon positioning
-# 5. Create a git tag v2.6.1
-# 6. Output the DMG to release/Chowser-2.6.1.dmg
+# 5. Create a git tag v2.7.0
+# 6. Output the DMG to release/Chowser-2.7.0.dmg
 ```
 
 Releases are also automated via GitHub Actions — push a `v*` tag and it builds + publishes the release.

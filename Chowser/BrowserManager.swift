@@ -66,17 +66,17 @@ extension BrowserRoutingRule {
         ]
     }
 
-    static let shared = BrowserManager(defaults: makeDefaultStore())
+    static let shared = BrowserManager(defaults: makeDefaultStore(), immediateWrite: false)
 
     var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
-            save()
+            scheduleSaveBrowsers()
         }
     }
 
     var routingRules: [BrowserRoutingRule] = [] {
         didSet {
-            saveRoutingRules()
+            scheduleSaveRules()
         }
     }
 
@@ -105,10 +105,14 @@ extension BrowserRoutingRule {
 
     @ObservationIgnored private let defaultsKey: String
     @ObservationIgnored let defaults: UserDefaults
+    @ObservationIgnored private let immediateWrite: Bool
+    @ObservationIgnored private var pendingBrowsersSave: DispatchWorkItem?
+    @ObservationIgnored private var pendingRulesSave: DispatchWorkItem?
 
-    init(defaults: UserDefaults = .standard, defaultsKey: String = "configuredBrowsers") {
+    init(defaults: UserDefaults = .standard, defaultsKey: String = "configuredBrowsers", immediateWrite: Bool = true) {
         self.defaults = defaults
         self.defaultsKey = defaultsKey
+        self.immediateWrite = immediateWrite
         self.hasCompletedOnboarding = defaults.bool(forKey: Constants.onboardingCompletedKey)
 
         if AppEnvironment.shouldClearDataOnLaunch {
@@ -157,18 +161,51 @@ extension BrowserRoutingRule {
         }
     }
 
+    func saveRoutingRules() {
+        if let encoded = try? JSONEncoder().encode(routingRules) {
+            defaults.set(encoded, forKey: Constants.routingRulesKey)
+        }
+    }
+
+    private func scheduleSaveBrowsers() {
+        guard !immediateWrite else { save(); return }
+        pendingBrowsersSave?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.save() }
+        }
+        pendingBrowsersSave = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+    }
+
+    private func scheduleSaveRules() {
+        guard !immediateWrite else { saveRoutingRules(); return }
+        pendingRulesSave?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.saveRoutingRules() }
+        }
+        pendingRulesSave = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+    }
+
+    func flushPendingSaves() {
+        if pendingBrowsersSave != nil {
+            pendingBrowsersSave?.cancel()
+            pendingBrowsersSave = nil
+            save()
+        }
+        if pendingRulesSave != nil {
+            pendingRulesSave?.cancel()
+            pendingRulesSave = nil
+            saveRoutingRules()
+        }
+    }
+
     func loadRoutingRules() {
         if let data = defaults.data(forKey: Constants.routingRulesKey),
            let decoded = try? JSONDecoder().decode([BrowserRoutingRule].self, from: data) {
             routingRules = decoded
         } else {
             routingRules = []
-        }
-    }
-
-    func saveRoutingRules() {
-        if let encoded = try? JSONEncoder().encode(routingRules) {
-            defaults.set(encoded, forKey: Constants.routingRulesKey)
         }
     }
 
@@ -579,11 +616,7 @@ extension BrowserRoutingRule {
             return NSWorkspace.shared.icon(forFile: fallbackURL.path)
         }
 
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
-            return nil
-        }
-
-        return NSWorkspace.shared.icon(forFile: appURL.path)
+        return AppMetadataCache.shared.icon(for: bundleId)
     }
 
     static func currentAppIcon() -> NSImage {

@@ -10,7 +10,7 @@ import SwiftUI
 import ServiceManagement
 import Carbon
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var pickerWindowObserver: NSObjectProtocol?
     private var pickerPanel: ChowserPanel?
@@ -119,15 +119,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let manager = BrowserManager.shared
-        manager.currentURL = url
+        
+        Task {
+            // 1. Unshorten the URL if it's from a known shortener
+            let unshortenedURL = await manager.unshortenURL(url)
+            
+            // 2. Clean known tracking parameters
+            let cleanedURL = manager.cleanURL(unshortenedURL)
 
-        if let route = manager.resolvedRoute(for: url) {
-            manager.currentURL = nil
-            manager.open(url: url, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: route.rule.usePrivateMode)
-            return
+            await MainActor.run {
+                manager.addRecentURL(cleanedURL)
+                manager.currentURL = cleanedURL
+
+                if let route = manager.resolvedRoute(for: cleanedURL) {
+                    manager.currentURL = nil
+                    manager.open(url: cleanedURL, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: route.rule?.usePrivateMode ?? false)
+                    return
+                }
+
+                showPicker()
+            }
         }
-
-        showPicker()
     }
     
     // applicationShouldHandleReopen is intentionally NOT implemented.
@@ -154,41 +166,155 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         let menu = NSMenu()
+        menu.delegate = self
         
-        let aboutItem = NSMenuItem(title: "About Chowser", action: #selector(showAbout), keyEquivalent: "")
-        aboutItem.target = self
-        menu.addItem(aboutItem)
+        statusItem?.menu = menu
+    }
+    
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        // 1. Hide if default browser (meaning if we ALREADY are the default, don't show the "Set as Default Browser" option later on, OR do we completely hide the menu? Wait, the prompt says "If chowser is already default browser, don't show in menu bar". I'll assume they mean the "Set as Default Browser" item.)
+        let isDefault = BrowserManager.isDefaultBrowser()
         
+        let recentURLsItem = NSMenuItem(title: "Recent URLs", action: nil, keyEquivalent: "")
+        if let icon = NSImage(systemSymbolName: "clock", accessibilityDescription: nil) {
+            icon.isTemplate = true
+            recentURLsItem.image = icon
+        }
+        
+        // Dynamic: Recent URLs
+        let recentURLs = BrowserManager.shared.recentURLs
+        if !recentURLs.isEmpty {
+            let recentUrlsMenu = NSMenu()
+            for url in recentURLs {
+                let host = url.host ?? url.absoluteString
+                let title = host.prefix(40) + (host.count > 40 ? "..." : "")
+                
+                let item = NSMenuItem(title: String(title), action: #selector(openRecentURL(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = url
+                if let icon = NSImage(systemSymbolName: "safari", accessibilityDescription: nil) {
+                    item.image = icon
+                }
+                item.toolTip = url.absoluteString
+                recentUrlsMenu.addItem(item)
+                
+                let altItem = NSMenuItem(title: "Create Rule for \(host)", action: #selector(createRuleFromRecentURL(_:)), keyEquivalent: "")
+                altItem.target = self
+                altItem.representedObject = url
+                altItem.isAlternate = true
+                altItem.keyEquivalentModifierMask = .option
+                if let icon = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil) {
+                    altItem.image = icon
+                }
+                altItem.toolTip = "Create a routing rule for this domain"
+                recentUrlsMenu.addItem(altItem)
+            }
+            recentURLsItem.submenu = recentUrlsMenu
+            menu.addItem(recentURLsItem)
+        }
+
+        // 3. Open Clipboard URL -> submenu
+        let clipboardTitleItem = NSMenuItem(title: "Open Clipboard URL...", action: nil, keyEquivalent: "")
+        if let icon = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil) {
+            icon.isTemplate = true
+            clipboardTitleItem.image = icon
+        }
+        let clipboardMenu = NSMenu()
+        let clipboardItem = NSMenuItem(title: "Open in Browser...", action: #selector(openClipboardURL), keyEquivalent: "")
+        clipboardItem.target = self
+        clipboardMenu.addItem(clipboardItem)
+
+        let clipboardPrivateItem = NSMenuItem(title: "Open in Private...", action: #selector(openClipboardURLPrivate), keyEquivalent: "")
+        clipboardPrivateItem.target = self
+        clipboardMenu.addItem(clipboardPrivateItem)
+        
+        clipboardTitleItem.submenu = clipboardMenu
+        menu.addItem(clipboardTitleItem)
+
+        
+        
+        // 4. Set focus mode
+        if let tempRoute = BrowserManager.shared.temporaryRoute,
+           let browser = BrowserManager.shared.configuredBrowsers.first(where: { $0.bundleId == tempRoute.browserBundleId && $0.profile == tempRoute.profile }) {
+            
+            let remaining = Int(tempRoute.expiresAt.timeIntervalSinceNow / 60)
+            let browserName = browser.name + (browser.profile != nil ? " (\(browser.profile!))" : "")
+            
+            let clearItem = NSMenuItem(title: "Clear Focus: \(browserName) (\(remaining)m left)", action: #selector(clearTemporaryDefault), keyEquivalent: "")
+            clearItem.target = self
+            if let icon = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil) {
+                icon.isTemplate = true
+                clearItem.image = icon
+            }
+            menu.addItem(clearItem)
+        } else if !BrowserManager.shared.configuredBrowsers.isEmpty {
+            let focusMenu = NSMenu()
+            for browser in BrowserManager.shared.configuredBrowsers {
+                let durationMenu = NSMenu()
+                
+                let item1H = NSMenuItem(title: "1 Hour", action: #selector(setFocus1H(_:)), keyEquivalent: "")
+                item1H.representedObject = browser
+                item1H.target = self
+                durationMenu.addItem(item1H)
+                
+                let itemTomorrow = NSMenuItem(title: "Until Tomorrow", action: #selector(setFocusTomorrow(_:)), keyEquivalent: "")
+                itemTomorrow.representedObject = browser
+                itemTomorrow.target = self
+                durationMenu.addItem(itemTomorrow)
+                
+                let browserName = browser.name + (browser.profile != nil ? " (\(browser.profile!))" : "")
+                let browserItem = NSMenuItem(title: browserName, action: nil, keyEquivalent: "")
+                browserItem.submenu = durationMenu
+                
+                let iconSize = NSSize(width: 16, height: 16)
+                if let originalIcon = BrowserManager.icon(forBrowserBundleID: browser.bundleId),
+                   let resizedIcon = originalIcon.copy() as? NSImage {
+                    resizedIcon.size = iconSize
+                    browserItem.image = resizedIcon
+                } else if let fallback = NSImage(systemSymbolName: "globe", accessibilityDescription: nil) {
+                    fallback.isTemplate = true
+                    browserItem.image = fallback
+                }
+                focusMenu.addItem(browserItem)
+            }
+            
+            let focusItem = NSMenuItem(title: "Set Focus Mode...", action: nil, keyEquivalent: "")
+            if let icon = NSImage(systemSymbolName: "target", accessibilityDescription: nil) {
+                icon.isTemplate = true
+                focusItem.image = icon
+            }
+            focusItem.submenu = focusMenu
+            menu.addItem(focusItem)
+        }
+        
+        // Separator
         menu.addItem(NSMenuItem.separator())
         
+        // 5. Settings
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
 
-
-        
-        let defaultBrowserItem = NSMenuItem(title: "Set as Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
-        defaultBrowserItem.target = self
-        menu.addItem(defaultBrowserItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let clipboardItem = NSMenuItem(title: "Open Clipboard URL…", action: #selector(openClipboardURL), keyEquivalent: "")
-        clipboardItem.target = self
-        menu.addItem(clipboardItem)
-
-        let clipboardPrivateItem = NSMenuItem(title: "Open Clipboard URL in Private…", action: #selector(openClipboardURLPrivate), keyEquivalent: "")
-        clipboardPrivateItem.target = self
-        clipboardPrivateItem.toolTip = "Hold ⌥ in the picker to open in private mode"
-        menu.addItem(clipboardPrivateItem)
+        if !isDefault {
+            let defaultBrowserItem = NSMenuItem(title: "Set as Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
+            defaultBrowserItem.target = self
+            menu.addItem(defaultBrowserItem)
+        }
 
         menu.addItem(NSMenuItem.separator())
 
+        // 6. About Chowser
+        let aboutItem = NSMenuItem(title: "About Chowser", action: #selector(showAbout), keyEquivalent: "")
+        aboutItem.target = self
+        menu.addItem(aboutItem)
+        menu.addItem(NSMenuItem.separator())
+
+        // 7. Quit Chowser
         let quitItem = NSMenuItem(title: "Quit Chowser", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
-        
-        statusItem?.menu = menu
     }
     
     // MARK: - Actions
@@ -199,6 +325,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApplication.AboutPanelOptionKey.applicationName: "Chowser",
             NSApplication.AboutPanelOptionKey.applicationIcon: BrowserManager.currentAppIcon(),
         ])
+    }
+
+    @objc private func openRecentURL(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        self.application(NSApp, open: [url])
+    }
+
+    @objc private func createRuleFromRecentURL(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        BrowserManager.shared.currentURL = url
+        openSettings()
+        // Wait a tick for Settings window to appear, then we will trigger the rule sheet
+        // We can communicate this via NotificationCenter or just setting a property on BrowserManager.
+        NotificationCenter.default.post(name: NSNotification.Name("OpenCreateRuleFromMenu"), object: url)
+    }
+
+    @objc private func clearTemporaryDefault() {
+        BrowserManager.shared.clearTemporaryRoute()
+    }
+    
+    @objc private func setFocus1H(_ sender: NSMenuItem) {
+        guard let browser = sender.representedObject as? BrowserConfig else { return }
+        BrowserManager.shared.setTemporaryRoute(browserBundleId: browser.bundleId, profile: browser.profile, duration: 3600)
+    }
+
+    @objc private func setFocusTomorrow(_ sender: NSMenuItem) {
+        guard let browser = sender.representedObject as? BrowserConfig else { return }
+        let now = Date()
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.day = (components.day ?? 0) + 1
+        components.hour = 8 // Tomorrow at 8 AM
+        let tomorrow = calendar.date(from: components) ?? now.addingTimeInterval(86400)
+        let duration = tomorrow.timeIntervalSince(now)
+        
+        BrowserManager.shared.setTemporaryRoute(browserBundleId: browser.bundleId, profile: browser.profile, duration: duration)
     }
     
     @objc func openSettings() {

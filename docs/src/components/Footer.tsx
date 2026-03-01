@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 
 export const Footer = () => {
     return (
@@ -14,9 +13,9 @@ export const Footer = () => {
                     <span className="text-muted-foreground/60">© {new Date().getFullYear()}</span>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-6 text-muted-foreground">
-                    <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
-                    <Link to="/agentic-setup" className="hover:text-foreground transition-colors">AI Setup</Link>
-                    <Link to="/security-setup" className="hover:text-foreground transition-colors">Security</Link>
+                    <a href="#" className="hover:text-foreground transition-colors">Home</a>
+                    <a href="#agentic-setup" className="hover:text-foreground transition-colors">AI Setup</a>
+                    <a href="#security-setup" className="hover:text-foreground transition-colors">Security</a>
                 </div>
             </div>
         </footer>

@@ -64,6 +64,7 @@ extension BrowserRoutingRule {
             "com.colliderli.iina",
             "org.videolan.vlc",
         ]
+        static let recentURLsKey = "recentURLs"
     }
 
     static let shared = BrowserManager(defaults: makeDefaultStore(), immediateWrite: false)
@@ -103,11 +104,36 @@ extension BrowserRoutingRule {
         }
     }
 
+    var recentURLs: [URL] = [] {
+        didSet {
+            scheduleSaveRecentURLs()
+        }
+    }
+
+    struct TemporaryRoute {
+        let browserBundleId: String
+        let profile: String?
+        let expiresAt: Date
+    }
+
+    var temporaryRoute: TemporaryRoute? {
+        didSet {
+            if temporaryRoute != nil {
+                scheduleTemporaryRouteExpirationTimer()
+            } else {
+                temporaryRouteExpirationTimer?.invalidate()
+                temporaryRouteExpirationTimer = nil
+            }
+        }
+    }
+
     @ObservationIgnored private let defaultsKey: String
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored private let immediateWrite: Bool
     @ObservationIgnored private var pendingBrowsersSave: DispatchWorkItem?
     @ObservationIgnored private var pendingRulesSave: DispatchWorkItem?
+    @ObservationIgnored private var pendingRecentURLsSave: DispatchWorkItem?
+    @ObservationIgnored private var temporaryRouteExpirationTimer: Timer?
 
     init(defaults: UserDefaults = .standard, defaultsKey: String = "configuredBrowsers", immediateWrite: Bool = true) {
         self.defaults = defaults
@@ -118,11 +144,13 @@ extension BrowserRoutingRule {
         if AppEnvironment.shouldClearDataOnLaunch {
             clearPersistedBrowserList()
             clearPersistedRoutingRules()
+            clearPersistedRecentURLs()
         }
 
         load()
         loadRoutingRules()
         loadHiddenBundleIDs()
+        loadRecentURLs()
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {
@@ -167,6 +195,12 @@ extension BrowserRoutingRule {
         }
     }
 
+    func saveRecentURLs() {
+        if let encoded = try? JSONEncoder().encode(recentURLs) {
+            defaults.set(encoded, forKey: Constants.recentURLsKey)
+        }
+    }
+
     private func scheduleSaveBrowsers() {
         guard !immediateWrite else { save(); return }
         pendingBrowsersSave?.cancel()
@@ -187,6 +221,16 @@ extension BrowserRoutingRule {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
     }
 
+    private func scheduleSaveRecentURLs() {
+        guard !immediateWrite else { saveRecentURLs(); return }
+        pendingRecentURLsSave?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.saveRecentURLs() }
+        }
+        pendingRecentURLsSave = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+    }
+
     func flushPendingSaves() {
         if pendingBrowsersSave != nil {
             pendingBrowsersSave?.cancel()
@@ -198,6 +242,37 @@ extension BrowserRoutingRule {
             pendingRulesSave = nil
             saveRoutingRules()
         }
+        if pendingRecentURLsSave != nil {
+            pendingRecentURLsSave?.cancel()
+            pendingRecentURLsSave = nil
+            saveRecentURLs()
+        }
+    }
+
+    private func scheduleTemporaryRouteExpirationTimer() {
+        temporaryRouteExpirationTimer?.invalidate()
+        guard let expiresAt = temporaryRoute?.expiresAt else { return }
+        
+        // If already expired, clear immediately
+        if Date() >= expiresAt {
+            temporaryRoute = nil
+            return
+        }
+
+        temporaryRouteExpirationTimer = Timer.scheduledTimer(withTimeInterval: expiresAt.timeIntervalSinceNow, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.temporaryRoute = nil
+            }
+        }
+    }
+
+    func setTemporaryRoute(browserBundleId: String, profile: String?, duration: TimeInterval = 3600) {
+        let expirationDate = Date().addingTimeInterval(duration)
+        temporaryRoute = TemporaryRoute(browserBundleId: browserBundleId, profile: profile, expiresAt: expirationDate)
+    }
+
+    func clearTemporaryRoute() {
+        temporaryRoute = nil
     }
 
     func loadRoutingRules() {
@@ -209,9 +284,20 @@ extension BrowserRoutingRule {
         }
     }
 
+    func loadRecentURLs() {
+        if let data = defaults.data(forKey: Constants.recentURLsKey),
+           let decoded = try? JSONDecoder().decode([URL].self, from: data) {
+            recentURLs = decoded
+        } else {
+            recentURLs = []
+        }
+    }
+
     func resetToFreshSetup() {
         restoreDefaultBrowserList()
         restoreDefaultRoutingRules()
+        clearPersistedRecentURLs()
+        recentURLs = []
         currentURL = nil
         hasCompletedOnboarding = false
 
@@ -364,8 +450,11 @@ extension BrowserRoutingRule {
     func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false) {
         guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
 
-        let normalizedHost = normalizedHostPattern(hostPattern)
-        guard isValidHostPattern(normalizedHost) else { return }
+        let normalizedSourceAppBundleId = sourceAppBundleId.flatMap { $0.isEmpty ? nil : $0 }
+        let normalizedHosts = normalizedHostPatterns(hostPattern)
+        guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedSourceAppBundleId) else { return }
+
+        let normalizedHost = normalizedHosts.joined(separator: ", ")
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
@@ -377,7 +466,7 @@ extension BrowserRoutingRule {
                 pathPrefix: normalizedPathPrefix(pathPrefix),
                 browserBundleId: browserBundleId,
                 profile: profile,
-                sourceAppBundleId: sourceAppBundleId.flatMap { $0.isEmpty ? nil : $0 },
+                sourceAppBundleId: normalizedSourceAppBundleId,
                 usePrivateMode: usePrivateMode
             )
         )
@@ -444,8 +533,10 @@ extension BrowserRoutingRule {
 
     func updateRoutingRuleHostPattern(id: UUID, to hostPattern: String) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        let normalizedHost = normalizedHostPattern(hostPattern)
-        guard !normalizedHost.isEmpty else { return }
+        let normalizedHosts = normalizedHostPatterns(hostPattern)
+        guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: routingRules[index].sourceAppBundleId) else { return }
+
+        let normalizedHost = normalizedHosts.joined(separator: ", ")
         routingRules[index].hostPattern = normalizedHost
 
         if routingRules[index].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -472,7 +563,12 @@ extension BrowserRoutingRule {
 
     func updateRoutingRuleSourceApp(id: UUID, to bundleId: String?) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        routingRules[index].sourceAppBundleId = bundleId.flatMap { $0.isEmpty ? nil : $0 }
+
+        let normalizedBundleId = bundleId.flatMap { $0.isEmpty ? nil : $0 }
+        let normalizedHosts = normalizedHostPatterns(routingRules[index].hostPattern)
+        guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedBundleId) else { return }
+
+        routingRules[index].sourceAppBundleId = normalizedBundleId
     }
 
     func updateRoutingRuleUsePrivateMode(id: UUID, to usePrivateMode: Bool) {
@@ -480,12 +576,20 @@ extension BrowserRoutingRule {
         routingRules[index].usePrivateMode = usePrivateMode
     }
 
-    func resolvedRoute(for url: URL) -> (rule: BrowserRoutingRule, browser: BrowserConfig)? {
+    func resolvedRoute(for url: URL) -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
         let host = (url.host ?? "").lowercased()
         guard !host.isEmpty else { return nil }
 
         let path = url.path.isEmpty ? "/" : url.path
 
+        // 1. Check Temporary Overrides first
+        if let temp = temporaryRoute, Date() < temp.expiresAt {
+            if let targetBrowser = configuredBrowsers.first(where: { $0.bundleId == temp.browserBundleId && $0.profile == temp.profile }) {
+                return (nil, targetBrowser)
+            }
+        }
+
+        // 2. Evaluate rules
         for rule in routingRules where rule.isEnabled {
             guard hostMatches(host, pattern: rule.hostPattern) else { continue }
             guard pathMatches(path, prefix: rule.pathPrefix) else { continue }
@@ -502,6 +606,169 @@ extension BrowserRoutingRule {
 
     func resolvedBrowser(for url: URL) -> BrowserConfig? {
         resolvedRoute(for: url)?.browser
+    }
+
+    // MARK: - URL Cleaning & Unshortening
+
+    private static let trackingParameters: Set<String> = [
+        "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+        "gclid", "fbclid", "msclkid", "twclid", "mc_cid", "mc_eid",
+        "igshid", "si", "ref_src", "ref_url", "zanpid"
+    ]
+
+    func cleanURL(_ url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        
+        if let queryItems = components.queryItems {
+            let cleanedItems = queryItems.filter { !Self.trackingParameters.contains($0.name.lowercased()) }
+            components.queryItems = cleanedItems.isEmpty ? nil : cleanedItems
+        }
+        
+        return components.url ?? url
+    }
+
+    private static let shortenerDomains: Set<String> = [
+        "t.co", "bit.ly", "tinyurl.com", "is.gd", "buff.ly", "ow.ly", "goo.gl", "lnkd.in"
+    ]
+
+    func unshortenURL(_ url: URL) async -> URL {
+        guard let host = url.host?.lowercased(), Self.shortenerDomains.contains(host) else {
+            return url
+        }
+
+        var currentURL = url
+        var hops = 0
+        let maxHops = 5
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        
+        while hops < maxHops {
+            var request = URLRequest(url: currentURL)
+            request.httpMethod = "HEAD"
+            
+            let delegate = RedirectHandler()
+            let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
+            
+            do {
+                let (_, response) = try await session.data(for: request)
+                session.invalidateAndCancel()
+                
+                if let redirectURL = delegate.redirectLocation {
+                    currentURL = redirectURL
+                    hops += 1
+                    continue
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse, 
+                   (300...399).contains(httpResponse.statusCode),
+                   let locationString = httpResponse.value(forHTTPHeaderField: "Location"),
+                   let redirectURL = URL(string: locationString) {
+                    currentURL = redirectURL
+                    hops += 1
+                    continue
+                }
+                
+                // No redirect found on this hop, we have reached the final destination
+                break
+            } catch {
+                session.invalidateAndCancel()
+                break
+            }
+        }
+        
+        return currentURL
+    }
+
+    enum UnshortenError: Error {
+        case invalidResponse
+        case noRedirectFound
+    }
+
+    func manualUnshortenURL(_ url: URL) async throws -> URL {
+        var currentURL = url
+        var hops = 0
+        let maxHops = 8
+        var hasRedirected = false
+        
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        
+        while hops < maxHops {
+            var request = URLRequest(url: currentURL)
+            request.httpMethod = "HEAD"
+            
+            // Spoof some generic desktop headers to bypass basic bot-blocking scripts
+            // that some trackers or aggressive shorteners might use.
+            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+            request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8", forHTTPHeaderField: "Accept")
+            request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            
+            let delegate = RedirectHandler()
+            let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
+            
+            do {
+                let (_, response) = try await session.data(for: request)
+                session.invalidateAndCancel()
+                
+                if let redirectURL = delegate.redirectLocation {
+                    currentURL = redirectURL
+                    hasRedirected = true
+                    hops += 1
+                    continue
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if (300...399).contains(httpResponse.statusCode),
+                       let locationString = httpResponse.value(forHTTPHeaderField: "Location"),
+                       let redirectURL = URL(string: locationString) {
+                        currentURL = redirectURL
+                        hasRedirected = true
+                        hops += 1
+                        continue
+                    }
+                    
+                    // No redirect, we've hit the final end of the chain.
+                    break
+                }
+                
+                // Invalid response type, just stop here
+                break
+                
+            } catch let error as URLError {
+                session.invalidateAndCancel()
+                if !hasRedirected {
+                    throw error
+                }
+                break // Stop on network error, keep whatever hops we resolved so far
+            } catch {
+                session.invalidateAndCancel()
+                break
+            }
+        }
+        
+        if hasRedirected {
+            return currentURL
+        } else {
+            throw UnshortenError.noRedirectFound
+        }
+    }
+
+    // URLSessionTaskDelegate to capture the redirect location without actually fetching the content
+    private class RedirectHandler: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        private let lock = NSLock()
+        private var _redirectLocation: URL?
+        
+        var redirectLocation: URL? {
+            lock.lock()
+            defer { lock.unlock() }
+            return _redirectLocation
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+            lock.lock()
+            self._redirectLocation = request.url
+            lock.unlock()
+            // Returning nil via completionHandler halts the redirect chain immediately
+            completionHandler(nil)
+        }
     }
 
     // MARK: - Launch at Login
@@ -785,6 +1052,20 @@ extension BrowserRoutingRule {
         defaults.removeObject(forKey: Constants.routingRulesKey)
     }
 
+    private func clearPersistedRecentURLs() {
+        defaults.removeObject(forKey: Constants.recentURLsKey)
+    }
+
+    func addRecentURL(_ url: URL) {
+        var newURLs = recentURLs
+        newURLs.removeAll { $0 == url }
+        newURLs.insert(url, at: 0)
+        if newURLs.count > 5 {
+            newURLs = Array(newURLs.prefix(5))
+        }
+        recentURLs = newURLs
+    }
+
     private func loadHiddenBundleIDs() {
         if let stored = defaults.array(forKey: Constants.hiddenBundleIDsKey) as? [String] {
             hiddenBundleIDs = Set(stored)
@@ -815,6 +1096,20 @@ extension BrowserRoutingRule {
         return trimmed
     }
 
+    private func normalizedHostPatterns(_ patterns: String) -> [String] {
+        return patterns.components(separatedBy: ",")
+            .map { normalizedHostPattern(String($0)) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func isValidHostPatterns(_ patterns: [String], sourceAppBundleId: String? = nil) -> Bool {
+        guard !patterns.isEmpty else { return false }
+        for pattern in patterns {
+            if !isValidHostPattern(pattern) { return false }
+        }
+        return true
+    }
+
     private func normalizedHostPattern(_ hostPattern: String) -> String {
         var normalized = hostPattern
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -828,6 +1123,10 @@ extension BrowserRoutingRule {
 
         if let slashIndex = normalized.firstIndex(of: "/") {
             normalized = String(normalized[..<slashIndex])
+        }
+
+        if normalized == "*" {
+            return "*"
         }
 
         if normalized.hasPrefix("*.") {
@@ -857,6 +1156,10 @@ extension BrowserRoutingRule {
         guard !hostPattern.isEmpty else { return false }
         guard !hostPattern.contains(" ") else { return false }
         guard !hostPattern.contains("/") else { return false }
+
+        if hostPattern == "*" {
+            return true
+        }
 
         if hostPattern.hasPrefix("*.") {
             let suffix = String(hostPattern.dropFirst(2))
@@ -897,6 +1200,10 @@ extension BrowserRoutingRule {
     private func hostMatches(_ host: String, pattern: String) -> Bool {
         let normalizedPattern = normalizedHostPattern(pattern)
         guard !normalizedPattern.isEmpty else { return false }
+
+        if normalizedPattern == "*" {
+            return true
+        }
 
         if normalizedPattern.hasPrefix("*.") {
             let suffix = String(normalizedPattern.dropFirst(2))

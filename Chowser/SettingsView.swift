@@ -6,6 +6,7 @@ struct SettingsView: View {
 
     @State var showingAddSheet = false
     @State var showingAddRuleSheet = false
+    @State var currentPrefillURL: URL? = nil
     @State var selectedSection: SettingsSection = .browsers
     @State var showingResetConfirmation = false
     @State var browserSearchText = ""
@@ -83,7 +84,19 @@ struct SettingsView: View {
             AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
         }
         .sheet(isPresented: $showingAddRuleSheet) {
-            AddRuleSheet(manager: browserManager, isPresented: $showingAddRuleSheet)
+            AddRuleSheet(manager: browserManager, isPresented: $showingAddRuleSheet, prefillURL: currentPrefillURL)
+        }
+        .onChange(of: showingAddRuleSheet) { 
+            if !showingAddRuleSheet { 
+                currentPrefillURL = nil 
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenCreateRuleFromMenu"))) { notification in
+            if let url = notification.object as? URL {
+                selectedSection = .rules
+                currentPrefillURL = url
+                showingAddRuleSheet = true
+            }
         }
         .alert("Reset Chowser setup?", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}

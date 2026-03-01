@@ -4,8 +4,7 @@ import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Download, Eye, Link as LinkIcon, Plus, Copy, Globe, Zap, Shield } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Download, Eye, Link as LinkIcon, Plus, Copy, Globe, Zap, Shield, Search, Terminal, Bot, Sparkles, Wand2, ShieldAlert, MousePointer2, Settings, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -13,6 +12,11 @@ export const Home: React.FC = () => {
     const [isPrivate, setIsPrivate] = useState(false);
     const [isRuleSimulatorOpen, setIsRuleSimulatorOpen] = useState(false);
     const [selectedBrowser, setSelectedBrowser] = useState<string | null>(null);
+    const [isRevealed, setIsRevealed] = useState(false);
+
+    // Animation Demo State
+    const [demoStep, setDemoStep] = useState(0);
+    const [userInteracted, setUserInteracted] = useState(false);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,11 +31,36 @@ export const Home: React.FC = () => {
                 setIsRuleSimulatorOpen(prev => !prev);
                 if (selectedBrowser) setSelectedBrowser(null);
             }
+            if (e.key.toLowerCase() === 'h') {
+                setIsRevealed(prev => !prev);
+                toast.success(!isRevealed ? "URL unshortened successfully!" : "Preview reset", {
+                    duration: 1500,
+                    icon: <Search className="w-4 h-4" />
+                });
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isPrivate, isRuleSimulatorOpen, selectedBrowser]);
+        const timers: ReturnType<typeof setTimeout>[] = [];
+        if (!userInteracted) {
+            const runLoop = () => {
+                setDemoStep(0);
+                timers.push(setTimeout(() => setDemoStep(1), 1000)); // Mouse starts moving
+                timers.push(setTimeout(() => setDemoStep(2), 2500)); // Mouse hovers link
+                timers.push(setTimeout(() => setDemoStep(3), 2800)); // Mouse clicks link
+                timers.push(setTimeout(() => setDemoStep(4), 3100)); // Panel opens
+                timers.push(setTimeout(runLoop, 8000)); // Reset after 8s
+            };
+            runLoop();
+        } else {
+            setDemoStep(4); // Keep panel open if user interacts
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            timers.forEach(clearTimeout);
+        };
+    }, [isPrivate, isRuleSimulatorOpen, selectedBrowser, isRevealed, userInteracted]);
 
     const handleBrowserSelect = (name: string) => {
         if (isRuleSimulatorOpen) {
@@ -45,6 +74,7 @@ export const Home: React.FC = () => {
     };
 
     const [downloadUrl, setDownloadUrl] = useState("https://github.com/bsreeram08/chowser/releases/latest");
+    const [downloadVersion, setDownloadVersion] = useState<string | null>(null);
     const [isLoadingDownload, setIsLoadingDownload] = useState(true);
 
     useEffect(() => {
@@ -56,6 +86,10 @@ export const Home: React.FC = () => {
                 if (dmgAsset) {
                     setDownloadUrl(dmgAsset.browser_download_url);
                 }
+                if (data.tag_name) {
+                    // Remove "v" prefix if it exists to just show "2.8.0" etc
+                    setDownloadVersion(data.tag_name.replace(/^v/, ''));
+                }
             } catch (error) {
                 console.error("Failed to fetch latest release:", error);
             } finally {
@@ -66,7 +100,17 @@ export const Home: React.FC = () => {
     }, []);
 
     const handleCopy = () => {
-        const url = selectedBrowser ? `rule:always_${selectedBrowser.toLowerCase()}` : (isPrivate ? "private.browsing.enabled" : "chowser.app/setup");
+        let url = "";
+        if (selectedBrowser) {
+            url = `rule:always_${selectedBrowser.toLowerCase()}`;
+        } else if (isPrivate) {
+            url = "private.browsing.enabled";
+        } else if (isRevealed) {
+            url = "https://github.com/bsreeram08/chowser";
+        } else {
+            url = "https://t.co/3x8qA9L";
+        }
+
         navigator.clipboard.writeText(url);
         toast.success("URL/Rule copied to clipboard", {
             duration: 2000,
@@ -117,15 +161,15 @@ export const Home: React.FC = () => {
                                 className="w-full h-14 sm:h-16 px-8 bg-primary hover:bg-primary/90 text-white rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_var(--color-primary)]/40 gap-3 group"
                             >
                                 <Download className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
-                                {isLoadingDownload ? "Finding Latest..." : "Download for Mac"}
+                                {isLoadingDownload ? "Finding Latest..." : `Download ${downloadVersion ? `v${downloadVersion}` : ''} for Mac`}
                             </Button>
                         </a>
-                        <Link to="/agentic-setup" className="w-full sm:w-auto">
+                        <a href="#agentic-setup" className="w-full sm:w-auto">
                             <Button size="lg" variant="outline" className="w-full h-14 sm:h-16 px-8 bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur-md rounded-2xl font-bold text-base sm:text-lg transition-all text-white gap-2">
                                 <Zap className="w-4 h-4 text-primary" />
                                 AI Setup
                             </Button>
-                        </Link>
+                        </a>
                     </div>
 
                     {/* Interactive Demo Toggle */}
@@ -144,24 +188,78 @@ export const Home: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Unified Panel Mockup */}
-                <div className="mt-16 sm:mt-24 z-10 animate-in fade-in zoom-in-95 duration-1000 delay-500 transform transition-all duration-700 flex justify-center w-full relative group">
-                    {/* Shadow behind panel */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[400px] h-[180px] bg-primary/20 blur-[100px] -z-10 group-hover:bg-primary/30 transition-colors duration-700" />
+                {/* Simulated Link Click & Unified Panel Mockup */}
+                <div
+                    className="mt-16 sm:mt-32 z-10 w-full relative flex justify-center h-[280px]"
+                    onMouseEnter={() => setUserInteracted(true)}
+                    onClick={() => setUserInteracted(true)}
+                >
 
+                    {/* Mock Background / Chat Message */}
                     <div className={cn(
-                        "flex flex-col w-full max-w-[340px] sm:max-w-[380px] mx-auto rounded-[24px] border border-white/10 relative overflow-hidden transition-all duration-700 shadow-2xl backdrop-blur-[32px]",
-                        isPrivate ? "bg-purple-950/40 border-purple-500/20" : "bg-black/60"
+                        "absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-[320px] bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex flex-col gap-3 transition-all duration-1000 origin-bottom",
+                        demoStep >= 4 ? "opacity-20 scale-95 blur-sm translate-y-[-20px]" : "opacity-100 scale-100 blur-none translate-y-0"
+                    )}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                                <Bot className="w-4 h-4 text-blue-400" />
+                            </div>
+                            <div className="space-y-1">
+                                <div className="text-xs font-bold text-white/80">Teammate <span className="text-[10px] text-white/30 font-normal ml-1">Today at 2:00 PM</span></div>
+                                <div className="text-sm text-white/90">Hey, can you review this PR?</div>
+                            </div>
+                        </div>
+                        <div className="pl-11">
+                            <span
+                                className={cn(
+                                    "text-blue-400 text-sm hover:underline cursor-pointer transition-colors duration-300",
+                                    (demoStep === 2 || demoStep === 3) ? "text-blue-300 underline bg-blue-500/10 rounded px-1" : ""
+                                )}
+                            >
+                                https://t.co/3x8qA9L
+                            </span>
+                        </div>
+
+                        {/* Animated Mouse Cursor */}
+                        {!userInteracted && (
+                            <div
+                                className="absolute pointer-events-none z-50 text-white drop-shadow-xl transition-all"
+                                style={{
+                                    left: demoStep === 0 ? '80%' : demoStep >= 1 ? '40%' : '80%',
+                                    top: demoStep === 0 ? '150%' : demoStep >= 1 ? '70%' : '150%',
+                                    transitionDuration: demoStep === 1 ? '1.5s' : '0.3s',
+                                    transitionProperty: 'all',
+                                    transitionTimingFunction: 'ease-out',
+                                    transform: demoStep === 3 ? 'scale(0.8)' : 'scale(1)'
+                                }}
+                            >
+                                <MousePointer2 className="w-6 h-6 fill-black drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Shadow behind panel */}
+                    <div className={cn(
+                        "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[20%] w-full max-w-[400px] h-[180px] bg-primary/20 blur-[100px] -z-10 transition-all duration-1000",
+                        demoStep >= 4 ? "opacity-100 scale-100" : "opacity-0 scale-50"
+                    )} />
+
+                    {/* The Chowser Panel */}
+                    <div className={cn(
+                        "flex flex-col w-full max-w-[340px] sm:max-w-[380px] mx-auto rounded-[24px] border border-white/10 absolute origin-center overflow-hidden transition-all duration-700 shadow-2xl backdrop-blur-[32px]",
+                        isPrivate ? "bg-purple-950/40 border-purple-500/20" : "bg-black/80",
+                        demoStep >= 4 ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-90 translate-y-8 pointer-events-none"
                     )}>
                         {/* Header: URL Bubble */}
                         <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5 bg-white/5">
                             <LinkIcon className="w-3.5 h-3.5 shrink-0 opacity-40 text-white" />
                             <span className="text-[13px] font-medium text-white/90 flex-1 truncate">
                                 {isRuleSimulatorOpen
-                                    ? "Add New Routing Rule"
-                                    : (selectedBrowser
-                                        ? `rule:always_${selectedBrowser.toLowerCase()}`
-                                        : (isPrivate ? "private.browsing.enabled" : "chowser.app/setup"))}
+                                    ? (selectedBrowser ? `rule:always_${selectedBrowser.toLowerCase()}` : "Create Rule for github.com")
+                                    : (isPrivate
+                                        ? "private.browsing.enabled"
+                                        : (isRevealed ? "github.com/bsreeram08/chowser" : "t.co/3x8qA9L")
+                                    )}
                             </span>
                             <div className="flex items-center gap-2">
                                 <Plus
@@ -183,8 +281,8 @@ export const Home: React.FC = () => {
                                         <Zap className="w-6 h-6 text-primary animate-pulse" />
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-sm font-bold text-white">Select Default Browser</p>
-                                        <p className="text-[11px] text-white/40">For all links on this domain</p>
+                                        <p className="text-sm font-bold text-white">{selectedBrowser ? 'Rule Created!' : 'Select Default Browser'}</p>
+                                        <p className="text-[11px] text-white/40">{selectedBrowser ? 'Saved to Chowser settings' : 'For all links on github.com'}</p>
                                     </div>
                                     <div className="flex gap-4">
                                         {[
@@ -240,17 +338,21 @@ export const Home: React.FC = () => {
                         </div>
 
                         {/* Footer: Keyboard Hints */}
-                        <div className="flex items-center gap-3 w-full px-4 py-2.5 border-t border-white/5 bg-black/40">
-                            <div className={cn("flex items-center gap-1.5 transition-opacity", isPrivate ? "opacity-100" : "opacity-30")}>
+                        <div className="flex items-center gap-2.5 w-full px-4 py-2.5 border-t border-white/5 bg-black/40 overflow-x-auto">
+                            <div className={cn("flex items-center gap-1.5 shrink-0 transition-opacity", isPrivate ? "opacity-100" : "opacity-30")}>
                                 <kbd className={cn("text-[10px] font-bold font-mono text-white border border-white/10 rounded-[4px] px-1.5 py-0.5", isPrivate ? "bg-purple-500/50" : "bg-white/10")}>P</kbd>
                                 <span className="text-[9px] font-bold text-white tracking-widest uppercase">Private</span>
                             </div>
-                            <div className={cn("flex items-center gap-1.5 transition-opacity", (isRuleSimulatorOpen || selectedBrowser) ? "opacity-100" : "opacity-30")}>
+                            <div className={cn("flex items-center gap-1.5 shrink-0 transition-opacity", (isRuleSimulatorOpen || selectedBrowser) ? "opacity-100" : "opacity-30")}>
                                 <kbd className={cn("text-[10px] font-bold font-mono text-white border border-white/10 rounded-[4px] px-1.5 py-0.5", (isRuleSimulatorOpen || selectedBrowser) ? "bg-amber-500/50" : "bg-white/10")}>R</kbd>
                                 <span className="text-[9px] font-bold text-white tracking-widest uppercase">{isRuleSimulatorOpen ? "Active" : "Rule"}</span>
                             </div>
-                            <div className="flex-1" />
-                            <div className="flex items-center gap-1.5">
+                            <div className={cn("flex items-center gap-1.5 shrink-0 transition-opacity", isRevealed ? "opacity-100" : "opacity-30")}>
+                                <kbd className={cn("text-[10px] font-bold font-mono text-white border border-white/10 rounded-[4px] px-1.5 py-0.5 shadow-[0_0_10px_rgba(59,130,246,0.2)]", isRevealed ? "bg-blue-500/50" : "bg-white/10")}>H</kbd>
+                                <span className="text-[9px] font-bold text-white tracking-widest uppercase flex items-center gap-1"><Search className="w-2.5 h-2.5" /> {isRevealed ? "Revealed" : "Reveal"}</span>
+                            </div>
+                            <div className="flex-1 min-w-[20px]" />
+                            <div className="flex items-center gap-1.5 shrink-0">
                                 <kbd className="text-[10px] font-bold font-mono text-white bg-primary rounded-[4px] px-1.5 py-0.5 shadow-[0_0_10px_rgba(59,130,246,0.5)]">↵</kbd>
                                 <span className="text-[9px] font-bold text-primary tracking-widest uppercase">Launch</span>
                             </div>
@@ -260,7 +362,7 @@ export const Home: React.FC = () => {
 
                 {/* Feature Grid */}
                 <section className="container mx-auto px-4 mt-20 max-w-6xl z-10">
-                    <div className="grid sm:grid-cols-3 gap-8">
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
                             <Badge variant="outline" className="mb-4 border-primary/20 text-primary">Powerful</Badge>
                             <h3 className="text-xl font-bold text-foreground mb-3 font-sans">Profile Support</h3>
@@ -279,9 +381,191 @@ export const Home: React.FC = () => {
                             <Badge variant="outline" className="mb-4 border-amber-500/20 text-amber-500">Secure</Badge>
                             <h3 className="text-xl font-bold text-foreground mb-3 font-sans">Smart Rules</h3>
                             <p className="text-muted-foreground text-sm leading-relaxed">
-                                Define complex rules using regex or domain matching. Always open the right app for the right task.
+                                Define complex rules using exact or wildcard domain matching. Always open the right app for the right task.
                             </p>
                         </Card>
+
+                        <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
+                            <Badge variant="outline" className="mb-4 border-blue-500/20 text-blue-500">Workflow</Badge>
+                            <h3 className="text-xl font-bold text-foreground mb-3 font-sans">Focus Mode</h3>
+                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                Temporarily route all clicked links to a specific browser for 1 Hour or Until Tomorrow right from the menu bar.
+                            </p>
+                        </Card>
+                        <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
+                            <Badge variant="outline" className="mb-4 border-purple-500/20 text-purple-500">Privacy</Badge>
+                            <h3 className="text-xl font-bold text-foreground mb-3 font-sans">URL Unshortener</h3>
+                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                Automatically shreds tracking parameters and actively resolves shortlinks (like bit.ly) before routing them.
+                            </p>
+                        </Card>
+                        <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
+                            <Badge variant="outline" className="mb-4 border-teal-500/20 text-teal-500">Automation</Badge>
+                            <h3 className="text-xl font-bold text-foreground mb-3 font-sans">Quick Rules</h3>
+                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                Hold Option (⌥) while viewing your Recent URLs to instantly pre-fill and create a new permanent routing rule.
+                            </p>
+                        </Card>
+                    </div>
+                </section>
+
+                {/* Security Setup Section */}
+                <section id="security-setup" className="container mx-auto px-4 mt-32 max-w-4xl z-10 scroll-mt-32">
+                    <header className="text-center space-y-6 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                        <Badge variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive gap-1.5 py-1 px-3">
+                            <ShieldAlert className="w-3 h-3" />
+                            Bypass macOS Gatekeeper
+                        </Badge>
+                        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground leading-tight">Install & Allow Chowser</h2>
+                        <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
+                            Chowser is a professional tool currently in a pre-release state and is unsigned. Follow these steps to allow it on your Mac.
+                        </p>
+                    </header>
+
+                    <div className="space-y-6">
+                        <div className="grid gap-6">
+                            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 group">
+                                <div className="flex sm:flex-col items-center">
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 group-hover:border-primary/50 transition-colors">1</div>
+                                    <div className="hidden sm:block w-px flex-1 bg-border/20 my-4" />
+                                </div>
+                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60">
+                                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                                        <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
+                                            <MousePointer2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h3 className="text-lg sm:text-xl font-bold text-foreground">Right-click to Open</h3>
+                                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                                Drag Chowser to your <span className="text-foreground">Applications</span> folder.
+                                                Hold the <kbd className="bg-muted px-1.5 py-0.5 rounded border border-border/50 font-mono text-[10px] sm:text-xs">Control</kbd> key and click the app icon, then select <strong>Open</strong> from the menu.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 group">
+                                <div className="flex sm:flex-col items-center">
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 group-hover:border-primary/50 transition-colors">2</div>
+                                    <div className="hidden sm:block w-px flex-1 bg-border/20 my-4" />
+                                </div>
+                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60 border-l-amber-500/30">
+                                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                                        <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                                            <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h3 className="text-lg sm:text-xl font-bold text-foreground">System Settings</h3>
+                                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                                If macOS blocks it, open <strong>System Settings &rarr; Privacy & Security</strong>.
+                                                Scroll down to the Security section and click <strong>Open Anyway</strong> for Chowser.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 group">
+                                <div className="flex sm:flex-col items-center">
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 group-hover:border-green-500/50 transition-colors text-green-500 leading-none">
+                                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    </div>
+                                </div>
+                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60">
+                                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                                        <div className="p-3 rounded-xl bg-green-500/10 text-green-500 border border-green-500/20 shrink-0">
+                                            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h3 className="text-lg sm:text-xl font-bold text-foreground">Set as Default</h3>
+                                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                                Finally, set Chowser as your system's default browser in <strong>System Settings &rarr; Desktop & Dock</strong>.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* AI Setup Section */}
+                <section id="agentic-setup" className="container mx-auto px-4 mt-32 max-w-4xl z-10 scroll-mt-32">
+                    <header className="text-center space-y-6 mb-16 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                        <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary gap-1.5 py-1 px-3">
+                            <Sparkles className="w-3 h-3" />
+                            AI-Enhanced Setup
+                        </Badge>
+                        <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Let AI Configure Chowser</h2>
+                        <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                            Automate your browser profile discovery and rule generation. Paste the prompt into Claude, ChatGPT, or Cursor to get started.
+                        </p>
+                    </header>
+
+                    <div className="grid gap-8">
+                        {/* Step 1 */}
+                        <div className="relative group">
+                            <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex">1</div>
+                            <Card className="bg-card/50 border-border/50 p-6 sm:p-8 overflow-hidden relative transition-all hover:bg-card/60">
+                                <div className="absolute top-0 right-0 p-8 opacity-5 hidden sm:block">
+                                    <Terminal className="w-32 h-32" />
+                                </div>
+                                <div className="space-y-4 sm:space-y-6 relative">
+                                    <h3 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                                        <Terminal className="w-5 h-5 text-primary" />
+                                        Run Terminal Command
+                                    </h3>
+                                    <p className="text-muted-foreground text-sm sm:text-base">
+                                        This command fetches the full setup prompt and pipes it straight to your clipboard.
+                                    </p>
+
+                                    <div className="group/code relative">
+                                        <pre className="bg-muted/40 p-6 rounded-xl font-mono text-sm border border-border/50 text-white overflow-x-auto">
+                                            <code>curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy</code>
+                                        </pre>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText("curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy");
+                                                toast.success("Copied to clipboard");
+                                            }}
+                                            className="absolute right-3 top-3 opacity-0 group-hover/code:opacity-100 transition-opacity"
+                                        >
+                                            <Copy className="w-3.5 h-3.5 mr-2" />
+                                            Copy
+                                        </Button>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="relative group">
+                            <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex">2</div>
+                            <Card className="bg-card/50 border-border/50 p-6 sm:p-8 overflow-hidden relative transition-all hover:bg-card/60">
+                                <div className="absolute top-0 right-0 p-8 opacity-5 hidden sm:block">
+                                    <Bot className="w-32 h-32" />
+                                </div>
+                                <div className="space-y-4 sm:space-y-6 relative">
+                                    <h3 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                                        <Wand2 className="w-5 h-5 text-purple-400" />
+                                        Paste to AI Assistant
+                                    </h3>
+                                    <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                                        Open your AI assistant (e.g., Cursor Composer, Claude, or ChatGPT) and paste the content.
+                                        The AI will then:
+                                    </p>
+                                    <ul className="space-y-3 text-sm text-muted-foreground list-disc list-inside ml-2">
+                                        <li>Scan your <span className="text-foreground">Application Support</span> folders for browsers.</li>
+                                        <li>Discover all available profiles and spaces.</li>
+                                        <li>Generate your <span className="text-foreground">ChowserBrowsers.json</span> configuration.</li>
+                                        <li>Draft routing rules based on your specific requirements.</li>
+                                    </ul>
+                                </div>
+                            </Card>
+                        </div>
                     </div>
                 </section>
             </main>

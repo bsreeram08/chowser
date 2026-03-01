@@ -38,6 +38,8 @@ struct ContentView: View {
     @State private var showingConfigureRule = false
     @State private var urlCopied = false
     @State private var privateMode = false
+    @State private var isUnshortening = false
+    @State private var unshorteningError: String? = nil
 
     @ViewBuilder
     private var panelContent: some View {
@@ -209,6 +211,20 @@ struct ContentView: View {
                 .accessibilityIdentifier("picker.configureRuleButton")
                 .accessibilityLabel("Add routing rule")
 
+                if isUnshortening {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(6)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                } else if unshorteningError != nil {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.red)
+                        .padding(6)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                        .help(unshorteningError ?? "Failed to unshorten")
+                }
+
                 Button(action: { copyCurrentURL(url) }) {
                     Image(systemName: urlCopied ? "checkmark" : "doc.on.clipboard")
                         .font(.system(size: 11, weight: .bold))
@@ -331,11 +347,12 @@ struct ContentView: View {
 
     private var keyboardHintsRow: some View {
         HStack(spacing: 6) {
-            keyHintChip(keys: ["P"], label: "PRIVATE", isActive: privateMode)
-            keyHintChip(keys: ["R"], label: "RULE", isDisabled: browserManager.currentURL == nil)
-            keyHintChip(keys: ["Esc"], label: "CLOSE")
+            keyHintChip(keys: ["P"], label: "Private", isActive: privateMode)
+            keyHintChip(keys: ["H"], label: "Resolve", isDisabled: browserManager.currentURL == nil || isUnshortening)
+            keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
+            keyHintChip(keys: ["Esc"], label: "Close")
             Spacer()
-            keyHintChip(keys: ["↵"], label: "LAUNCH", isAccent: true)
+            keyHintChip(keys: ["↵"], label: "Launch", isAccent: true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -401,7 +418,7 @@ struct ContentView: View {
         let iconSpacing: CGFloat = 4
         let horizontalPad: CGFloat = 36 // 18 each side
         let computed = horizontalPad + count * iconSize + max(0, count - 1) * iconSpacing
-        return max(320, min(740, computed)) // Limits 
+        return max(320, min(800, computed)) // Limits 
     }
 
     private func displayName(for browser: BrowserConfig) -> String {
@@ -509,6 +526,9 @@ struct ContentView: View {
                 return true
             case "r":
                 if browserManager.currentURL != nil { showingConfigureRule = true }
+                return true
+            case "h", "s":
+                if !isUnshortening, browserManager.currentURL != nil { performManualUnshorten() }
                 return true
             default:
                 return selectNextBrowser(matchingInitial: letter)
@@ -618,6 +638,34 @@ struct ContentView: View {
         }
         openUrl(with: browser, usePrivateMode: usePrivateMode)
         return true
+    }
+
+    private func performManualUnshorten() {
+        guard let url = browserManager.currentURL else { return }
+        isUnshortening = true
+        unshorteningError = nil
+        
+        Task {
+            do {
+                let resolved = try await browserManager.manualUnshortenURL(url)
+                await MainActor.run {
+                    browserManager.currentURL = resolved
+                    self.isUnshortening = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isUnshortening = false
+                    self.unshorteningError = "Couldn't resolve. It might not be a redirect."
+                    
+                    // Clear error after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        if self.unshorteningError != nil {
+                            withAnimation { self.unshorteningError = nil }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

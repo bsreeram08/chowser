@@ -84,14 +84,14 @@ struct ConfigureRuleView: View {
                 Text("URL Pattern")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                TextField("example.com or *.example.com", text: $hostPattern)
+                TextField("*, example.com, or *.example.com", text: $hostPattern)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12, design: .monospaced))
                     .accessibilityIdentifier("picker.configureRule.hostField")
 
                 if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !browserManager.isValidRoutingHostPattern(hostPattern) {
-                    Text("Invalid pattern. Use example.com or *.example.com")
+                    Text("Invalid pattern. Use *, example.com, or *.example.com")
                         .font(.system(size: 10))
                         .foregroundStyle(.red)
                 }

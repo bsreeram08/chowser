@@ -171,6 +171,11 @@ extension SettingsView {
                 .onAppear { updateFilteredRules() }
             }
 
+            RuleTesterView(manager: browserManager)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+
             HStack {
                 Image(systemName: "info.circle")
                     .font(.system(size: 9))
@@ -276,5 +281,55 @@ extension SettingsView {
         for id in idsToRemove {
             browserManager.removeRoutingRule(id: id)
         }
+    }
+}
+
+struct RuleTesterView: View {
+    var manager: BrowserManager
+    @State private var testURLText = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Test a Link")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            
+            TextField("Paste a URL here...", text: $testURLText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+            
+            if !testURLText.isEmpty {
+                let cleaned = testURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Add https schema if it's just a raw domain or path for easier testing
+                let urlString = cleaned.contains("://") ? cleaned : "https://\(cleaned)"
+                
+                if let url = URL(string: urlString), url.host != nil {
+                    if let route = manager.resolvedRoute(for: url) {
+                        let browserName = route.browser.name + (route.browser.profile != nil ? " (\(route.browser.profile!))" : "")
+                        if let rule = route.rule {
+                            Text("Opens in **\(browserName)** (Matches rule: '\(rule.name)')")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("Opens in **\(browserName)** (Temporary Focus Mode)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.purple)
+                        }
+                    } else if let fallback = manager.configuredBrowsers.first {
+                        let browserName = fallback.name + (fallback.profile != nil ? " (\(fallback.profile!))" : "")
+                        Text("No rules match. Choose from the browsers picker.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Waiting for a valid URL...")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.04)))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
     }
 }

@@ -23,9 +23,12 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Keyboard Shortcuts** — Press `1` through `9`, type a browser initial, or use `↑/↓` + Return for instant selection
 - **Browser Profiles** — Full support for Chrome, Brave, Edge, Vivaldi, Arc, Dia, Firefox, Zen, LibreWolf, and Waterfox profiles
 - **Advanced Routing Rules** — Auto-open matching domains/paths (wildcard support) in a specific browser, bypassing the picker
+- **Focus Mode (Temporary Default)** — Route all links to a specific browser for 1 Hour or Until Tomorrow from the menu bar
+- **URL Unshortening** — Automatically strips tracking parameters and resolves shortlinks (`shorturl.at`, `bit.ly`, etc.) before routing. Press `H` to manually resolve unknown shortlinks
 - **Private / Incognito Mode** — Open any link in private mode via keyboard shortcut (`P`) or per-rule toggle
 - **App-Based Routing** — Route links based on the source app that opened them (e.g., Slack links → Chrome Work)
-- **Quick Rule Creation** — Create routing rules directly from the picker when a URL is intercepted (press `R`)
+- **Quick Rule Creation** — Option-click (⌥) any Recent URL in the menu bar, or press `R` in the picker to instantly build a routing rule
+- **Rule Tester Simulator** — Instantly test and debug URLs against your active rules inside the Settings window
 - **Domain Frequency Tracking** — Suggests auto-routing rules after you repeatedly open a domain in the same browser
 - **Clipboard URL** — Open URLs from your clipboard via the menu bar
 - **Interactive Onboarding** — Smart setup flow that detects if Chowser is already the default browser and guides you through configuration
@@ -111,7 +114,7 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 
 ```bash
 # Build and create a styled DMG (bumps version, tags, generates background)
-./scripts/release.sh 2.7.1
+./scripts/release.sh 2.8.0
 
 # This will:
 # 1. Update the version in Xcode project
@@ -119,7 +122,7 @@ xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release bui
 # 3. Generate a styled DMG background
 # 4. Create a DMG with icon positioning
 # 5. Create a git tag v2.7.1
-# 6. Output the DMG to release/Chowser-2.7.1.dmg
+# 6. Output the DMG to release/Chowser-2.8.0.dmg
 ```
 
 Releases are also automated via GitHub Actions — push a `v*` tag and it builds + publishes the release.

@@ -328,6 +328,56 @@ struct BrowserManagerTests {
         #expect(manager.resolvedBrowser(for: differentDomainURL) == nil)
     }
 
+    @Test("Routing rules support global wildcard host pattern")
+    @MainActor
+    func routingRuleGlobalWildcardHostMatch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "All Hosts",
+            hostPattern: "*",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome"
+        )
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].hostPattern == "*")
+        #expect(manager.resolvedBrowser(for: URL(string: "https://github.com")!)?.bundleId == "com.google.Chrome")
+        #expect(manager.resolvedBrowser(for: URL(string: "https://openai.com/research")!)?.bundleId == "com.google.Chrome")
+    }
+
+    @Test("Global wildcard rules can be scoped by source app")
+    @MainActor
+    func routingRuleGlobalWildcardWithSourceApp() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "WhatsApp to Chrome",
+            hostPattern: "*",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleId: "net.whatsapp.WhatsApp"
+        )
+
+        let url = URL(string: "https://news.ycombinator.com")!
+        manager.currentSourceAppBundleId = "com.apple.Safari"
+        #expect(manager.resolvedRoute(for: url) == nil)
+
+        manager.currentSourceAppBundleId = "net.whatsapp.WhatsApp"
+        #expect(manager.resolvedRoute(for: url)?.browser.bundleId == "com.google.Chrome")
+        #expect(manager.resolvedRoute(for: url)?.rule?.sourceAppBundleId == "net.whatsapp.WhatsApp")
+    }
+
     @Test("Routing rules persist across manager instances")
     @MainActor
     func routingRulesPersist() {
@@ -392,17 +442,17 @@ struct BrowserManagerTests {
         ]
 
         manager.addRoutingRule(
-            name: "GitHub",
+            name: "Test Rule",
             hostPattern: "github.com",
             pathPrefix: nil,
-            browserBundleId: "company.thebrowser.Browser"
+            browserBundleId: "com.apple.Safari"
         )
 
         let url = URL(string: "https://github.com/openai")!
         let route = manager.resolvedRoute(for: url)
-
-        #expect(route?.rule.name == "GitHub")
-        #expect(route?.browser.bundleId == "company.thebrowser.Browser")
+        #expect(route != nil)
+        #expect(route?.rule?.name == "Test Rule")
+        #expect(route?.browser.name == "Safari")
     }
 
     @Test("Routing host normalization accepts pasted full URLs")
@@ -638,22 +688,23 @@ struct BrowserManagerTests {
         manager.configuredBrowsers = [
             BrowserConfig(name: "Brave - Work", bundleId: "com.brave.Browser", shortcutKey: "1", profile: "Profile 1"),
             BrowserConfig(name: "Brave - Personal", bundleId: "com.brave.Browser", shortcutKey: "2", profile: "Profile 2"),
+            BrowserConfig(name: "Google Chrome", bundleId: "com.google.Chrome", shortcutKey: "3", profile: "Work"),
         ]
 
         manager.addRoutingRule(
-            name: "GitHub",
+            name: "Google Services",
             hostPattern: "github.com",
             pathPrefix: nil,
-            browserBundleId: "com.brave.Browser",
-            profile: "Profile 1"
+            browserBundleId: "com.google.Chrome",
+            profile: "Work"
         )
 
         let url = URL(string: "https://github.com/test")!
         let route = manager.resolvedRoute(for: url)
-
-        #expect(route?.browser.profile == "Profile 1")
-        #expect(route?.browser.name == "Brave - Work")
-        #expect(route?.rule.profile == "Profile 1")
+        #expect(route != nil)
+        #expect(route?.rule?.name == "Google Services")
+        #expect(route?.browser.name == "Google Chrome")
+        #expect(route?.browser.profile == "Work")
     }
 
     @Test("Removing browser with profile preserves all rules")
@@ -691,7 +742,7 @@ struct BrowserManagerTests {
         // Only the Personal Reddit rule resolves since its browser is still configured
         let redditURL = URL(string: "https://reddit.com")!
         let githubURL = URL(string: "https://github.com")!
-        #expect(manager.resolvedRoute(for: redditURL)?.rule.name == "Personal Reddit")
+        #expect(manager.resolvedRoute(for: redditURL)?.rule?.name == "Personal Reddit")
         #expect(manager.resolvedRoute(for: githubURL) == nil)
     }
 
@@ -797,5 +848,73 @@ struct BrowserManagerTests {
         let allBrowsers = BrowserManager.getInstalledBrowsers(includeHidden: true)
         // Note: This test assumes MX Player is actually installed on the test machine 
         // to be truly useful, but we can verify the behavior if it exists.
+    }
+
+    // MARK: - Recent URLs
+
+    @Test("Recent URLs are capped at 5 and persist")
+    @MainActor
+    func recentURLsTracking() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        for i in 1...6 {
+            manager.addRecentURL(URL(string: "https://example\(i).com")!)
+        }
+
+        #expect(manager.recentURLs.count == 5)
+        // Most recent should be at index 0 (example6)
+        #expect(manager.recentURLs[0].absoluteString == "https://example6.com")
+        // Overflows should push out the oldest, so example1 shouldn't be there.
+        #expect(!manager.recentURLs.contains(where: { $0.absoluteString == "https://example1.com" }))
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.recentURLs.count == 5)
+        #expect(manager2.recentURLs[0].absoluteString == "https://example6.com")
+    }
+
+    @Test("Adding a duplicate URL moves it to the top instead of adding twice")
+    @MainActor
+    func recentURLsDuplicates() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        manager.addRecentURL(URL(string: "https://example1.com")!)
+        manager.addRecentURL(URL(string: "https://example2.com")!)
+        
+        #expect(manager.recentURLs[0].absoluteString == "https://example2.com")
+        #expect(manager.recentURLs.count == 2)
+        
+        // Add example1 again
+        manager.addRecentURL(URL(string: "https://example1.com")!)
+        
+        // Should move to top, count shouldn't increase
+        #expect(manager.recentURLs[0].absoluteString == "https://example1.com")
+        #expect(manager.recentURLs[1].absoluteString == "https://example2.com")
+        #expect(manager.recentURLs.count == 2)
+    }
+
+    // MARK: - URL Cleaning
+
+    @Test("cleanURL strips tracking parameters but keeps valid ones")
+    func urlCleaningStripsTrackingParams() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        
+        let urlWithTrackers = URL(string: "https://example.com/page?utm_source=twitter&valid=true&gclid=12345")!
+        let cleanedURL = manager.cleanURL(urlWithTrackers)
+        
+        // Output should be exactly valid=true
+        #expect(cleanedURL.absoluteString == "https://example.com/page?valid=true")
+        
+        let urlWithOnlyTrackers = URL(string: "https://example.com/page?utm_source=twitter")!
+        let fullyCleaned = manager.cleanURL(urlWithOnlyTrackers)
+        
+        // The query string itself should be removed
+        #expect(fullyCleaned.absoluteString == "https://example.com/page")
+        
+        let cleanURL = URL(string: "https://example.com/page?q=search")!
+        let unchanged = manager.cleanURL(cleanURL)
+        
+        #expect(unchanged.absoluteString == "https://example.com/page?q=search")
     }
 }

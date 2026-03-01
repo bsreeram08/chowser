@@ -15,7 +15,7 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
 # Release (bumps version, builds, creates DMG, tags git)
-./scripts/release.sh 2.7.1
+./scripts/release.sh 2.8.0
 ```
 
 CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, auto-publishes DMG to GitHub Releases).

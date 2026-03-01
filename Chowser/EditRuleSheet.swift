@@ -113,13 +113,13 @@ struct EditRuleSheet: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
-            TextField("example.com or *.example.com", text: $hostPattern)
+            TextField("*, example.com, or *.example.com", text: $hostPattern)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .accessibilityIdentifier("settings.editRule.hostField")
 
             if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text("Host pattern must be like example.com or *.example.com")
+                Text("Host pattern must be *, example.com, or *.example.com")
                     .font(.system(size: 10))
                     .foregroundStyle(.red)
             }

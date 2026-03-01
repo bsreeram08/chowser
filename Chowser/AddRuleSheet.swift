@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 struct AddRuleSheet: View {
     var manager: BrowserManager
     @Binding var isPresented: Bool
+    
+    var prefillURL: URL? = nil
 
     @State private var ruleName = ""
     @State private var hostPattern = ""
@@ -55,6 +57,17 @@ struct AddRuleSheet: View {
         }
         .frame(width: 460, height: 420)
         .onAppear {
+            if let prefillURL = prefillURL, hostPattern.isEmpty {
+                let host = prefillURL.host ?? ""
+                hostPattern = host
+                
+                let components = host.split(separator: ".")
+                if components.count >= 2 {
+                    ruleName = String(components[components.count - 2]).capitalized
+                } else {
+                    ruleName = host.capitalized
+                }
+            }
             if selectedBrowserIdentity.isEmpty {
                 selectedBrowserIdentity = manager.configuredBrowsers.first?.identity ?? ""
             }
@@ -100,13 +113,13 @@ struct AddRuleSheet: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
-            TextField("example.com or *.example.com", text: $hostPattern)
+            TextField("*, example.com, or *.example.com", text: $hostPattern)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .accessibilityIdentifier("settings.addRule.hostField")
 
             if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text("Host pattern must be like example.com or *.example.com")
+                Text("Host pattern must be *, example.com, or *.example.com")
                     .font(.system(size: 10))
                     .foregroundStyle(.red)
             }

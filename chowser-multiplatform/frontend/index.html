@@ -76,6 +76,78 @@
       </div>
     </div>
 
+    <!-- Browser add/edit modal -->
+    <div class="modal-backdrop" id="browserFormModal">
+      <div class="modal form-modal">
+        <h2 id="browserFormTitle">Add Browser</h2>
+        <div class="form-grid">
+          <label>Name <span class="req">*</span><input id="bf_name" type="text" placeholder="e.g. Chrome Work" /></label>
+          <label>App ID / Bundle ID <span class="req">*</span><input id="bf_appId" type="text" placeholder="e.g. com.google.Chrome" /></label>
+          <label>Executable<input id="bf_executable" type="text" placeholder="Leave blank for platform default" /></label>
+          <label>Shortcut Key (1–9)<input id="bf_shortcut" type="text" placeholder="e.g. 2" maxlength="1" /></label>
+          <label>Profile<input id="bf_profile" type="text" placeholder="e.g. Default (optional)" /></label>
+          <label class="full">Custom Arguments<input id="bf_customArgs" type="text" placeholder="e.g. --incognito {url} (optional)" /></label>
+        </div>
+        <input type="hidden" id="bf_editId" />
+        <div class="row-actions end">
+          <button id="browserFormCancelBtn" class="button secondary">Cancel</button>
+          <button id="browserFormSaveBtn" class="button primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rule add/edit modal -->
+    <div class="modal-backdrop" id="ruleFormModal">
+      <div class="modal form-modal">
+        <h2 id="ruleFormTitle">Add Rule</h2>
+        <div class="form-grid">
+          <label>Name<input id="rf_name" type="text" placeholder="e.g. GitHub Work" /></label>
+          <label>Host Pattern <span class="req">*</span><input id="rf_hostPattern" type="text" placeholder="e.g. github.com or *.example.com" /></label>
+          <label>Path Prefix<input id="rf_pathPrefix" type="text" placeholder="e.g. /org (optional)" /></label>
+          <label>Browser App ID <span class="req">*</span><input id="rf_browserAppId" type="text" placeholder="e.g. com.google.Chrome" /></label>
+          <label>Profile<input id="rf_profile" type="text" placeholder="Profile name (optional)" /></label>
+          <label>Source App ID<input id="rf_sourceAppId" type="text" placeholder="e.g. com.tinyspeck.slackmacgap (optional)" /></label>
+          <label class="toggle-row"><input id="rf_privateMode" type="checkbox" /> Open in private / incognito mode</label>
+          <label class="toggle-row"><input id="rf_isEnabled" type="checkbox" checked /> Rule is enabled</label>
+        </div>
+        <input type="hidden" id="rf_editId" />
+        <div class="row-actions end">
+          <button id="ruleFormCancelBtn" class="button secondary">Cancel</button>
+          <button id="ruleFormSaveBtn" class="button primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick-rule modal (picker mode: press R) -->
+    <div class="modal-backdrop" id="quickRuleModal">
+      <div class="modal form-modal">
+        <h2>Create Rule for This URL</h2>
+        <p class="subtitle" id="quickRuleUrlDisplay"></p>
+        <div class="form-grid">
+          <label>Rule Name<input id="qr_name" type="text" placeholder="e.g. GitHub Work" /></label>
+          <label>Browser App ID <span class="req">*</span><input id="qr_browserAppId" type="text" /></label>
+          <label>Profile<input id="qr_profile" type="text" placeholder="Profile name (optional)" /></label>
+          <label class="toggle-row"><input id="qr_privateMode" type="checkbox" /> Open in private / incognito mode</label>
+        </div>
+        <div class="row-actions end">
+          <button id="quickRuleCancelBtn" class="button secondary">Cancel</button>
+          <button id="quickRuleSaveBtn" class="button primary">Create Rule</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm delete dialog -->
+    <div class="modal-backdrop" id="confirmModal">
+      <div class="modal form-modal">
+        <h2>Confirm Delete</h2>
+        <p id="confirmMessage" class="subtitle"></p>
+        <div class="row-actions end">
+          <button id="confirmCancelBtn" class="button secondary">Cancel</button>
+          <button id="confirmOkBtn" class="button danger">Delete</button>
+        </div>
+      </div>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>

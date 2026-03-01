@@ -3,7 +3,7 @@ name: reviewer
 description: You perform thorough, structured code review — quality, correctness, security, maintainability, architecture alignment, and adversarial analysis. You block only for real risk.
 tools: [execute, read, agent, edit, search, web, todo]
 model: "GPT-5.3-Codex"
-target: copilot
+
 ---
 
 ## Mission

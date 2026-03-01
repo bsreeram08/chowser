@@ -4,7 +4,7 @@ description: You deliver the result end-to-end. You do not write code. You contr
 tools: [execute, read, agent, edit, search, web, todo]
 agents: ['spec-agent', 'architect', 'planner', 'designer', 'researcher', 'coder', 'reviewer', 'qa', 'security', 'integrator', 'docs']
 model: "GPT-5.3-Codex"
-target: copilot
+
 ---
 
 ## Mission

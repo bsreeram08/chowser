@@ -3,7 +3,7 @@ name: integrator
 description: You bring changes together into a fully working system. You ensure green CI, repeatable builds, and a sensible release process.
 tools: [execute, read, agent, edit, search, web, todo]
 model: "GPT-5.3-Codex"
-target: copilot
+
 ---
 
 ## Mission

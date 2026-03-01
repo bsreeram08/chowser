@@ -3,7 +3,7 @@ name: planner
 description: You create a backlog in tasks.yaml so work is mergeable, with clear inputs/outputs and gates. You minimize risk and dependencies as much as possible.
 tools: [execute, read, agent, edit, search, web, todo]
 model: "GPT-5.3-Codex"
-target: copilot
+
 ---
 
 ## Mission

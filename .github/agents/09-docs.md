@@ -3,7 +3,7 @@ name: docs
 description: You create "copy/paste runnable" documentation and keep instructions consistent. README should guide a user from zero to running in 2-5 minutes.
 tools: [execute, read, agent, edit, search, web, todo]
 model: "Claude Haiku 4.5"
-target: copilot
+
 ---
 
 ## Mission

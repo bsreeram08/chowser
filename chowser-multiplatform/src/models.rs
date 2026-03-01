@@ -268,3 +268,99 @@ pub struct DomainSuggestion {
     pub app_id: String,
     pub count: u32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    fn make_browser(app_id: &str, shortcut: &str) -> BrowserConfig {
+        BrowserConfig::new(
+            format!("Browser {app_id}"),
+            app_id.to_owned(),
+            "browser".to_owned(),
+            shortcut.to_owned(),
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn add_browser_prevents_duplicate_identity() {
+        let mut state = PersistedState::default();
+        let b = make_browser("com.example.app", "1");
+        assert!(state.add_browser(b.clone()));
+        // Same app_id + profile = same identity
+        assert!(!state.add_browser(b));
+        assert_eq!(state.configured_browsers.len(), 1);
+    }
+
+    #[test]
+    fn add_browser_resolves_shortcut_conflict() {
+        let mut state = PersistedState::default();
+        state.add_browser(make_browser("com.a", "1"));
+        let b2 = make_browser("com.b", "1"); // conflicting shortcut
+        state.add_browser(b2);
+        // Second browser should have gotten a different shortcut
+        let shortcuts: Vec<&str> = state
+            .configured_browsers
+            .iter()
+            .map(|b| b.shortcut_key.as_str())
+            .collect();
+        assert_eq!(shortcuts[0], "1");
+        assert_ne!(shortcuts[1], "1");
+    }
+
+    #[test]
+    fn next_available_shortcut_returns_first_free_key() {
+        let mut state = PersistedState::default();
+        for key in ["1", "2", "3"] {
+            state.add_browser(make_browser(&format!("com.{key}"), key));
+        }
+        let next = state.next_available_shortcut();
+        assert_eq!(next, "4");
+    }
+
+    #[test]
+    fn record_domain_increments_count() {
+        let mut state = PersistedState::default();
+        state.record_domain("example.com", "com.chrome");
+        state.record_domain("example.com", "com.chrome");
+        let count = state
+            .domain_frequency
+            .get("example.com")
+            .and_then(|m| m.get("com.chrome"))
+            .copied()
+            .unwrap_or(0);
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn suggestions_only_returns_entries_above_threshold() {
+        let mut state = PersistedState::default();
+        for _ in 0..29 {
+            state.record_domain("low.com", "com.chrome");
+        }
+        for _ in 0..30 {
+            state.record_domain("high.com", "com.chrome");
+        }
+        let suggestions = state.suggestions(30);
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0].domain, "high.com");
+    }
+
+    #[test]
+    fn normalize_shortcut_rejects_invalid_keys() {
+        assert_eq!(normalize_shortcut("0"), None);
+        assert_eq!(normalize_shortcut("a"), None);
+        assert_eq!(normalize_shortcut("10"), None);
+        assert_eq!(normalize_shortcut(""), None);
+    }
+
+    #[test]
+    fn normalize_shortcut_accepts_valid_keys() {
+        for key in ["1", "2", "3", "4", "5", "6", "7", "8", "9"] {
+            assert_eq!(normalize_shortcut(key), Some(key.to_owned()));
+        }
+    }
+}

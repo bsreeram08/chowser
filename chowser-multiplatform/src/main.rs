@@ -879,6 +879,504 @@ fn setup_default_browser(
     state.setup_default_browser_flow()
 }
 
+#[tauri::command]
+fn add_browser(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    name: String,
+    app_id: String,
+    executable: String,
+    shortcut_key: String,
+    profile: Option<String>,
+    custom_arguments: Option<String>,
+) -> Result<CommandOutcome, String> {
+    let name = name.trim().to_owned();
+    let app_id = app_id.trim().to_owned();
+    if name.is_empty() {
+        return Err("Browser name is required".to_owned());
+    }
+    if app_id.is_empty() {
+        return Err("Browser app ID is required".to_owned());
+    }
+    let executable = optional_trimmed(&executable).unwrap_or_else(default_executable_for_platform);
+    let browser = BrowserConfig::new(
+        name.clone(),
+        app_id,
+        executable,
+        shortcut_key,
+        profile.as_deref().and_then(optional_trimmed),
+        custom_arguments.as_deref().and_then(optional_trimmed),
+    );
+    let added = {
+        let mut guard = state
+            .state
+            .lock()
+            .map_err(|_| "Failed to lock app state".to_owned())?;
+        let result = guard.add_browser(browser);
+        if result {
+            state.persist_locked_state(&guard);
+        }
+        result
+    };
+    if !added {
+        return Err("A browser with that app ID and profile already exists".to_owned());
+    }
+    let message = format!("Browser '{name}' added");
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: Some(1),
+    })
+}
+
+#[tauri::command]
+fn update_browser(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    id: String,
+    name: String,
+    app_id: String,
+    executable: String,
+    shortcut_key: String,
+    profile: Option<String>,
+    custom_arguments: Option<String>,
+) -> Result<CommandOutcome, String> {
+    let browser_id = Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid browser id: {e}"))?;
+    let name = name.trim().to_owned();
+    let app_id = app_id.trim().to_owned();
+    if name.is_empty() {
+        return Err("Browser name is required".to_owned());
+    }
+    if app_id.is_empty() {
+        return Err("Browser app ID is required".to_owned());
+    }
+    let executable = optional_trimmed(&executable).unwrap_or_else(default_executable_for_platform);
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    if !guard.configured_browsers.iter().any(|b| b.id == browser_id) {
+        return Err("Browser not found".to_owned());
+    }
+
+    // Guard against creating a duplicate identity on a different browser
+    let new_identity = format!(
+        "{}|{}",
+        app_id,
+        profile.as_deref().map(str::trim).unwrap_or("")
+    );
+    if guard
+        .configured_browsers
+        .iter()
+        .any(|b| b.id != browser_id && b.identity() == new_identity)
+    {
+        return Err("A browser with that app ID and profile already exists".to_owned());
+    }
+
+    let resolved_shortcut = {
+        match normalize_shortcut(&shortcut_key) {
+            Some(s) => {
+                let conflict = guard
+                    .configured_browsers
+                    .iter()
+                    .any(|b| b.id != browser_id && b.shortcut_key == s);
+                if conflict {
+                    guard.next_available_shortcut()
+                } else {
+                    s
+                }
+            }
+            None => guard.next_available_shortcut(),
+        }
+    };
+
+    if let Some(browser) = guard
+        .configured_browsers
+        .iter_mut()
+        .find(|b| b.id == browser_id)
+    {
+        browser.name = name.clone();
+        browser.app_id = app_id;
+        browser.executable = executable;
+        browser.shortcut_key = resolved_shortcut;
+        browser.profile = profile.as_deref().and_then(optional_trimmed);
+        browser.custom_arguments = custom_arguments.as_deref().and_then(optional_trimmed);
+    }
+
+    state.persist_locked_state(&guard);
+    let message = format!("Browser '{name}' updated");
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn delete_browser(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    id: String,
+) -> Result<CommandOutcome, String> {
+    let browser_id = Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid browser id: {e}"))?;
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    let len_before = guard.configured_browsers.len();
+    guard.configured_browsers.retain(|b| b.id != browser_id);
+
+    if guard.configured_browsers.len() == len_before {
+        return Err("Browser not found".to_owned());
+    }
+
+    state.persist_locked_state(&guard);
+    let message = "Browser deleted".to_owned();
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn reorder_browsers(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    ordered_ids: Vec<String>,
+) -> Result<CommandOutcome, String> {
+    let ids: Vec<Uuid> = ordered_ids
+        .iter()
+        .map(|id| Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid browser id: {e}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    let mut reordered: Vec<BrowserConfig> = Vec::with_capacity(guard.configured_browsers.len());
+    for id in &ids {
+        if let Some(browser) = guard.configured_browsers.iter().find(|b| b.id == *id) {
+            reordered.push(browser.clone());
+        }
+    }
+    for browser in &guard.configured_browsers {
+        if !ids.contains(&browser.id) {
+            reordered.push(browser.clone());
+        }
+    }
+    guard.configured_browsers = reordered;
+    state.persist_locked_state(&guard);
+
+    let message = "Browsers reordered".to_owned();
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn add_rule(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    name: String,
+    host_pattern: String,
+    path_prefix: Option<String>,
+    browser_app_id: String,
+    profile: Option<String>,
+    source_app_id: Option<String>,
+    use_private_mode: bool,
+    is_enabled: Option<bool>,
+) -> Result<CommandOutcome, String> {
+    let normalized_host = routing::normalized_host_pattern(&host_pattern);
+    if !routing::is_valid_host_pattern(&normalized_host) {
+        return Err(format!("Invalid host pattern: '{host_pattern}'"));
+    }
+    let browser_app_id = browser_app_id.trim().to_owned();
+    if browser_app_id.is_empty() {
+        return Err("Browser app ID is required".to_owned());
+    }
+    let rule_name = if name.trim().is_empty() {
+        normalized_host.clone()
+    } else {
+        name.trim().to_owned()
+    };
+    let mut rule = BrowserRoutingRule::new(
+        rule_name.clone(),
+        normalized_host,
+        routing::normalized_path_prefix(path_prefix.as_deref()),
+        browser_app_id,
+        profile.as_deref().and_then(optional_trimmed),
+        source_app_id.as_deref().and_then(optional_trimmed),
+        use_private_mode,
+    );
+    rule.is_enabled = is_enabled.unwrap_or(true);
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+    guard.routing_rules.push(rule);
+    state.persist_locked_state(&guard);
+    let message = format!("Rule '{rule_name}' added");
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: Some(1),
+    })
+}
+
+#[tauri::command]
+fn update_rule(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    id: String,
+    name: String,
+    host_pattern: String,
+    path_prefix: Option<String>,
+    browser_app_id: String,
+    profile: Option<String>,
+    source_app_id: Option<String>,
+    use_private_mode: bool,
+    is_enabled: bool,
+) -> Result<CommandOutcome, String> {
+    let rule_id = Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid rule id: {e}"))?;
+    let normalized_host = routing::normalized_host_pattern(&host_pattern);
+    if !routing::is_valid_host_pattern(&normalized_host) {
+        return Err(format!("Invalid host pattern: '{host_pattern}'"));
+    }
+    let browser_app_id = browser_app_id.trim().to_owned();
+    if browser_app_id.is_empty() {
+        return Err("Browser app ID is required".to_owned());
+    }
+    let rule_name = if name.trim().is_empty() {
+        normalized_host.clone()
+    } else {
+        name.trim().to_owned()
+    };
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+    let rule = guard
+        .routing_rules
+        .iter_mut()
+        .find(|r| r.id == rule_id)
+        .ok_or_else(|| "Rule not found".to_owned())?;
+    rule.name = rule_name.clone();
+    rule.host_pattern = normalized_host;
+    rule.path_prefix = routing::normalized_path_prefix(path_prefix.as_deref());
+    rule.browser_app_id = browser_app_id;
+    rule.profile = profile.as_deref().and_then(optional_trimmed);
+    rule.source_app_id = source_app_id.as_deref().and_then(optional_trimmed);
+    rule.use_private_mode = use_private_mode;
+    rule.is_enabled = is_enabled;
+    state.persist_locked_state(&guard);
+    let message = format!("Rule '{rule_name}' updated");
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn delete_rule(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    id: String,
+) -> Result<CommandOutcome, String> {
+    let rule_id = Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid rule id: {e}"))?;
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    let len_before = guard.routing_rules.len();
+    guard.routing_rules.retain(|r| r.id != rule_id);
+
+    if guard.routing_rules.len() == len_before {
+        return Err("Rule not found".to_owned());
+    }
+
+    state.persist_locked_state(&guard);
+    let message = "Rule deleted".to_owned();
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn toggle_rule(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    id: String,
+    is_enabled: bool,
+) -> Result<CommandOutcome, String> {
+    let rule_id = Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid rule id: {e}"))?;
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    let rule = guard
+        .routing_rules
+        .iter_mut()
+        .find(|r| r.id == rule_id)
+        .ok_or_else(|| "Rule not found".to_owned())?;
+    rule.is_enabled = is_enabled;
+
+    state.persist_locked_state(&guard);
+    let message = if is_enabled {
+        "Rule enabled".to_owned()
+    } else {
+        "Rule disabled".to_owned()
+    };
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn reorder_rules(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    ordered_ids: Vec<String>,
+) -> Result<CommandOutcome, String> {
+    let ids: Vec<Uuid> = ordered_ids
+        .iter()
+        .map(|id| Uuid::parse_str(id.trim()).map_err(|e| format!("Invalid rule id: {e}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    let mut reordered: Vec<BrowserRoutingRule> =
+        Vec::with_capacity(guard.routing_rules.len());
+    for id in &ids {
+        if let Some(rule) = guard.routing_rules.iter().find(|r| r.id == *id) {
+            reordered.push(rule.clone());
+        }
+    }
+    for rule in &guard.routing_rules {
+        if !ids.contains(&rule.id) {
+            reordered.push(rule.clone());
+        }
+    }
+    guard.routing_rules = reordered;
+    state.persist_locked_state(&guard);
+
+    let message = "Rules reordered".to_owned();
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
+fn create_rule_for_pending_url(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    name: String,
+    browser_app_id: String,
+    profile: Option<String>,
+    use_private_mode: bool,
+) -> Result<CommandOutcome, String> {
+    let pending_url = {
+        let guard = state
+            .pending_url
+            .lock()
+            .map_err(|_| "Failed to lock pending URL state".to_owned())?;
+        guard
+            .clone()
+            .ok_or_else(|| "No pending URL to create rule for".to_owned())?
+    };
+
+    let url = Url::parse(&pending_url).map_err(|e| format!("Invalid pending URL: {e}"))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "URL has no host".to_owned())?;
+    let normalized_host = routing::normalized_host_pattern(host);
+    if !routing::is_valid_host_pattern(&normalized_host) {
+        return Err(format!("Cannot create rule for host: '{host}'"));
+    }
+    let browser_app_id = browser_app_id.trim().to_owned();
+    if browser_app_id.is_empty() {
+        return Err("Browser app ID is required".to_owned());
+    }
+    let rule_name = if name.trim().is_empty() {
+        normalized_host.clone()
+    } else {
+        name.trim().to_owned()
+    };
+    let rule = BrowserRoutingRule::new(
+        rule_name.clone(),
+        normalized_host,
+        None,
+        browser_app_id,
+        profile.as_deref().and_then(optional_trimmed),
+        None,
+        use_private_mode,
+    );
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+    guard.routing_rules.push(rule);
+    state.persist_locked_state(&guard);
+    let message = format!("Rule '{rule_name}' created");
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: Some(1),
+    })
+}
+
+#[tauri::command]
+fn dismiss_suggestion(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    domain: String,
+    app_id: String,
+) -> Result<CommandOutcome, String> {
+    let domain = domain.trim().to_lowercase();
+    let app_id = app_id.trim().to_owned();
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    if let Some(counts) = guard.domain_frequency.get_mut(&domain) {
+        counts.remove(&app_id);
+        if counts.is_empty() {
+            guard.domain_frequency.remove(&domain);
+        }
+    }
+
+    state.persist_locked_state(&guard);
+    let message = format!("Suggestion dismissed for {domain}");
+    state.set_status(message.clone());
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
 fn merge_imported_browsers(state: &mut PersistedState, browsers: Vec<BrowserConfig>) -> usize {
     let mut added = 0usize;
 
@@ -1257,6 +1755,17 @@ fn main() -> Result<()> {
             queue_test_url_for_picker,
             set_onboarding_completed,
             setup_default_browser,
+            add_browser,
+            update_browser,
+            delete_browser,
+            reorder_browsers,
+            add_rule,
+            update_rule,
+            delete_rule,
+            toggle_rule,
+            reorder_rules,
+            create_rule_for_pending_url,
+            dismiss_suggestion,
         ])
         .run(tauri::generate_context!())
         .map_err(|error| anyhow!("failed to run Tauri application: {error}"))?;

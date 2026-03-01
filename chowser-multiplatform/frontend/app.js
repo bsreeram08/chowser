@@ -8,12 +8,15 @@
 
   const state = {
     snapshot: null,
+    snapshotSignature: null,
     activeTab: "picker",
     viewMode: "settings",
     privateMode: false,
     invoke: null,
     pickerTestUrl: "https://example.org",
     selectedPickerBrowserId: null,
+    autostartEnabled: false,
+    autostartSupported: true,
   };
 
   const els = {
@@ -111,6 +114,17 @@
       setStatus(message, true);
       throw error;
     }
+  }
+
+  function browserIsHidden(snapshot, browser) {
+    const hidden = new Set(snapshot.hidden_app_ids || []);
+    return hidden.has(browser.app_id);
+  }
+
+  function visiblePickerBrowsers(snapshot) {
+    return (snapshot.configured_browsers || []).filter(
+      (browser) => !browserIsHidden(snapshot, browser)
+    );
   }
 
   // ── Confirm dialog ───────────────────────────────────────────────────────────
@@ -272,7 +286,9 @@
     els.quickRuleUrlDisplay.textContent = `Host: ${host}`;
     els.qr_name.value = host;
     els.qr_browserAppId.value =
-      snapshot.configured_browsers[0]?.app_id || "";
+      visiblePickerBrowsers(snapshot)[0]?.app_id ||
+      snapshot.configured_browsers[0]?.app_id ||
+      "";
     els.qr_profile.value = "";
     els.qr_privateMode.checked = false;
     els.quickRuleModal.classList.add("visible");
@@ -311,7 +327,39 @@
       <div style="margin-top:6px" class="code">bundle: ${escapeHtml(status.app_bundle_id)}</div>
       <div class="code">http: ${escapeHtml(status.http_handler || "-")}</div>
       <div class="code">https: ${escapeHtml(status.https_handler || "-")}</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;opacity:${state.autostartSupported ? "1" : "0.6"}">
+        <input id="launchAtLoginToggle" type="checkbox" ${state.autostartEnabled ? "checked" : ""} ${state.autostartSupported ? "" : "disabled"} />
+        <span>Launch at login</span>
+      </label>
     `;
+
+    document
+      .getElementById("launchAtLoginToggle")
+      ?.addEventListener("change", async (event) => {
+        const enabled = !!event.target?.checked;
+        try {
+          await call(enabled ? "plugin:autostart|enable" : "plugin:autostart|disable");
+          state.autostartEnabled = enabled;
+          setStatus(
+            enabled ? "Launch at login enabled" : "Launch at login disabled",
+            false
+          );
+        } catch {
+          await refreshAutostartStatus();
+          renderDefaultSummary(snapshot);
+        }
+      });
+  }
+
+  async function refreshAutostartStatus() {
+    try {
+      const enabled = await call("plugin:autostart|is_enabled");
+      state.autostartEnabled = !!enabled;
+      state.autostartSupported = true;
+    } catch {
+      state.autostartEnabled = false;
+      state.autostartSupported = false;
+    }
   }
 
   function browserMonogram(browser) {
@@ -348,7 +396,7 @@
 
   function renderPicker(snapshot) {
     const pendingUrl = snapshot.pending_url;
-    const browsers = snapshot.configured_browsers;
+    const browsers = visiblePickerBrowsers(snapshot);
 
     if (!pendingUrl) {
       els.panelPicker.innerHTML = `
@@ -399,10 +447,13 @@
         `
       )
       .join("");
+    const emptyPickerMessage = browsers.length
+      ? ""
+      : `<p class="subtle">No visible browsers are available. Unhide apps in Settings → Browsers.</p>`;
 
     els.panelPicker.innerHTML = `
       <h2 class="section-title">Picker</h2>
-      <p class="subtle">No rule matched this URL. Use shortcut keys or click a browser.</p>
+      <p class="subtle">No rule matched this URL. Use shortcut keys, initials, or click a browser.</p>
       <div class="picker-shell">
         <div class="picker-url">${escapeHtml(pendingUrl)}</div>
         <div class="picker-command-row">
@@ -415,16 +466,18 @@
             <span>Create Rule</span>
           </button>
           <span class="command-chip static"><span class="key">1-9</span><span>Quick Pick</span></span>
+          <span class="command-chip static"><span class="key">A-Z</span><span>Initial Select</span></span>
           <span class="command-chip static"><span class="key">Enter</span><span>Open Selected</span></span>
           <span class="command-chip static"><span class="key">Arrows</span><span>Move</span></span>
         </div>
         <div class="picker-browser-list">${pickerRows}</div>
+        ${emptyPickerMessage}
       </div>
     `;
 
     document.getElementById("privateModeChip")?.addEventListener("click", () => {
       state.privateMode = !state.privateMode;
-      renderPicker(snapshot);
+      updatePickerPrivateModeChip();
     });
 
     document.getElementById("createRuleChip")?.addEventListener("click", () => {
@@ -443,8 +496,32 @@
     });
   }
 
+  function updatePickerPrivateModeChip() {
+    const chip = document.getElementById("privateModeChip");
+    if (!chip) return;
+    chip.classList.toggle("active", state.privateMode);
+    const label = chip.querySelector("span:last-child");
+    if (label) {
+      label.textContent = state.privateMode ? "Private On" : "Private Off";
+    }
+  }
+
+  function updatePickerSelectionHighlight() {
+    const buttons = Array.from(
+      els.panelPicker.querySelectorAll('[data-action="pick-browser"]')
+    );
+    buttons.forEach((button) => {
+      const browserId = button.getAttribute("data-browser-id");
+      button.classList.toggle(
+        "selected",
+        browserId === state.selectedPickerBrowserId
+      );
+    });
+  }
+
   function renderBrowsers(snapshot) {
     const browsers = snapshot.configured_browsers;
+    const hiddenApps = new Set(snapshot.hidden_app_ids || []);
 
     const rows = browsers
       .map(
@@ -452,11 +529,13 @@
           <tr>
             <td>${escapeHtml(browser.name)}</td>
             <td class="code">${escapeHtml(browser.app_id)}</td>
-            <td class="code">${escapeHtml(browser.executable)}</td>
-            <td>${escapeHtml(browser.shortcut_key)}</td>
-            <td>${escapeHtml(browser.profile || "-")}</td>
-            <td class="actions-cell">
-              <button class="btn-icon" data-action="edit-browser" data-id="${browser.id}" title="Edit">✏</button>
+             <td class="code">${escapeHtml(browser.executable)}</td>
+             <td>${escapeHtml(browser.shortcut_key)}</td>
+             <td>${escapeHtml(browser.profile || "-")}</td>
+             <td>${hiddenApps.has(browser.app_id) ? "Yes" : "No"}</td>
+             <td class="actions-cell">
+               <button class="btn-icon" data-action="toggle-hidden-browser" data-app-id="${escapeHtml(browser.app_id)}" title="${hiddenApps.has(browser.app_id) ? "Unhide app" : "Hide app"}">${hiddenApps.has(browser.app_id) ? "👁" : "🙈"}</button>
+               <button class="btn-icon" data-action="edit-browser" data-id="${browser.id}" title="Edit">✏</button>
               <button class="btn-icon" data-action="move-browser-up" data-id="${browser.id}" title="Move up" ${index === 0 ? "disabled" : ""}>↑</button>
               <button class="btn-icon" data-action="move-browser-down" data-id="${browser.id}" title="Move down" ${index === browsers.length - 1 ? "disabled" : ""}>↓</button>
               <button class="btn-icon danger" data-action="delete-browser" data-id="${browser.id}" data-name="${escapeHtml(browser.name)}" title="Delete">✕</button>
@@ -487,6 +566,7 @@
                 <th>Executable</th>
                 <th>Shortcut</th>
                 <th>Profile</th>
+                <th>Hidden</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -499,6 +579,13 @@
         <input id="exportBrowsersPath" type="text" placeholder="${escapeHtml(snapshot.suggested_browsers_path)}" />
         <button id="exportBrowsersBtn" class="button secondary tiny" ${browsers.length === 0 ? "disabled" : ""}>Export</button>
       </div>
+      ${
+        hiddenApps.size > 0
+          ? `<p class="subtle" style="margin-top:8px">Hidden app IDs: ${escapeHtml(
+              Array.from(hiddenApps).join(", ")
+            )}</p>`
+          : ""
+      }
     `;
 
     document.getElementById("addBrowserBtn")?.addEventListener("click", () => {
@@ -530,10 +617,20 @@
       btn.addEventListener("click", async () => {
         const action = btn.getAttribute("data-action");
         const id = btn.getAttribute("data-id");
+        const appId = btn.getAttribute("data-app-id");
         const name = btn.getAttribute("data-name") || "";
         if (action === "edit-browser") {
           const browser = snapshot.configured_browsers.find((b) => b.id === id);
           if (browser) openBrowserEditForm(browser);
+        } else if (action === "toggle-hidden-browser") {
+          if (!appId) return;
+          const currentlyHidden = hiddenApps.has(appId);
+          try {
+            await call("set_hidden_app", { appId, hidden: !currentlyHidden });
+            await refreshSnapshot();
+          } catch {
+            // handled
+          }
         } else if (action === "delete-browser") {
           const confirmed = await showConfirm(`Delete browser "${name}"?`);
           if (!confirmed) return;
@@ -840,8 +937,12 @@
   async function refreshSnapshot() {
     try {
       const snapshot = await call("refresh_snapshot");
+      const snapshotSignature = JSON.stringify(snapshot);
       state.snapshot = snapshot;
-      render(snapshot);
+      if (state.snapshotSignature !== snapshotSignature) {
+        state.snapshotSignature = snapshotSignature;
+        render(snapshot);
+      }
       return snapshot;
     } catch {
       return null;
@@ -856,26 +957,28 @@
   }
 
   async function handlePickerKeyboardShortcuts(event) {
-    if (isTypingContext(event.target)) return;
-
     if (state.activeTab !== "picker" && state.viewMode !== "picker") return;
 
     const snapshot = state.snapshot;
     if (!snapshot || !snapshot.pending_url) return;
 
-    const browsers = snapshot.configured_browsers ?? [];
+    const key = event.key;
+    const normalized = key.length === 1 ? key.toLowerCase() : key;
+    const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
+
+    if (!hasModifier && normalized === "p") {
+      event.preventDefault();
+      state.privateMode = !state.privateMode;
+      updatePickerPrivateModeChip();
+      return;
+    }
+
+    if (isTypingContext(event.target)) return;
+
+    const browsers = visiblePickerBrowsers(snapshot);
     if (!browsers.length) return;
 
     syncSelectedPickerBrowser(browsers);
-    const key = event.key;
-    const normalized = key.length === 1 ? key.toLowerCase() : key;
-
-    if (normalized === "p") {
-      event.preventDefault();
-      state.privateMode = !state.privateMode;
-      renderPicker(snapshot);
-      return;
-    }
 
     if (normalized === "r") {
       event.preventDefault();
@@ -902,7 +1005,7 @@
       const nextIndex =
         currentIndex <= 0 ? browsers.length - 1 : currentIndex - 1;
       state.selectedPickerBrowserId = browsers[nextIndex].id;
-      renderPicker(snapshot);
+      updatePickerSelectionHighlight();
       return;
     }
 
@@ -916,7 +1019,25 @@
           ? 0
           : currentIndex + 1;
       state.selectedPickerBrowserId = browsers[nextIndex].id;
-      renderPicker(snapshot);
+      updatePickerSelectionHighlight();
+      return;
+    }
+
+    if (!hasModifier && /^[a-z0-9]$/i.test(normalized)) {
+      const matching = browsers.filter(
+        (browser) => browserMonogram(browser).toLowerCase() === normalized
+      );
+      if (!matching.length) return;
+      event.preventDefault();
+      const currentIndex = matching.findIndex(
+        (browser) => browser.id === state.selectedPickerBrowserId
+      );
+      const next =
+        currentIndex >= 0 && currentIndex < matching.length - 1
+          ? matching[currentIndex + 1]
+          : matching[0];
+      state.selectedPickerBrowserId = next.id;
+      updatePickerSelectionHighlight();
       return;
     }
 
@@ -1115,6 +1236,7 @@
     state.invoke = invoke;
     applyViewModeFromQuery();
     bindEvents();
+    await refreshAutostartStatus();
     await refreshSnapshot();
 
     const refreshIntervalMs = state.viewMode === "picker" ? 480 : 1400;

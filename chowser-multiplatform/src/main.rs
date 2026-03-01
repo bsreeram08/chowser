@@ -22,6 +22,7 @@ use models::{
 };
 use routing::resolved_route;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -29,6 +30,8 @@ use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use url::Url;
 use uuid::Uuid;
 
@@ -38,6 +41,7 @@ const TRAY_ID: &str = "chowser-tray";
 const TRAY_MENU_OPEN_SETTINGS: &str = "tray.open-settings";
 const TRAY_MENU_OPEN_PICKER: &str = "tray.open-picker";
 const TRAY_MENU_SET_DEFAULT: &str = "tray.set-default";
+const TRAY_MENU_OPEN_CLIPBOARD_URL: &str = "tray.open-clipboard-url";
 const TRAY_MENU_QUIT: &str = "tray.quit";
 
 #[derive(Debug, Default)]
@@ -75,6 +79,7 @@ struct AppSnapshot {
     default_browser: DefaultBrowserStatus,
     suggested_browsers_path: String,
     suggested_rules_path: String,
+    hidden_app_ids: Vec<String>,
 }
 
 struct AppRuntimeState {
@@ -89,6 +94,10 @@ struct AppRuntimeState {
 }
 
 impl AppRuntimeState {
+    fn hidden_app_set(state: &PersistedState) -> HashSet<String> {
+        state.hidden_app_ids.iter().cloned().collect()
+    }
+
     fn new(store: ConfigStore, mut state: PersistedState) -> Self {
         state.ensure_defaults();
         let home = env::var("HOME").unwrap_or_else(|_| String::new());
@@ -128,7 +137,11 @@ impl AppRuntimeState {
     }
 
     fn with_app_handle<F: FnOnce(&tauri::AppHandle)>(&self, f: F) {
-        let app_handle = self.app_handle.lock().ok().and_then(|handle| handle.clone());
+        let app_handle = self
+            .app_handle
+            .lock()
+            .ok()
+            .and_then(|handle| handle.clone());
         if let Some(app) = app_handle {
             f(&app);
         }
@@ -164,13 +177,15 @@ impl AppRuntimeState {
                 }
             };
 
-            resolved_route(
-                &url,
-                &guard.routing_rules,
-                &guard.configured_browsers,
-                source_app,
-            )
-            .map(|route| {
+            let hidden_apps = Self::hidden_app_set(&guard);
+            let visible_browsers: Vec<BrowserConfig> = guard
+                .configured_browsers
+                .iter()
+                .filter(|browser| !hidden_apps.contains(&browser.app_id))
+                .cloned()
+                .collect();
+
+            resolved_route(&url, &guard.routing_rules, &visible_browsers, source_app).map(|route| {
                 (
                     route.browser.clone(),
                     route.rule.use_private_mode,
@@ -211,7 +226,8 @@ impl AppRuntimeState {
     fn drain_external_url_events(&self) {
         #[cfg(target_os = "macos")]
         {
-            while let Some(raw_url) = macos_url_events::take_pending_url() {
+            while let Some(event) = macos_url_events::take_pending_url_event() {
+                let raw_url = event.url;
                 let Ok(url) = Url::parse(&raw_url) else {
                     self.set_status(format!("Ignored malformed URL event: {raw_url}"));
                     continue;
@@ -222,7 +238,7 @@ impl AppRuntimeState {
                     continue;
                 }
 
-                self.process_incoming_url(url, None);
+                self.process_incoming_url(url, event.source_app_id.as_deref());
             }
         }
     }
@@ -256,6 +272,7 @@ impl AppRuntimeState {
             default_browser: self.default_browser_status(),
             suggested_browsers_path: self.suggested_browsers_path.clone(),
             suggested_rules_path: self.suggested_rules_path.clone(),
+            hidden_app_ids: guard.hidden_app_ids.clone(),
         })
     }
 
@@ -432,7 +449,28 @@ fn show_picker_window(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn setup_tray_icon(app: &tauri::AppHandle, runtime_state: Arc<AppRuntimeState>) -> Result<(), String> {
+fn queue_clipboard_url(
+    app: &tauri::AppHandle,
+    runtime_state: &AppRuntimeState,
+) -> Result<(), String> {
+    let clipboard = app
+        .clipboard()
+        .read_text()
+        .map_err(|error| format!("Failed to read clipboard: {error}"))?;
+    let trimmed = clipboard.trim();
+    if trimmed.is_empty() {
+        return Err("Clipboard is empty".to_owned());
+    }
+    let url = parse_http_url(trimmed)
+        .map_err(|error| format!("Clipboard content is not a valid HTTP(S) URL: {error}"))?;
+    runtime_state.process_incoming_url(url, None);
+    Ok(())
+}
+
+fn setup_tray_icon(
+    app: &tauri::AppHandle,
+    runtime_state: Arc<AppRuntimeState>,
+) -> Result<(), String> {
     let open_settings = MenuItem::with_id(
         app,
         TRAY_MENU_OPEN_SETTINGS,
@@ -457,6 +495,14 @@ fn setup_tray_icon(app: &tauri::AppHandle, runtime_state: Arc<AppRuntimeState>) 
         None::<&str>,
     )
     .map_err(|error| format!("Failed to create tray menu item: {error}"))?;
+    let open_clipboard_url = MenuItem::with_id(
+        app,
+        TRAY_MENU_OPEN_CLIPBOARD_URL,
+        "Open URL from Clipboard",
+        true,
+        None::<&str>,
+    )
+    .map_err(|error| format!("Failed to create tray menu item: {error}"))?;
     let separator = PredefinedMenuItem::separator(app)
         .map_err(|error| format!("Failed to create tray separator: {error}"))?;
     let quit = MenuItem::with_id(app, TRAY_MENU_QUIT, "Quit", true, None::<&str>)
@@ -464,7 +510,14 @@ fn setup_tray_icon(app: &tauri::AppHandle, runtime_state: Arc<AppRuntimeState>) 
 
     let tray_menu = Menu::with_items(
         app,
-        &[&open_settings, &open_picker, &set_default, &separator, &quit],
+        &[
+            &open_settings,
+            &open_picker,
+            &open_clipboard_url,
+            &set_default,
+            &separator,
+            &quit,
+        ],
     )
     .map_err(|error| format!("Failed to build tray menu: {error}"))?;
 
@@ -485,6 +538,11 @@ fn setup_tray_icon(app: &tauri::AppHandle, runtime_state: Arc<AppRuntimeState>) 
             } else if event.id() == TRAY_MENU_SET_DEFAULT {
                 let _ = runtime_state.setup_default_browser_flow();
                 let _ = show_settings_window(app);
+            } else if event.id() == TRAY_MENU_OPEN_CLIPBOARD_URL {
+                match queue_clipboard_url(app, &runtime_state) {
+                    Ok(()) => {}
+                    Err(error) => runtime_state.set_status(error),
+                }
             } else if event.id() == TRAY_MENU_QUIT {
                 app.exit(0);
             }
@@ -729,7 +787,11 @@ fn detect_browsers(
             .state
             .lock()
             .map_err(|_| "Failed to lock app state".to_owned())?;
+        let hidden_apps = AppRuntimeState::hidden_app_set(&guard);
         detect_installed_browsers(&guard.configured_browsers)
+            .into_iter()
+            .filter(|browser| !hidden_apps.contains(&browser.app_id))
+            .collect::<Vec<_>>()
     };
 
     let added = {
@@ -759,6 +821,46 @@ fn detect_browsers(
 }
 
 #[tauri::command]
+fn set_hidden_app(
+    state: State<'_, std::sync::Arc<AppRuntimeState>>,
+    app_id: String,
+    hidden: bool,
+) -> Result<CommandOutcome, String> {
+    let app_id = app_id.trim().to_owned();
+    if app_id.is_empty() {
+        return Err("App ID is required".to_owned());
+    }
+
+    let mut guard = state
+        .state
+        .lock()
+        .map_err(|_| "Failed to lock app state".to_owned())?;
+
+    if hidden {
+        if !guard.hidden_app_ids.iter().any(|value| value == &app_id) {
+            guard.hidden_app_ids.push(app_id.clone());
+            guard.hidden_app_ids.sort();
+        }
+    } else {
+        guard.hidden_app_ids.retain(|value| value != &app_id);
+    }
+
+    state.persist_locked_state(&guard);
+    let message = if hidden {
+        format!("Hidden app {app_id}")
+    } else {
+        format!("Unhid app {app_id}")
+    };
+    state.set_status(message.clone());
+
+    Ok(CommandOutcome {
+        ok: true,
+        message,
+        added: None,
+    })
+}
+
+#[tauri::command]
 fn choose_browser_for_pending_url(
     state: State<'_, std::sync::Arc<AppRuntimeState>>,
     browser_id: String,
@@ -766,6 +868,29 @@ fn choose_browser_for_pending_url(
 ) -> Result<CommandOutcome, String> {
     let selected_id = Uuid::parse_str(browser_id.trim())
         .map_err(|error| format!("Invalid browser id: {error}"))?;
+
+    let browser = {
+        let guard = state
+            .state
+            .lock()
+            .map_err(|_| "Failed to lock app state".to_owned())?;
+        let selected = guard
+            .configured_browsers
+            .iter()
+            .find(|browser| browser.id == selected_id)
+            .cloned();
+        if let Some(ref browser) = selected {
+            if guard
+                .hidden_app_ids
+                .iter()
+                .any(|value| value == &browser.app_id)
+            {
+                return Err("Selected browser is hidden".to_owned());
+            }
+        }
+        selected
+    }
+    .ok_or_else(|| "Selected browser was not found".to_owned())?;
 
     let pending_url = {
         let mut pending = state
@@ -777,19 +902,6 @@ fn choose_browser_for_pending_url(
     .ok_or_else(|| "No pending URL available for picker".to_owned())?;
 
     let url = Url::parse(&pending_url).map_err(|error| format!("Invalid pending URL: {error}"))?;
-
-    let browser = {
-        let guard = state
-            .state
-            .lock()
-            .map_err(|_| "Failed to lock app state".to_owned())?;
-        guard
-            .configured_browsers
-            .iter()
-            .find(|browser| browser.id == selected_id)
-            .cloned()
-    }
-    .ok_or_else(|| "Selected browser was not found".to_owned())?;
 
     if let Err(error) = open_url_with_browser(&url, &browser, private_mode) {
         if let Ok(mut pending) = state.pending_url.lock() {
@@ -1263,8 +1375,7 @@ fn reorder_rules(
         .lock()
         .map_err(|_| "Failed to lock app state".to_owned())?;
 
-    let mut reordered: Vec<BrowserRoutingRule> =
-        Vec::with_capacity(guard.routing_rules.len());
+    let mut reordered: Vec<BrowserRoutingRule> = Vec::with_capacity(guard.routing_rules.len());
     for id in &ids {
         if let Some(rule) = guard.routing_rules.iter().find(|r| r.id == *id) {
             reordered.push(rule.clone());
@@ -1306,9 +1417,7 @@ fn create_rule_for_pending_url(
     };
 
     let url = Url::parse(&pending_url).map_err(|e| format!("Invalid pending URL: {e}"))?;
-    let host = url
-        .host_str()
-        .ok_or_else(|| "URL has no host".to_owned())?;
+    let host = url.host_str().ok_or_else(|| "URL has no host".to_owned())?;
     let normalized_host = routing::normalized_host_pattern(host);
     if !routing::is_valid_host_pattern(&normalized_host) {
         return Err(format!("Cannot create rule for host: '{host}'"));
@@ -1698,6 +1807,11 @@ fn main() -> Result<()> {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None::<Vec<&'static str>>,
+        ))
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup({
             let runtime_state = runtime_state.clone();
             move |app| {
@@ -1751,6 +1865,7 @@ fn main() -> Result<()> {
             export_rules_to_path,
             export_full_config_to_path,
             detect_browsers,
+            set_hidden_app,
             choose_browser_for_pending_url,
             queue_test_url_for_picker,
             set_onboarding_completed,

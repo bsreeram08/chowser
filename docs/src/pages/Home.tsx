@@ -18,6 +18,24 @@ export const Home: React.FC = () => {
     const [demoStep, setDemoStep] = useState(0);
     const [userInteracted, setUserInteracted] = useState(false);
 
+    // Security & AI Setup Animation States
+    const [securityStep, setSecurityStep] = useState(0);
+    const [aiDemoStep, setAiDemoStep] = useState(0);
+
+    useEffect(() => {
+        const securityInterval = setInterval(() => {
+            setSecurityStep(prev => (prev + 1) % 5);
+        }, 2000);
+        return () => clearInterval(securityInterval);
+    }, []);
+
+    useEffect(() => {
+        const aiInterval = setInterval(() => {
+            setAiDemoStep(prev => (prev >= 6 ? 0 : prev + 1));
+        }, 2500);
+        return () => clearInterval(aiInterval);
+    }, []);
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key.toLowerCase() === 'p') {
@@ -429,18 +447,38 @@ export const Home: React.FC = () => {
                                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 group-hover:border-primary/50 transition-colors">1</div>
                                     <div className="hidden sm:block w-px flex-1 bg-border/20 my-4" />
                                 </div>
-                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60">
-                                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
+                                    <div className="flex flex-col sm:flex-row items-start gap-4 flex-1">
                                         <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
                                             <MousePointer2 className="w-5 h-5 sm:w-6 sm:h-6" />
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 relative z-10 w-full md:w-auto">
                                             <h3 className="text-lg sm:text-xl font-bold text-foreground">Right-click to Open</h3>
-                                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                            <p className="text-muted-foreground text-sm leading-relaxed max-w-sm">
                                                 Drag Chowser to your <span className="text-foreground">Applications</span> folder.
                                                 Hold the <kbd className="bg-muted px-1.5 py-0.5 rounded border border-border/50 font-mono text-[10px] sm:text-xs">Control</kbd> key and click the app icon, then select <strong>Open</strong> from the menu.
                                             </p>
                                         </div>
+                                    </div>
+                                    {/* Animation */}
+                                    <div className="hidden md:flex w-full md:w-72 h-40 bg-black/40 border border-white/5 rounded-2xl relative items-center justify-center shrink-0 overflow-hidden group-hover:bg-black/60 transition-colors">
+                                        {/* App Icon */}
+                                        <div className={cn("w-14 h-14 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl border border-white/10 flex items-center justify-center shadow-lg transition-transform duration-300", securityStep === 1 || securityStep === 2 ? "scale-105 bg-white/10" : "")}>
+                                            <Globe className="w-7 h-7 text-white/80" />
+                                        </div>
+                                        {/* Context Menu */}
+                                        <div className={cn("absolute top-1/2 left-1/2 ml-4 mt-2 w-40 bg-[#1e1e1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 text-[11px] origin-top-left transition-all duration-300 z-20", securityStep >= 2 && securityStep <= 4 ? "opacity-100 scale-100" : "opacity-0 scale-90 pointer-events-none")}>
+                                            <div className={cn("px-3 py-1.5 rounded-md transition-colors", securityStep >= 3 ? "bg-blue-500 text-white shadow-sm" : "text-white/80")}>Open</div>
+                                            <div className="px-3 py-1.5 text-white/50">Show Package Contents</div>
+                                            <div className="px-3 py-1.5 text-white/50">Move to Trash</div>
+                                        </div>
+                                        {/* Cursor */}
+                                        <MousePointer2 className={cn("absolute w-5 h-5 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] fill-black z-30 transition-all duration-[800ms] ease-in-out pointer-events-none",
+                                            securityStep === 0 ? "top-[120%] left-[80%]" :
+                                                securityStep === 1 ? "top-1/2 left-1/2 translate-x-2 translate-y-2 scale-95" :
+                                                    securityStep === 2 ? "top-1/2 left-1/2 translate-x-3 translate-y-3" :
+                                                        "top-1/2 left-1/2 translate-x-12 translate-y-6 scale-90"
+                                        )} />
                                     </div>
                                 </Card>
                             </div>
@@ -450,18 +488,42 @@ export const Home: React.FC = () => {
                                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted border border-border/50 flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 group-hover:border-primary/50 transition-colors">2</div>
                                     <div className="hidden sm:block w-px flex-1 bg-border/20 my-4" />
                                 </div>
-                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60 border-l-amber-500/30">
-                                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                                <Card className="flex-1 bg-card/40 border-border/50 p-6 sm:p-8 transition-colors hover:bg-card/60 border-l-amber-500/30 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
+                                    <div className="flex flex-col sm:flex-row items-start gap-4 flex-1">
                                         <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
                                             <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 relative z-10 w-full md:w-auto">
                                             <h3 className="text-lg sm:text-xl font-bold text-foreground">System Settings</h3>
-                                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                            <p className="text-muted-foreground text-sm leading-relaxed max-w-sm">
                                                 If macOS blocks it, open <strong>System Settings &rarr; Privacy & Security</strong>.
                                                 Scroll down to the Security section and click <strong>Open Anyway</strong> for Chowser.
                                             </p>
                                         </div>
+                                    </div>
+                                    {/* Animation */}
+                                    <div className="hidden md:flex w-full md:w-72 h-40 bg-black/40 border border-white/5 rounded-2xl relative items-center justify-center shrink-0 overflow-hidden group-hover:bg-black/60 transition-colors">
+                                        {/* Fake Settings Modal */}
+                                        <div className="w-64 bg-[#1e1e1e]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl p-4 flex flex-col gap-3 relative z-10 transform scale-90 sm:scale-100">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                                                <div className="text-[10px] font-medium text-white/50 flex-1 text-center pr-3">Privacy & Security</div>
+                                            </div>
+                                            <div className="bg-black/40 border border-white/5 rounded-lg p-3 space-y-3">
+                                                <p className="text-[10px] text-white/80 leading-snug">"Chowser" was blocked from use because it is not from an identified developer.</p>
+                                                <div className="flex justify-end pt-1">
+                                                    <div className={cn("px-3 py-1.5 rounded-md text-[10px] font-medium transition-all duration-300", securityStep >= 3 ? "bg-blue-500 text-white shadow-md scale-95" : "bg-white/10 text-white/90 hover:bg-white/20")}>
+                                                        Open Anyway
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Cursor */}
+                                        <MousePointer2 className={cn("absolute w-5 h-5 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] fill-black z-30 transition-all duration-[800ms] ease-in-out pointer-events-none",
+                                            securityStep <= 1 ? "top-[120%] right-[10%]" :
+                                                securityStep === 2 ? "top-[65%] right-[18%]" :
+                                                    "top-[65%] right-[18%] scale-90"
+                                        )} />
                                     </div>
                                 </Card>
                             </div>
@@ -506,22 +568,19 @@ export const Home: React.FC = () => {
                     <div className="grid gap-8">
                         {/* Step 1 */}
                         <div className="relative group">
-                            <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex">1</div>
-                            <Card className="bg-card/50 border-border/50 p-6 sm:p-8 overflow-hidden relative transition-all hover:bg-card/60">
-                                <div className="absolute top-0 right-0 p-8 opacity-5 hidden sm:block">
-                                    <Terminal className="w-32 h-32" />
-                                </div>
-                                <div className="space-y-4 sm:space-y-6 relative">
+                            <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex shadow-lg">1</div>
+                            <Card className="bg-card/50 border-border/50 overflow-hidden relative transition-all hover:bg-card/60 flex flex-col lg:flex-row">
+                                <div className="p-6 sm:p-8 flex-1 space-y-4 sm:space-y-6 relative z-10">
                                     <h3 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                                         <Terminal className="w-5 h-5 text-primary" />
                                         Run Terminal Command
                                     </h3>
-                                    <p className="text-muted-foreground text-sm sm:text-base">
+                                    <p className="text-muted-foreground text-sm sm:text-base max-w-md">
                                         This command fetches the full setup prompt and pipes it straight to your clipboard.
                                     </p>
 
-                                    <div className="group/code relative">
-                                        <pre className="bg-muted/40 p-6 rounded-xl font-mono text-sm border border-border/50 text-white overflow-x-auto">
+                                    <div className="group/code relative max-w-lg">
+                                        <pre className="bg-black/60 p-4 rounded-xl font-mono text-[13px] border border-white/10 text-white overflow-x-auto shadow-inner">
                                             <code>curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy</code>
                                         </pre>
                                         <Button
@@ -531,11 +590,39 @@ export const Home: React.FC = () => {
                                                 navigator.clipboard.writeText("curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy");
                                                 toast.success("Copied to clipboard");
                                             }}
-                                            className="absolute right-3 top-3 opacity-0 group-hover/code:opacity-100 transition-opacity"
+                                            className="absolute right-2 top-2 opacity-0 group-hover/code:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 text-white border-0"
                                         >
-                                            <Copy className="w-3.5 h-3.5 mr-2" />
+                                            <Copy className="w-3 h-3 mr-2" />
                                             Copy
                                         </Button>
+                                    </div>
+                                </div>
+                                {/* Terminal Animation Panel */}
+                                <div className="hidden lg:flex w-80 bg-black/80 border-l border-white/5 relative items-center justify-center p-6 shrink-0 z-0">
+                                    <div className="w-full h-36 bg-[#1a1b26]/90 border border-white/10 rounded-xl overflow-hidden shadow-2xl font-mono text-[11px] flex flex-col">
+                                        <div className="flex items-center gap-1.5 px-3 py-2 bg-black/40 border-b border-white/5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                                            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                                            <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+                                            <span className="ml-2 text-white/30 font-sans text-[10px]">zsh</span>
+                                        </div>
+                                        <div className="p-3 space-y-2 text-white/80 flex-1 relative">
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-green-400 shrink-0">➜</span>
+                                                <span className="text-blue-400 shrink-0">~</span>
+                                                <div className="relative flex-1 min-w-0">
+                                                    <div className="flex flex-wrap items-center text-white/90">
+                                                        <span className="overflow-hidden whitespace-nowrap inline-block align-bottom" style={{ width: aiDemoStep >= 1 ? '100%' : '0%', transition: aiDemoStep >= 1 ? 'width 1s steps(40, end)' : 'none' }}>
+                                                            curl -s https://chowser... | pbcopy
+                                                        </span>
+                                                        <span className={cn("inline-block w-1 h-3.5 bg-white/70 ml-0.5", aiDemoStep >= 2 ? "hidden" : "animate-pulse")} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className={cn("text-emerald-400/90 flex items-center gap-1.5 absolute bottom-4 left-3 transition-all duration-300", aiDemoStep >= 2 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none")}>
+                                                <CheckCircle2 className="w-3 h-3" /> Copied to clipboard.
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </Card>
@@ -543,17 +630,14 @@ export const Home: React.FC = () => {
 
                         {/* Step 2 */}
                         <div className="relative group">
-                            <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex">2</div>
-                            <Card className="bg-card/50 border-border/50 p-6 sm:p-8 overflow-hidden relative transition-all hover:bg-card/60">
-                                <div className="absolute top-0 right-0 p-8 opacity-5 hidden sm:block">
-                                    <Bot className="w-32 h-32" />
-                                </div>
-                                <div className="space-y-4 sm:space-y-6 relative">
+                            <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex shadow-lg">2</div>
+                            <Card className="bg-card/50 border-border/50 overflow-hidden relative transition-all hover:bg-card/60 flex flex-col lg:flex-row">
+                                <div className="p-6 sm:p-8 flex-1 space-y-4 sm:space-y-6 relative z-10">
                                     <h3 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                                         <Wand2 className="w-5 h-5 text-purple-400" />
                                         Paste to AI Assistant
                                     </h3>
-                                    <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                                    <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-md">
                                         Open your AI assistant (e.g., Cursor Composer, Claude, or ChatGPT) and paste the content.
                                         The AI will then:
                                     </p>
@@ -563,6 +647,52 @@ export const Home: React.FC = () => {
                                         <li>Generate your <span className="text-foreground">ChowserBrowsers.json</span> configuration.</li>
                                         <li>Draft routing rules based on your specific requirements.</li>
                                     </ul>
+                                </div>
+                                {/* AI Chat Animation Panel */}
+                                <div className="hidden lg:flex w-[26rem] bg-black/40 border-l border-white/5 relative items-center justify-center p-6 shrink-0 z-0">
+                                    <div className="w-full bg-[#18181b]/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl flex flex-col h-64 relative">
+                                        <div className="p-3 bg-black/40 border-b border-white/5 flex items-center gap-2">
+                                            <Wand2 className="w-4 h-4 text-purple-400" />
+                                            <span className="text-xs font-medium text-white/80">Composer</span>
+                                        </div>
+                                        <div className="p-4 flex-1 overflow-y-auto space-y-4 text-[11px] no-scrollbar">
+                                            {/* User Message */}
+                                            <div className={cn("flex justify-end transition-all duration-500", aiDemoStep >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4")}>
+                                                <div className="bg-primary/20 text-white/90 px-3 py-2.5 rounded-xl max-w-[85%] rounded-tr-sm border border-primary/20 shadow-sm relative">
+                                                    <div className="flex items-center gap-1.5 opacity-50 mb-1">
+                                                        <Terminal className="w-3 h-3" />
+                                                        <span className="text-[9px] uppercase tracking-wider font-bold">Pasted Script</span>
+                                                    </div>
+                                                    <div className="text-white/70 line-clamp-2 italic">"You are an expert macOS configuration assistant. Help me configure..."</div>
+                                                </div>
+                                            </div>
+                                            {/* AI Message */}
+                                            <div className={cn("flex justify-start transition-all duration-500", aiDemoStep >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4")}>
+                                                <div className="bg-black/40 text-white/90 px-3 py-3 rounded-xl max-w-[95%] rounded-tl-sm border border-white/10 space-y-3 shadow-md">
+                                                    <div className="flex items-center gap-2 text-purple-400">
+                                                        <Bot className="w-3.5 h-3.5" />
+                                                        <span className="font-medium text-[10px]">Analyzing browsers...</span>
+                                                        {aiDemoStep === 4 && <span className="flex gap-0.5 ml-1">
+                                                            <span className="w-1 h-1 bg-purple-400 rounded-full animate-bounce delay-75" />
+                                                            <span className="w-1 h-1 bg-purple-400 rounded-full animate-bounce delay-150" style={{ animationDelay: '150ms' }} />
+                                                            <span className="w-1 h-1 bg-purple-400 rounded-full animate-bounce delay-300" style={{ animationDelay: '300ms' }} />
+                                                        </span>}
+                                                    </div>
+                                                    <div className={cn("bg-[#0d0d0d] p-2.5 rounded-lg border border-white/5 font-mono text-[9px] text-green-400/90 overflow-hidden transition-all duration-700", aiDemoStep >= 5 ? "opacity-100 max-h-32 scale-100" : "opacity-0 max-h-0 scale-95 pointer-events-none")}>
+                                                        <pre>{`{
+  "browsers": [
+    {
+      "name": "Arc",
+      "executable": "...",
+      "profiles": ["Default", "Work"]
+    }
+  ]
+}`}</pre>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </Card>
                         </div>

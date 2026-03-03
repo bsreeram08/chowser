@@ -12,6 +12,7 @@ struct EditRuleSheet: View {
     @State private var selectedBrowserIdentity: String
     @State private var sourceAppBundleId: String?
     @State private var usePrivateMode: Bool
+    @State private var useRegex: Bool
 
     init(rule: BrowserRoutingRule, manager: BrowserManager, isPresented: Binding<Bool>) {
         self.rule = rule
@@ -32,6 +33,7 @@ struct EditRuleSheet: View {
         
         self._sourceAppBundleId = State(initialValue: rule.sourceAppBundleId)
         self._usePrivateMode = State(initialValue: rule.usePrivateMode)
+        self._useRegex = State(initialValue: rule.useRegex)
     }
 
     private var effectiveBrowserIdentity: String {
@@ -40,7 +42,7 @@ struct EditRuleSheet: View {
     }
 
     private var hostPatternIsValid: Bool {
-        manager.isValidRoutingHostPattern(hostPattern)
+        manager.isValidRoutingHostPattern(hostPattern, useRegex: useRegex)
     }
 
     private var canSaveRule: Bool {
@@ -109,17 +111,24 @@ struct EditRuleSheet: View {
 
     private var hostPatternSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Host Pattern")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Host Pattern")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Toggle("Regex", isOn: $useRegex)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(.system(size: 10))
+            }
 
-            TextField("*, example.com, or *.example.com", text: $hostPattern)
+            TextField(useRegex ? ".*\\.internal-dev\\.company\\.com" : "*, example.com, or *.example.com", text: $hostPattern)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .accessibilityIdentifier("settings.editRule.hostField")
 
             if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text("Host pattern must be *, example.com, or *.example.com")
+                Text(useRegex ? "Invalid regular expression" : "Host pattern must be *, example.com, or *.example.com")
                     .font(.system(size: 10))
                     .foregroundStyle(.red)
             }
@@ -217,7 +226,7 @@ struct EditRuleSheet: View {
         let pHost = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
         let pPath = pathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        let normalizedHost = manager.normalizedRoutingHostPattern(pHost)
+        let normalizedHost = useRegex ? pHost : manager.normalizedRoutingHostPattern(pHost)
         
         updated.name = pName.isEmpty ? normalizedHost : pName
         updated.hostPattern = normalizedHost
@@ -226,6 +235,7 @@ struct EditRuleSheet: View {
         updated.profile = browser.profile
         updated.sourceAppBundleId = sourceAppBundleId
         updated.usePrivateMode = usePrivateMode
+        updated.useRegex = useRegex
         
         manager.updateRoutingRule(updated)
     }

@@ -13,6 +13,7 @@ struct AddRuleSheet: View {
     @State private var selectedBrowserIdentity = ""
     @State private var sourceAppBundleId: String? = nil
     @State private var usePrivateMode = false
+    @State private var useRegex = false
 
     private var effectiveBrowserIdentity: String {
         if !selectedBrowserIdentity.isEmpty { return selectedBrowserIdentity }
@@ -20,7 +21,7 @@ struct AddRuleSheet: View {
     }
 
     private var hostPatternIsValid: Bool {
-        manager.isValidRoutingHostPattern(hostPattern)
+        manager.isValidRoutingHostPattern(hostPattern, useRegex: useRegex)
     }
 
     private var canCreateRule: Bool {
@@ -109,17 +110,24 @@ struct AddRuleSheet: View {
 
     private var hostPatternSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Host Pattern")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Host Pattern")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Toggle("Regex", isOn: $useRegex)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(.system(size: 10))
+            }
 
-            TextField("*, example.com, or *.example.com", text: $hostPattern)
+            TextField(useRegex ? ".*\\.internal-dev\\.company\\.com" : "*, example.com, or *.example.com", text: $hostPattern)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .accessibilityIdentifier("settings.addRule.hostField")
 
             if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text("Host pattern must be *, example.com, or *.example.com")
+                Text(useRegex ? "Invalid regular expression" : "Host pattern must be *, example.com, or *.example.com")
                     .font(.system(size: 10))
                     .foregroundStyle(.red)
             }
@@ -242,7 +250,8 @@ struct AddRuleSheet: View {
                         browserBundleId: browser.bundleId,
                         profile: browser.profile,
                         sourceAppBundleId: sourceAppBundleId,
-                        usePrivateMode: usePrivateMode
+                        usePrivateMode: usePrivateMode,
+                        useRegex: useRegex
                     )
                 }
                 isPresented = false

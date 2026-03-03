@@ -917,4 +917,178 @@ struct BrowserManagerTests {
         
         #expect(unchanged.absoluteString == "https://example.com/page?q=search")
     }
+
+    // MARK: - Expanded Tracking Parameters
+
+    @Test("cleanURL strips expanded tracking parameters")
+    @MainActor
+    func urlCleaningStripsExpandedTrackingParams() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+
+        // HubSpot
+        let hsURL = URL(string: "https://example.com/page?_hsenc=abc&_hsmi=123&valid=true")!
+        let hsClean = manager.cleanURL(hsURL)
+        #expect(hsClean.absoluteString == "https://example.com/page?valid=true")
+
+        // Google Ads expanded
+        let gaURL = URL(string: "https://example.com/page?dclid=x&gbraid=y&wbraid=z&_ga=1&_gl=2&valid=ok")!
+        let gaClean = manager.cleanURL(gaURL)
+        #expect(gaClean.absoluteString == "https://example.com/page?valid=ok")
+
+        // Yandex
+        let yURL = URL(string: "https://example.com/page?yclid=abc&_openstat=xyz")!
+        let yClean = manager.cleanURL(yURL)
+        #expect(yClean.absoluteString == "https://example.com/page")
+
+        // Marketo
+        let mktURL = URL(string: "https://example.com/page?mkt_tok=abc&valid=1")!
+        let mktClean = manager.cleanURL(mktURL)
+        #expect(mktClean.absoluteString == "https://example.com/page?valid=1")
+    }
+
+    // MARK: - Regex Routing Rules
+
+    @Test("Regex routing rule matches host pattern")
+    @MainActor
+    func regexRoutingRuleMatches() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+
+        // Add a regex rule matching any subdomain of company.com
+        manager.addRoutingRule(
+            name: "Company Internal",
+            hostPattern: ".*\\.internal\\.company\\.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].useRegex == true)
+
+        // Should match
+        let url1 = URL(string: "https://app.internal.company.com/dashboard")!
+        let route1 = manager.resolvedRoute(for: url1)
+        #expect(route1 != nil)
+        #expect(route1?.browser.bundleId == "com.google.Chrome")
+
+        // Should match deeper subdomain
+        let url2 = URL(string: "https://dev.staging.internal.company.com/page")!
+        let route2 = manager.resolvedRoute(for: url2)
+        #expect(route2 != nil)
+
+        // Should NOT match (no .internal. prefix)
+        let url3 = URL(string: "https://company.com/page")!
+        let route3 = manager.resolvedRoute(for: url3)
+        #expect(route3 == nil)
+    }
+
+    @Test("Regex routing rule rejects invalid pattern")
+    @MainActor
+    func regexRoutingRuleRejectsInvalidPattern() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+
+        // Invalid regex — unmatched bracket
+        manager.addRoutingRule(
+            name: "Bad Regex",
+            hostPattern: "[invalid",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+
+        // Should not have been added
+        #expect(manager.routingRules.isEmpty)
+    }
+
+    @Test("isValidRoutingHostPattern validates regex patterns")
+    @MainActor
+    func regexPatternValidation() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+
+        #expect(manager.isValidRoutingHostPattern(".*\\.example\\.com", useRegex: true) == true)
+        #expect(manager.isValidRoutingHostPattern("(dev|staging)\\.company\\.com", useRegex: true) == true)
+        #expect(manager.isValidRoutingHostPattern("[invalid", useRegex: true) == false)
+        #expect(manager.isValidRoutingHostPattern("", useRegex: true) == false)
+    }
+
+    @Test("Regex rule persists useRegex flag across manager instances")
+    @MainActor
+    func regexRulePersistence() {
+        let defaults = makeTestDefaults()
+        let manager1 = BrowserManager(defaults: defaults)
+
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager1.configuredBrowsers = [chrome]
+        manager1.addRoutingRule(
+            name: "Regex Rule",
+            hostPattern: ".*\\.test\\.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.routingRules.count == 1)
+        #expect(manager2.routingRules[0].useRegex == true)
+        #expect(manager2.routingRules[0].hostPattern == ".*\\.test\\.com")
+    }
+
+    @Test("Duplicating a regex rule preserves the useRegex flag")
+    @MainActor
+    func duplicateRegexRule() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+        manager.addRoutingRule(
+            name: "Regex Original",
+            hostPattern: ".*\\.dev\\.co",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+
+        manager.duplicateRoutingRule(id: manager.routingRules[0].id)
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.routingRules[1].useRegex == true)
+        #expect(manager.routingRules[1].hostPattern == ".*\\.dev\\.co")
+        #expect(manager.routingRules[1].name == "Regex Original Copy")
+    }
+
+    @Test("Regex routing rule anchors match to full host string")
+    @MainActor
+    func regexRoutingRuleAnchorsMatch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+
+        // Pattern "google\\.com" should only match exactly "google.com", NOT "not-google.com"
+        manager.addRoutingRule(
+            name: "Google Only",
+            hostPattern: "google\\.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+
+        let exact = URL(string: "https://google.com/search")!
+        #expect(manager.resolvedRoute(for: exact) != nil)
+
+        let partial = URL(string: "https://not-google.com/search")!
+        #expect(manager.resolvedRoute(for: partial) == nil)
+
+        let suffix = URL(string: "https://google.com.evil.com/search")!
+        #expect(manager.resolvedRoute(for: suffix) == nil)
+    }
 }

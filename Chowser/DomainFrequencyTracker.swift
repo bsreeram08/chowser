@@ -49,6 +49,11 @@ class DomainFrequencyTracker {
         return suggestions
     }
 
+    /// Returns click counts per browser bundle ID for a given domain.
+    func stats(for domain: String) -> [String: Int] {
+        return cachedStats[domain.lowercased()] ?? [:]
+    }
+
     private func loadFromDefaults() -> [String: [String: Int]] {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
               let stats = try? JSONDecoder().decode([String: [String: Int]].self, from: data) else {

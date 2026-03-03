@@ -131,7 +131,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 manager.addRecentURL(cleanedURL)
                 manager.currentURL = cleanedURL
 
-                if let route = manager.resolvedRoute(for: cleanedURL) {
+                // Hold Shift (⇧) while clicking a link to bypass auto-rules and force the picker
+                let forceShowPicker = NSEvent.modifierFlags.contains(.shift)
+
+                if !forceShowPicker, let route = manager.resolvedRoute(for: cleanedURL) {
                     manager.currentURL = nil
                     manager.open(url: cleanedURL, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: route.rule?.usePrivateMode ?? false)
                     return

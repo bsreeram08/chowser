@@ -245,8 +245,27 @@ struct ContentView: View {
 
     // MARK: - Browser Bar Pill
 
-    private var browserBarPill: some View {
+    /// Returns browsers sorted by domain-specific usage frequency.
+    /// Browsers used more often for the current domain appear first.
+    private var sortedBrowsers: [BrowserConfig] {
         let browsers = browserManager.configuredBrowsers
+        guard let url = browserManager.currentURL,
+              let domain = url.host?.lowercased() else {
+            return browsers
+        }
+        let domainStats = DomainFrequencyTracker.shared.stats(for: domain)
+        guard !domainStats.isEmpty else { return browsers }
+
+        return browsers.sorted { a, b in
+            let countA = domainStats[a.bundleId] ?? 0
+            let countB = domainStats[b.bundleId] ?? 0
+            if countA != countB { return countA > countB }
+            return false // stable: preserve configured order for ties
+        }
+    }
+
+    private var browserBarPill: some View {
+        let browsers = sortedBrowsers
         let showScroll = browsers.count > 8
 
         return HStack(alignment: .top, spacing: 4) {
@@ -600,7 +619,7 @@ struct ContentView: View {
 
     private func selectNextBrowser(matchingInitial initial: Character) -> Bool {
         let normalizedInitial = String(initial).lowercased()
-        let matching = browserManager.configuredBrowsers.filter {
+        let matching = sortedBrowsers.filter {
             $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().first.map { String($0) } == normalizedInitial
         }
         guard !matching.isEmpty else { return false }
@@ -614,7 +633,7 @@ struct ContentView: View {
     }
 
     private func moveSelection(by delta: Int) {
-        let browsers = browserManager.configuredBrowsers
+        let browsers = sortedBrowsers
         guard !browsers.isEmpty else { keyboardSelectedBrowserId = nil; return }
         guard let currentId = keyboardSelectedBrowserId,
               let currentIndex = browsers.firstIndex(where: { $0.id == currentId }) else {
@@ -625,7 +644,7 @@ struct ContentView: View {
     }
 
     private func openSelectedBrowser(usePrivateMode: Bool = false) -> Bool {
-        let browsers = browserManager.configuredBrowsers
+        let browsers = sortedBrowsers
         guard !browsers.isEmpty else { return false }
         guard let selectedId = keyboardSelectedBrowserId,
               let browser = browsers.first(where: { $0.id == selectedId }) else {

@@ -7,6 +7,7 @@ struct ConfigureRuleView: View {
     let interceptedURL: URL
     @Binding var isPresented: Bool
     var onSave: () -> Void
+    var preselectedBrowserBundleId: String? = nil
 
     @State private var ruleName = ""
     @State private var hostPattern = ""
@@ -167,6 +168,11 @@ struct ConfigureRuleView: View {
             ruleName = host
         }
 
-        selectedBrowserIdentity = browserManager.configuredBrowsers.first?.identity ?? ""
+        if let preselected = preselectedBrowserBundleId,
+           let browser = browserManager.configuredBrowsers.first(where: { $0.bundleId == preselected }) {
+            selectedBrowserIdentity = browser.identity
+        } else {
+            selectedBrowserIdentity = browserManager.configuredBrowsers.first?.identity ?? ""
+        }
     }
 }

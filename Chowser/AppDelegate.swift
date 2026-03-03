@@ -53,6 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     private func generateStateAndSetupSystem() {
         setupApplicationState()
+        handleCLIImportArguments()
         
         if AppEnvironment.shouldOpenSettingsOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -63,6 +64,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if AppEnvironment.shouldOpenPickerOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self.revealPickerWindow(retries: 8)
+            }
+        }
+    }
+
+    /// Handles --rules and --browsers CLI arguments for AI-assisted import.
+    /// Usage: Chowser --rules=/path/to/rules.json --browsers=/path/to/browsers.json
+    private func handleCLIImportArguments() {
+        let args = ProcessInfo.processInfo.arguments
+        var browsersPath: String?
+        var rulesPath: String?
+
+        for arg in args {
+            if arg.hasPrefix("--browsers=") {
+                browsersPath = String(arg.dropFirst("--browsers=".count))
+            } else if arg.hasPrefix("--rules=") {
+                rulesPath = String(arg.dropFirst("--rules=".count))
+            }
+        }
+
+        let manager = BrowserManager.shared
+
+        if let path = browsersPath {
+            let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            do {
+                try manager.importBrowsers(from: url)
+                print("Chowser: Imported browsers from \(url.path)")
+            } catch {
+                print("Chowser: Failed to import browsers from \(url.path): \(error)")
+            }
+        }
+
+        if let path = rulesPath {
+            let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            do {
+                try manager.importRules(from: url)
+                print("Chowser: Imported rules from \(url.path)")
+            } catch {
+                print("Chowser: Failed to import rules from \(url.path): \(error)")
             }
         }
     }
@@ -81,12 +120,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
         // Extract the source application's bundle ID from the Apple Event sender.
+        var resolved = false
+
+        // Approach 1: Extract PID via typeKernelProcessID coercion
         if let pidDescriptor = event.attributeDescriptor(forKeyword: AEKeyword(keyAddressAttr))?
                 .coerce(toDescriptorType: typeKernelProcessID) {
             let pidData = pidDescriptor.data
-            let pid = pidData.withUnsafeBytes { $0.load(as: pid_t.self) }
-            if let app = NSRunningApplication(processIdentifier: pid) {
-                BrowserManager.shared.currentSourceAppBundleId = app.bundleIdentifier
+            if pidData.count >= MemoryLayout<pid_t>.size {
+                let pid = pidData.withUnsafeBytes { $0.load(as: pid_t.self) }
+                if pid > 0, let app = NSRunningApplication(processIdentifier: pid) {
+                    BrowserManager.shared.currentSourceAppBundleId = app.bundleIdentifier
+                    resolved = true
+                }
+            }
+        }
+
+        // Approach 2: Try extracting the sender's process serial number (legacy path)
+        if !resolved,
+           let senderDesc = event.attributeDescriptor(forKeyword: AEKeyword(keyAddressAttr)) {
+            // Some apps send typeApplSignature or typeProcessSerialNumber descriptors.
+            // Try coercing to typeApplicationBundleID directly (macOS 10.15+)
+            if let bundleDesc = senderDesc.coerce(toDescriptorType: typeApplicationBundleID),
+               let bundleId = bundleDesc.stringValue, !bundleId.isEmpty {
+                BrowserManager.shared.currentSourceAppBundleId = bundleId
+                resolved = true
+            }
+        }
+
+        // Approach 3: Fall back to the frontmost application (heuristic)
+        if !resolved {
+            if let frontApp = NSWorkspace.shared.frontmostApplication,
+               frontApp.bundleIdentifier != Bundle.main.bundleIdentifier {
+                BrowserManager.shared.currentSourceAppBundleId = frontApp.bundleIdentifier
             }
         }
 

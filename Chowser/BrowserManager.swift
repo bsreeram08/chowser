@@ -550,6 +550,17 @@ extension BrowserRoutingRule {
 
     func updateRoutingRuleHostPattern(id: UUID, to hostPattern: String) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+
+        if routingRules[index].useRegex {
+            let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
+            routingRules[index].hostPattern = trimmed
+            if routingRules[index].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                routingRules[index].name = trimmed
+            }
+            return
+        }
+
         let normalizedHosts = normalizedHostPatterns(hostPattern)
         guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: routingRules[index].sourceAppBundleId) else { return }
 
@@ -1245,7 +1256,9 @@ extension BrowserRoutingRule {
     private func hostMatches(_ host: String, pattern: String, useRegex: Bool = false) -> Bool {
         if useRegex {
             do {
-                let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+                // Anchor the pattern to match the entire host string
+                let anchored = "^(?:\(pattern))$"
+                let regex = try NSRegularExpression(pattern: anchored, options: [.caseInsensitive])
                 let range = NSRange(host.startIndex..., in: host)
                 return regex.firstMatch(in: host, options: [], range: range) != nil
             } catch {

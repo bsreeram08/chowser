@@ -960,7 +960,7 @@ struct BrowserManagerTests {
         // Add a regex rule matching any subdomain of company.com
         manager.addRoutingRule(
             name: "Company Internal",
-            hostPattern: ".*\\.internal\\.company\\.com$",
+            hostPattern: ".*\\.internal\\.company\\.com",
             pathPrefix: nil,
             browserBundleId: "com.google.Chrome",
             useRegex: true
@@ -1062,5 +1062,33 @@ struct BrowserManagerTests {
         #expect(manager.routingRules[1].useRegex == true)
         #expect(manager.routingRules[1].hostPattern == ".*\\.dev\\.co")
         #expect(manager.routingRules[1].name == "Regex Original Copy")
+    }
+
+    @Test("Regex routing rule anchors match to full host string")
+    @MainActor
+    func regexRoutingRuleAnchorsMatch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+
+        // Pattern "google\\.com" should only match exactly "google.com", NOT "not-google.com"
+        manager.addRoutingRule(
+            name: "Google Only",
+            hostPattern: "google\\.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+
+        let exact = URL(string: "https://google.com/search")!
+        #expect(manager.resolvedRoute(for: exact) != nil)
+
+        let partial = URL(string: "https://not-google.com/search")!
+        #expect(manager.resolvedRoute(for: partial) == nil)
+
+        let suffix = URL(string: "https://google.com.evil.com/search")!
+        #expect(manager.resolvedRoute(for: suffix) == nil)
     }
 }

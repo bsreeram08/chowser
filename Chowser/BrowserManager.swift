@@ -24,11 +24,12 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     var isEnabled: Bool = true
     var sourceAppBundleId: String? = nil
     var usePrivateMode: Bool = false
+    var useRegex: Bool = false
 }
 
 extension BrowserRoutingRule {
     private enum CodingKeys: String, CodingKey {
-        case id, name, hostPattern, pathPrefix, browserBundleId, profile, isEnabled, sourceAppBundleId, usePrivateMode
+        case id, name, hostPattern, pathPrefix, browserBundleId, profile, isEnabled, sourceAppBundleId, usePrivateMode, useRegex
     }
 
     init(from decoder: Decoder) throws {
@@ -42,6 +43,7 @@ extension BrowserRoutingRule {
         isEnabled = (try c.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? true
         sourceAppBundleId = try c.decodeIfPresent(String.self, forKey: .sourceAppBundleId)
         usePrivateMode = (try c.decodeIfPresent(Bool.self, forKey: .usePrivateMode)) ?? false
+        useRegex = (try c.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
     }
 }
 
@@ -447,17 +449,30 @@ extension BrowserRoutingRule {
 
     // MARK: - Routing Rules
 
-    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false) {
+    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false, useRegex: Bool = false) {
         guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
 
         let normalizedSourceAppBundleId = sourceAppBundleId.flatMap { $0.isEmpty ? nil : $0 }
-        let normalizedHosts = normalizedHostPatterns(hostPattern)
-        guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedSourceAppBundleId) else { return }
 
-        let normalizedHost = normalizedHosts.joined(separator: ", ")
+        let normalizedHost: String
+        let ruleName: String
 
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
+        if useRegex {
+            // For regex patterns, skip host normalization — store as-is
+            let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            // Validate regex compiles
+            guard (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
+            normalizedHost = trimmed
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
+        } else {
+            let normalizedHosts = normalizedHostPatterns(hostPattern)
+            guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedSourceAppBundleId) else { return }
+            normalizedHost = normalizedHosts.joined(separator: ", ")
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
+        }
 
         routingRules.append(
             BrowserRoutingRule(
@@ -467,7 +482,8 @@ extension BrowserRoutingRule {
                 browserBundleId: browserBundleId,
                 profile: profile,
                 sourceAppBundleId: normalizedSourceAppBundleId,
-                usePrivateMode: usePrivateMode
+                usePrivateMode: usePrivateMode,
+                useRegex: useRegex
             )
         )
     }
@@ -496,7 +512,8 @@ extension BrowserRoutingRule {
             profile: original.profile,
             isEnabled: original.isEnabled,
             sourceAppBundleId: original.sourceAppBundleId,
-            usePrivateMode: original.usePrivateMode
+            usePrivateMode: original.usePrivateMode,
+            useRegex: original.useRegex
         )
         routingRules.insert(duplicate, at: index + 1)
     }
@@ -565,8 +582,11 @@ extension BrowserRoutingRule {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
 
         let normalizedBundleId = bundleId.flatMap { $0.isEmpty ? nil : $0 }
-        let normalizedHosts = normalizedHostPatterns(routingRules[index].hostPattern)
-        guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedBundleId) else { return }
+
+        if !routingRules[index].useRegex {
+            let normalizedHosts = normalizedHostPatterns(routingRules[index].hostPattern)
+            guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedBundleId) else { return }
+        }
 
         routingRules[index].sourceAppBundleId = normalizedBundleId
     }
@@ -591,7 +611,7 @@ extension BrowserRoutingRule {
 
         // 2. Evaluate rules
         for rule in routingRules where rule.isEnabled {
-            guard hostMatches(host, pattern: rule.hostPattern) else { continue }
+            guard hostMatches(host, pattern: rule.hostPattern, useRegex: rule.useRegex) else { continue }
             guard pathMatches(path, prefix: rule.pathPrefix) else { continue }
             if let ruleSource = rule.sourceAppBundleId, !ruleSource.isEmpty {
                 guard ruleSource == (currentSourceAppBundleId ?? "") else { continue }
@@ -611,9 +631,29 @@ extension BrowserRoutingRule {
     // MARK: - URL Cleaning & Unshortening
 
     private static let trackingParameters: Set<String> = [
+        // Google Analytics / Ads
         "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-        "gclid", "fbclid", "msclkid", "twclid", "mc_cid", "mc_eid",
-        "igshid", "si", "ref_src", "ref_url", "zanpid"
+        "utm_id", "utm_source_platform", "utm_creative_format", "utm_marketing_tactic",
+        "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "_ga", "_gl",
+        // Meta / Facebook / Instagram
+        "fbclid", "igshid",
+        // Microsoft / Bing
+        "msclkid",
+        // Twitter / X
+        "twclid",
+        // Mailchimp
+        "mc_cid", "mc_eid",
+        // HubSpot
+        "_hsenc", "_hsmi", "hsa_cam", "hsa_grp", "hsa_mt", "hsa_src",
+        "hsa_ad", "hsa_acc", "hsa_net", "hsa_ver", "hsa_la", "hsa_ol",
+        "hsa_kw", "hsa_tgt",
+        // Yandex
+        "yclid", "_openstat",
+        // Adobe / Marketo
+        "mkt_tok",
+        // Other common trackers
+        "si", "ref_src", "ref_url", "zanpid", "vero_id",
+        "sclid", "s_cid", "ss_source", "ss_campaign_name",
     ]
 
     func cleanURL(_ url: URL) -> URL {
@@ -1028,7 +1068,12 @@ extension BrowserRoutingRule {
         }
     }
 
-    func isValidRoutingHostPattern(_ hostPattern: String) -> Bool {
+    func isValidRoutingHostPattern(_ hostPattern: String, useRegex: Bool = false) -> Bool {
+        if useRegex {
+            let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return false }
+            return (try? NSRegularExpression(pattern: trimmed)) != nil
+        }
         let normalizedPattern = normalizedHostPattern(hostPattern)
         return isValidHostPattern(normalizedPattern)
     }
@@ -1197,7 +1242,17 @@ extension BrowserRoutingRule {
         return "/\(trimmed)"
     }
 
-    private func hostMatches(_ host: String, pattern: String) -> Bool {
+    private func hostMatches(_ host: String, pattern: String, useRegex: Bool = false) -> Bool {
+        if useRegex {
+            do {
+                let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+                let range = NSRange(host.startIndex..., in: host)
+                return regex.firstMatch(in: host, options: [], range: range) != nil
+            } catch {
+                return false
+            }
+        }
+
         let normalizedPattern = normalizedHostPattern(pattern)
         guard !normalizedPattern.isEmpty else { return false }
 

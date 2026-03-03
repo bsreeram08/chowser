@@ -90,6 +90,14 @@ struct RuleRowView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(rule.name)
                         .font(.system(size: 13, weight: .semibold))
+                    if rule.useRegex {
+                        Text("regex")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.orange.opacity(0.12), in: Capsule())
+                    }
                     Text(rule.hostPattern)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)

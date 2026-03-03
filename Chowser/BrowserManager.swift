@@ -102,7 +102,7 @@ extension BrowserRoutingRule {
     var currentSourceAppBundleId: String? = nil
     var lastOpenedBrowserBundleIDForTesting: String?
 
-    /// Picker icon size: "small" (28pt), "medium" (34pt, default), "large" (42pt)
+    /// Picker icon size: "small", "medium" (default), "large"
     var pickerIconSize: String = "medium" {
         didSet {
             defaults.set(pickerIconSize, forKey: Constants.pickerIconSizeKey)

@@ -15,7 +15,7 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
 # Release (bumps version, builds, creates DMG, tags git)
-./scripts/release.sh 2.8.0
+./scripts/release.sh 2.9.0
 ```
 
 CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, auto-publishes DMG to GitHub Releases).
@@ -25,6 +25,7 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 **Chowser** is a macOS menu-bar-only app (`LSUIElement`) that intercepts HTTP/HTTPS links and routes them to configured browsers.
 
 ### Flow
+
 1. On first launch, `AppDelegate` checks `OnboardingManager.hasCompletedOnboarding` — if false, shows the onboarding wizard before setting up the status bar
 2. Apple Event handler (`handleGetURLEvent`) is registered in `applicationWillFinishLaunching` (before Cocoa's default handler) — extracts source app via `keyAddressAttr` → PID → bundle ID
 3. macOS calls `application(_:open:)` in `AppDelegate` when a link is clicked anywhere
@@ -34,6 +35,7 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 7. User can also open clipboard URLs or create routing rules directly from the picker
 
 ### Key files
+
 - **`AppDelegate.swift`** — Menu bar setup, Apple Event handler (registered in `applicationWillFinishLaunching`), URL interception with source-app tracking, picker/settings/onboarding window lifecycle, clipboard URL handling. The picker is a `ChowserPanel` (custom `NSPanel` subclass) so it appears over full-screen apps without a Space switch.
 - **`BrowserManager.swift`** — `@MainActor @Observable` singleton. Owns `[BrowserConfig]` and `[BrowserRoutingRule]`, persisted via `UserDefaults` with debounced writes. Handles routing resolution (host + path + source app matching), browser launching (uses `/usr/bin/open -n` for profile-aware Chromium/Firefox launches), private/incognito mode, import/export JSON, installed browser detection, and domain frequency tracking.
 - **`AppEnvironment.swift`** — Process argument flags for UI testing (e.g. `-UITesting`, `-UITesting_MockInstalledBrowsers`). All test isolation goes here.
@@ -48,6 +50,7 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 - **`UI/Onboarding/OnboardingView.swift`** — Multi-step onboarding wizard (Welcome → Default Browser → Browsers → Rules → Finish).
 
 ### Patterns
+
 - Settings window is **not** a SwiftUI `Settings` scene — it's an `NSWindowController` wrapping `NSHostingController<SettingsView>`. This avoids SwiftUI auto-presenting the window on app activation.
 - `AppDelegate` intentionally does **not** implement `applicationShouldHandleReopen` (would race with URL-open events).
 - Browser launching with profiles uses `Process` + `/usr/bin/open -n -a` rather than `NSWorkspace.openApplication`, because Chromium hands off to existing processes and drops `--profile-directory` in the handoff path.

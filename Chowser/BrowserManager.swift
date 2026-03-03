@@ -460,7 +460,7 @@ extension BrowserRoutingRule {
         if useRegex {
             // For regex patterns, skip host normalization — store as-is
             let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
+            guard !trimmed.isEmpty, trimmed.count <= 500 else { return }
             // Validate regex compiles
             guard (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
             normalizedHost = trimmed
@@ -553,7 +553,7 @@ extension BrowserRoutingRule {
 
         if routingRules[index].useRegex {
             let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
+            guard !trimmed.isEmpty, trimmed.count <= 500, (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
             routingRules[index].hostPattern = trimmed
             if routingRules[index].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 routingRules[index].name = trimmed
@@ -1082,7 +1082,7 @@ extension BrowserRoutingRule {
     func isValidRoutingHostPattern(_ hostPattern: String, useRegex: Bool = false) -> Bool {
         if useRegex {
             let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return false }
+            guard !trimmed.isEmpty, trimmed.count <= 500 else { return false }
             return (try? NSRegularExpression(pattern: trimmed)) != nil
         }
         let normalizedPattern = normalizedHostPattern(hostPattern)
@@ -1256,11 +1256,14 @@ extension BrowserRoutingRule {
     private func hostMatches(_ host: String, pattern: String, useRegex: Bool = false) -> Bool {
         if useRegex {
             do {
-                // Anchor the pattern to match the entire host string
-                let anchored = "^(?:\(pattern))$"
-                let regex = try NSRegularExpression(pattern: anchored, options: [.caseInsensitive])
-                let range = NSRange(host.startIndex..., in: host)
-                return regex.firstMatch(in: host, options: [], range: range) != nil
+                let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+                let fullRange = NSRange(host.startIndex..., in: host)
+                // Verify match covers the entire host string (immune to group-escape attacks)
+                guard let match = regex.firstMatch(in: host, options: [], range: fullRange),
+                      match.range == fullRange else {
+                    return false
+                }
+                return true
             } catch {
                 return false
             }

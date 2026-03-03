@@ -48,7 +48,8 @@ struct ContentView: View {
                 browserManager: browserManager,
                 interceptedURL: url,
                 isPresented: $showingConfigureRule,
-                onSave: { dismissPicker() }
+                onSave: { dismissPicker() },
+                preselectedBrowserBundleId: suggestedBrowserBundleId
             )
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
         } else {
@@ -245,52 +246,91 @@ struct ContentView: View {
 
     // MARK: - Browser Bar Pill
 
-    /// Returns browsers sorted by domain-specific usage frequency.
-    /// Browsers used more often for the current domain appear first.
+    /// Returns browsers in the user's configured order (never reordered).
     private var sortedBrowsers: [BrowserConfig] {
-        let browsers = browserManager.configuredBrowsers
-        guard let url = browserManager.currentURL,
-              let domain = url.host?.lowercased() else {
-            return browsers
-        }
-        let domainStats = DomainFrequencyTracker.shared.stats(for: domain)
-        guard !domainStats.isEmpty else { return browsers }
+        browserManager.configuredBrowsers
+    }
 
-        return browsers.sorted { a, b in
-            let countA = domainStats[a.bundleId] ?? 0
-            let countB = domainStats[b.bundleId] ?? 0
-            if countA != countB { return countA > countB }
-            return false // stable: preserve configured order for ties
+    /// Returns the bundle ID of the browser most frequently used for the current domain,
+    /// but only when there is a clear dominant choice (≥5 uses and ≥60% of total clicks).
+    private var suggestedBrowserBundleId: String? {
+        guard let url = browserManager.currentURL,
+              let domain = url.host?.lowercased() else { return nil }
+        let domainStats = DomainFrequencyTracker.shared.stats(for: domain)
+        guard !domainStats.isEmpty else { return nil }
+
+        // Already have a routing rule for this domain — no need to suggest
+        if browserManager.resolvedRoute(for: url) != nil { return nil }
+
+        let total = domainStats.values.reduce(0, +)
+        guard total >= 5 else { return nil }
+
+        if let (topBundleId, topCount) = domainStats.max(by: { $0.value < $1.value }),
+           Double(topCount) / Double(total) >= 0.6 {
+            // Only suggest if the browser is still configured
+            guard browserManager.configuredBrowsers.contains(where: { $0.bundleId == topBundleId }) else { return nil }
+            return topBundleId
         }
+        return nil
     }
 
     private var browserBarPill: some View {
         let browsers = sortedBrowsers
         let showScroll = browsers.count > 8
 
-        return HStack(alignment: .top, spacing: 4) {
-            if showScroll {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 2) {
-                        ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                            browserIconButton(browser: browser, index: index)
+        return VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 4) {
+                if showScroll {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .top, spacing: 2) {
+                            ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                                browserIconButton(browser: browser, index: index)
+                            }
                         }
+                        .padding(.horizontal, 2)
                     }
-                    .padding(.horizontal, 2)
-                }
-            } else {
-                ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                    browserIconButton(browser: browser, index: index)
+                } else {
+                    ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                        browserIconButton(browser: browser, index: index)
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+
+            // Subtle rule suggestion banner
+            if let suggestedId = suggestedBrowserBundleId,
+               let browser = browserManager.configuredBrowsers.first(where: { $0.bundleId == suggestedId }),
+               let domain = browserManager.currentURL?.host {
+                Button(action: { showingConfigureRule = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color.accentColor)
+                        Text("Always open \(domain) in \(browser.name)?")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
     }
 
     private func browserIconButton(browser: BrowserConfig, index: Int) -> some View {
         let isSelected = keyboardSelectedBrowserId == browser.id
         let isHovered = hoveredBrowserId == browser.id
+        let isSuggested = suggestedBrowserBundleId == browser.bundleId
+        let iconDimensions = pickerIconDimensions
 
         return Button(action: {
             let usePrivate = privateMode || NSEvent.modifierFlags.contains(.option)
@@ -304,19 +344,37 @@ struct ContentView: View {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .strokeBorder(isSelected ? (privateMode ? Color.purple.opacity(0.5) : Color.primary.opacity(0.08)) : Color.clear, lineWidth: 1)
                         )
-                        .frame(width: 54, height: 54)
+                        .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
+                        .overlay(
+                            // Subtle suggestion glow
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.accentColor.opacity(isSuggested ? 0.5 : 0), lineWidth: 1.5)
+                                .shadow(color: Color.accentColor.opacity(isSuggested ? 0.3 : 0), radius: 4)
+                        )
 
                     if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
                         Image(nsImage: icon)
                             .resizable()
                             .interpolation(.high)
-                            .frame(width: 34, height: 34)
+                            .frame(width: iconDimensions.icon, height: iconDimensions.icon)
                             .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                     } else {
                         Image(systemName: "globe")
-                            .font(.system(size: 18))
+                            .font(.system(size: iconDimensions.icon * 0.53))
                             .foregroundStyle(Color.secondary)
-                            .frame(width: 32, height: 32)
+                            .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    // Small suggested star badge
+                    if isSuggested {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(3)
+                            .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.95)))
+                            .shadow(color: Color.accentColor.opacity(0.3), radius: 2)
+                            .offset(x: -2, y: -2)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
@@ -333,18 +391,20 @@ struct ContentView: View {
                 }
 
                 // Selection & Browser name label
-                Text(displayName(for: browser))
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? (privateMode ? Color.purple : Color.primary) : Color.primary.opacity(0.6))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(width: 58)
+                if browserManager.pickerShowLabels {
+                    Text(displayName(for: browser))
+                        .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? (privateMode ? Color.purple : Color.primary) : Color.primary.opacity(0.6))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(width: iconDimensions.hitArea + 4)
+                }
             }
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("picker.browserRow")
         .accessibilityLabel("Open in \(browser.name)")
-        .help(toolTip(for: browser))
+        .help(isSuggested ? "Suggested — you often open this domain in \(browser.name)" : toolTip(for: browser))
         .onHover { hovering in
             withAnimation(.spring(response: 0.18, dampingFraction: 0.65)) {
                 hoveredBrowserId = hovering ? browser.id : nil
@@ -431,13 +491,30 @@ struct ContentView: View {
 
     // MARK: - Layout
 
+    private struct IconDimensions {
+        let hitArea: CGFloat
+        let icon: CGFloat
+    }
+
+    private var pickerIconDimensions: IconDimensions {
+        switch browserManager.pickerIconSize {
+        case "small":  return IconDimensions(hitArea: 40, icon: 24)
+        case "large":  return IconDimensions(hitArea: 66, icon: 42)
+        default:       return IconDimensions(hitArea: 54, icon: 34) // medium
+        }
+    }
+
     private var pickerWidth: CGFloat {
         let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
-        let iconSize: CGFloat = 58  // 54pt hit area + margin
+        let dims = pickerIconDimensions
+        let iconSize: CGFloat = dims.hitArea + 4 // hit area + margin
         let iconSpacing: CGFloat = 4
         let horizontalPad: CGFloat = 36 // 18 each side
         let computed = horizontalPad + count * iconSize + max(0, count - 1) * iconSpacing
-        return max(320, min(800, computed)) // Limits 
+        // Use available screen width as the upper bound instead of a fixed cap
+        let screenWidth = NSScreen.main?.visibleFrame.width ?? 1440
+        let maxWidth = min(screenWidth * 0.8, computed)
+        return max(320, maxWidth)
     }
 
     private func displayName(for browser: BrowserConfig) -> String {

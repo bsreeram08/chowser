@@ -77,7 +77,7 @@ Scan my Mac for all installed browsers and their profiles:
 For each browser+profile combo, produce a JSON object:
 { "name": "Chrome - Work", "bundleId": "com.google.Chrome", "shortcutKey": "1", "profile": "Profile 1" }
 
-Save ALL of them as a JSON array in a file called ChowserBrowsers.json.
+Save ALL of them as a JSON array in a file called ~/Documents/ChowserBrowsers.json.
 
 ## Step 2: Generate routing rules
 
@@ -89,11 +89,25 @@ For each rule, produce a JSON object:
 hostPattern supports exact match (github.com) or wildcard (*.github.com).
 pathPrefix is optional — only set it if you need path-level routing.
 
-Save ALL rules as a JSON array in a file called ChowserRules.json.
+Save ALL rules as a JSON array in a file called ~/Documents/ChowserRules.json.
 
-## Step 3: Import into Chowser
+## Step 3: Review before importing
 
-Tell me to open Chowser → Menu Bar Icon → Settings:
+Before importing, show me:
+1. A summary table of all discovered browsers and profiles
+2. A summary table of all generated routing rules
+3. Ask for my confirmation before proceeding to import
+
+Only proceed to Step 4 after I confirm.
+
+## Step 4: Import into Chowser
+
+Use CLI flags to import directly (no manual UI steps needed):
+
+open -a Chowser --args --browsers=~/Documents/ChowserBrowsers.json --rules=~/Documents/ChowserRules.json
+
+Alternatively, I can import manually:
+- Open Chowser → Menu Bar Icon → Settings
 - Browsers tab → click ⋯ menu → Import Browsers → select ChowserBrowsers.json
 - Rules tab → click ⋯ menu → Import Rules → select ChowserRules.json
 ```

@@ -54,6 +54,8 @@ extension BrowserRoutingRule {
         static let onboardingCompletedKey = "onboardingCompleted"
         static let routingRulesKey = "routingRules"
         static let hiddenBundleIDsKey = "hiddenBundleIDs"
+        static let pickerIconSizeKey = "pickerIconSize"
+        static let pickerShowLabelsKey = "pickerShowLabels"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -99,6 +101,20 @@ extension BrowserRoutingRule {
     var currentURL: URL?
     var currentSourceAppBundleId: String? = nil
     var lastOpenedBrowserBundleIDForTesting: String?
+
+    /// Picker icon size: "small" (28pt), "medium" (34pt, default), "large" (42pt)
+    var pickerIconSize: String = "medium" {
+        didSet {
+            defaults.set(pickerIconSize, forKey: Constants.pickerIconSizeKey)
+        }
+    }
+
+    /// Whether to show browser name labels below icons in the picker.
+    var pickerShowLabels: Bool = true {
+        didSet {
+            defaults.set(pickerShowLabels, forKey: Constants.pickerShowLabelsKey)
+        }
+    }
 
     var hiddenBundleIDs: Set<String> = [] {
         didSet {
@@ -153,6 +169,7 @@ extension BrowserRoutingRule {
         loadRoutingRules()
         loadHiddenBundleIDs()
         loadRecentURLs()
+        loadPickerPreferences()
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {
@@ -1141,6 +1158,15 @@ extension BrowserRoutingRule {
 
     func resetHiddenBundleIDs() {
         hiddenBundleIDs = Constants.defaultHiddenBundleIDs
+    }
+
+    private func loadPickerPreferences() {
+        if let size = defaults.string(forKey: Constants.pickerIconSizeKey) {
+            pickerIconSize = size
+        }
+        if defaults.object(forKey: Constants.pickerShowLabelsKey) != nil {
+            pickerShowLabels = defaults.bool(forKey: Constants.pickerShowLabelsKey)
+        }
     }
 
     private func normalizedShortcut(_ key: String) -> String? {

@@ -48,7 +48,8 @@ struct ContentView: View {
                 browserManager: browserManager,
                 interceptedURL: url,
                 isPresented: $showingConfigureRule,
-                onSave: { dismissPicker() }
+                onSave: { dismissPicker() },
+                preselectedBrowserBundleId: suggestedBrowserBundleId
             )
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
         } else {

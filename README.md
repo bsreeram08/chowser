@@ -40,13 +40,20 @@ Chowser lives in your menu bar and uses zero resources when idle.
 
 ## Installation
 
-### From DMG (Recommended)
+### Mac App Store
+
+[Download from the Mac App Store](https://apps.apple.com/app/chowser/id_PLACEHOLDER) — Sandboxed version (₹500). Does not support browser profile selection.
+
+### Direct Download (Recommended — Full Features)
 
 1. Download the latest `.dmg` from [Releases](https://github.com/bsreeram08/chowser/releases)
 2. Open the DMG and drag Chowser to Applications
 3. Launch Chowser — it appears in the menu bar
-4. Right-click → Open if macOS shows a security warning (first time only)
-5. Click the menu bar icon → **Set as Default Browser**
+4. Click the menu bar icon → **Set as Default Browser**
+
+The direct download version is signed and notarized. It includes **auto-updates** — you'll be notified when a new version is available. You can also check manually via the menu bar → **Check for Updates…**
+
+Want to test upcoming features early? Go to **Settings → General → Join Beta Program** to receive beta channel updates.
 
 ### 🤖 AI-Powered Auto-Setup
 
@@ -151,11 +158,36 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 ```
 
+## Version Updates
+
+Chowser uses two update mechanisms depending on distribution channel:
+
+- **Direct Download**: [Sparkle](https://sparkle-project.org/) auto-updater checks every 4 hours. Users can also check manually from the menu bar. Beta channel available via Settings.
+- **Mac App Store**: Managed by the App Store. Push to `pre-release` branch for TestFlight beta, merge to `main` and tag for App Store release.
+
+### Release Process
+
+```bash
+# Direct download release (triggers GitHub Actions → signed DMG → Sparkle appcast)
+./scripts/release.sh 2.12.0
+git push origin main --tags
+
+# Beta release
+./scripts/release.sh 2.12.0-beta.1
+git push origin main --tags
+
+# App Store / TestFlight (push to pre-release branch triggers upload)
+git push origin pre-release
+```
+
+See [DISTRIBUTION.md](DISTRIBUTION.md) for full setup instructions, required secrets, and Apple Developer Portal configuration.
+
 ## Tech Stack
 
 - **SwiftUI** — Native macOS UI
 - **AppKit** — Menu bar integration, browser launching
 - **ServiceManagement** — Launch at Login
+- **Sparkle** — Auto-updates for direct download builds
 
 ## License
 

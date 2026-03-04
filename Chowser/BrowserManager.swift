@@ -56,6 +56,7 @@ extension BrowserRoutingRule {
         static let hiddenBundleIDsKey = "hiddenBundleIDs"
         static let pickerIconSizeKey = "pickerIconSize"
         static let pickerShowLabelsKey = "pickerShowLabels"
+        static let pickerLayoutModeKey = "pickerLayoutMode"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -113,6 +114,13 @@ extension BrowserRoutingRule {
     var pickerShowLabels: Bool = true {
         didSet {
             defaults.set(pickerShowLabels, forKey: Constants.pickerShowLabelsKey)
+        }
+    }
+
+    /// Picker layout mode: "icons" (horizontal icon bar) or "list" (vertical list with full names).
+    var pickerLayoutMode: String = "icons" {
+        didSet {
+            defaults.set(pickerLayoutMode, forKey: Constants.pickerLayoutModeKey)
         }
     }
 
@@ -423,9 +431,19 @@ extension BrowserRoutingRule {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserRoutingRule].self, from: data)
         
-        let existingIds = Set(routingRules.map(\.id))
-        let newRules = decoded.filter { !existingIds.contains($0.id) }
-        routingRules.append(contentsOf: newRules)
+        var updatedRules = routingRules
+        
+        for rule in decoded {
+            if let existingIndex = updatedRules.firstIndex(where: { $0.id == rule.id }) {
+                // Update existing rule in place
+                updatedRules[existingIndex] = rule
+            } else {
+                // Append new rule
+                updatedRules.append(rule)
+            }
+        }
+        
+        routingRules = updatedRules
     }
 
     func exportBrowsers(to url: URL) throws {
@@ -440,19 +458,23 @@ extension BrowserRoutingRule {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserConfig].self, from: data)
         
-        // When importing browsers, we might want to merge or replace.
-        // For now, let's append only browsers that don't exist by identity.
-        let existingIdentities = Set(configuredBrowsers.map { $0.identity })
-        let newBrowsers = decoded.filter { !existingIdentities.contains($0.identity) }
-        
-        // Ensure shortcuts don't conflict. 
-        // We'll just re-assign shortcuts for imported browsers if they conflict.
         var updatedBrowsers = configuredBrowsers
-        for var browser in newBrowsers {
-            if updatedBrowsers.contains(where: { $0.shortcutKey == browser.shortcutKey }) {
-                browser.shortcutKey = nextAvailableShortcutKey(excluding: updatedBrowsers)
+        
+        for var browser in decoded {
+            if let existingIndex = updatedBrowsers.firstIndex(where: { $0.identity == browser.identity }) {
+                // Update existing browser in place, preserving its id and shortcut key
+                let existingId = updatedBrowsers[existingIndex].id
+                let existingKey = updatedBrowsers[existingIndex].shortcutKey
+                browser.id = existingId
+                browser.shortcutKey = existingKey
+                updatedBrowsers[existingIndex] = browser
+            } else {
+                // Ensure shortcuts don't conflict for new browsers
+                if updatedBrowsers.contains(where: { $0.shortcutKey == browser.shortcutKey }) {
+                    browser.shortcutKey = nextAvailableShortcutKey(excluding: updatedBrowsers)
+                }
+                updatedBrowsers.append(browser)
             }
-            updatedBrowsers.append(browser)
         }
         configuredBrowsers = updatedBrowsers
     }
@@ -1177,6 +1199,13 @@ extension BrowserRoutingRule {
         }
         if defaults.object(forKey: Constants.pickerShowLabelsKey) != nil {
             pickerShowLabels = defaults.bool(forKey: Constants.pickerShowLabelsKey)
+        }
+        if let mode = defaults.string(forKey: Constants.pickerLayoutModeKey) {
+            // Only accept known layout modes; ignore unexpected values to avoid invalid picker state
+            let allowedModes: Set<String> = ["icons", "list"]
+            if allowedModes.contains(mode) {
+                pickerLayoutMode = mode
+            }
         }
     }
 

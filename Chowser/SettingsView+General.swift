@@ -108,14 +108,22 @@ extension SettingsView {
 
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("Icon Size", selection: $manager.pickerIconSize) {
-                            Text("Small").tag("small")
-                            Text("Medium").tag("medium")
-                            Text("Large").tag("large")
+                        Picker("Layout", selection: $manager.pickerLayoutMode) {
+                            Text("Icons").tag("icons")
+                            Text("List").tag("list")
                         }
                         .pickerStyle(.segmented)
 
-                        Toggle("Show browser name labels", isOn: $manager.pickerShowLabels)
+                        if manager.pickerLayoutMode == "icons" {
+                            Picker("Icon Size", selection: $manager.pickerIconSize) {
+                                Text("Small").tag("small")
+                                Text("Medium").tag("medium")
+                                Text("Large").tag("large")
+                            }
+                            .pickerStyle(.segmented)
+
+                            Toggle("Show browser name labels", isOn: $manager.pickerShowLabels)
+                        }
                     }
                     .padding(.vertical, 4)
                 } header: {

@@ -235,19 +235,18 @@ extension SettingsView {
 // MARK: - MCP Server Settings Row
 
 struct MCPServerSettingsRow: View {
-    @State private var isRunning = MCPServer.shared.isRunning
     @State private var tokenCopied = false
 
-    private var server: MCPServer { MCPServer.shared }
+    private let server = MCPServer.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(isRunning ? Color.green : Color.secondary.opacity(0.4))
+                    .fill(server.isRunning ? Color.green : Color.secondary.opacity(0.4))
                     .frame(width: 8, height: 8)
 
-                if isRunning {
+                if server.isRunning {
                     Text("Running on port \(server.port)")
                         .font(.system(size: 13))
                 } else {
@@ -258,18 +257,17 @@ struct MCPServerSettingsRow: View {
 
                 Spacer()
 
-                Button(isRunning ? "Stop" : "Start") {
-                    if isRunning {
+                Button(server.isRunning ? "Stop" : "Start") {
+                    if server.isRunning {
                         server.stop()
                     } else {
                         server.start()
                     }
-                    isRunning = server.isRunning
                 }
                 .font(.system(size: 11))
             }
 
-            if isRunning {
+            if server.isRunning {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Auth Token")
                         .font(.system(size: 11, weight: .semibold))
@@ -306,7 +304,7 @@ struct MCPServerSettingsRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRunning)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: server.isRunning)
     }
 
     private func copyToken() {

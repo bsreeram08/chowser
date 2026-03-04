@@ -208,17 +208,34 @@ private let knownAIApps: [(bundleId: String, name: String, icon: String)] = [
     ("ai.perplexity.mac", "Perplexity", "sparkle"),
     ("com.microsoft.Copilot", "Copilot", "wand.and.stars"),
     ("com.google.Gemini", "Gemini", "sparkles"),
+    ("com.raycast.macos", "Raycast", "bolt.fill"),
+    ("com.quora.poe", "Poe", "bubble.left.and.bubble.right.fill"),
+    ("ai.mistral.Mistral", "Le Chat", "ellipsis.bubble.fill"),
 ]
+
+private let agenticSetupURL = "https://chowser.sreerams.in/agentic-setup.md"
 
 struct AISetupStepView: View {
     let nextAction: () -> Void
 
-    @State private var serverStarted = false
-    @State private var tokenCopied = false
-    @State private var instructionsCopied = false
+    @State private var promptCopied = false
     @State private var detectedAIApps: [(bundleId: String, name: String, icon: String)] = []
+    @State private var fetchedTemplate: String? = nil
+    @State private var isFetching = false
 
-    private var server: MCPServer { MCPServer.shared }
+    private let server = MCPServer.shared
+
+    /// Full prompt: remote template + API credentials appended.
+    private var setupPrompt: String {
+        let base = fetchedTemplate ?? "Configure my Chowser browser chooser app. Help me set up browsers and routing rules."
+        return """
+        \(base)
+
+        ---
+        API server: http://localhost:\(server.port)
+        Auth token: \(server.authToken)
+        """
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -234,7 +251,7 @@ struct AISetupStepView: View {
                     Text("Set Up with AI")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
 
-                    Text("Let any AI assistant configure your browsers and routing rules via the built-in local API server.")
+                    Text("Start the local API server, copy the setup prompt, then paste it into any AI assistant.")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -242,65 +259,68 @@ struct AISetupStepView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if serverStarted {
-                    VStack(spacing: 10) {
-                        HStack(spacing: 8) {
+                if server.isRunning {
+                    VStack(spacing: 12) {
+                        // Status badge
+                        HStack(spacing: 6) {
                             Circle()
                                 .fill(Color.green)
-                                .frame(width: 8, height: 8)
-                            Text("API Server running on port \(server.port)")
-                                .font(.system(size: 13, weight: .medium))
+                                .frame(width: 7, height: 7)
+                            Text("Running on port \(server.port)")
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.primary)
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.green.opacity(0.1))
+                        .clipShape(Capsule())
 
-                        // Token display
-                        VStack(spacing: 6) {
-                            Text("Auth Token")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
-
-                            HStack(spacing: 8) {
-                                Text(server.authToken)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-
-                                Button(action: copyToken) {
-                                    Image(systemName: tokenCopied ? "checkmark" : "doc.on.clipboard")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(tokenCopied ? Color.green : Color.secondary)
-                                        .contentTransition(.symbolEffect(.replace))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
-                        }
-
-                        // Copy instructions button
-                        Button(action: copyInstructions) {
-                            HStack(spacing: 6) {
-                                Image(systemName: instructionsCopied ? "checkmark" : "doc.on.clipboard.fill")
-                                Text(instructionsCopied ? "Copied!" : "Copy Setup Instructions")
-                            }
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(instructionsCopied ? Color.green : Color.accentColor)
-                            .contentTransition(.symbolEffect(.replace))
-                        }
-                        .buttonStyle(.plain)
-
-                        // Detected AI apps
-                        if !detectedAIApps.isEmpty {
-                            VStack(spacing: 6) {
-                                Text("Open in:")
+                        // Visible prompt card
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Setup Prompt")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.secondary)
+                                Spacer()
+                                if isFetching {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                } else {
+                                    Button(action: copyPrompt) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: promptCopied ? "checkmark" : "doc.on.clipboard")
+                                                .contentTransition(.symbolEffect(.replace))
+                                            Text(promptCopied ? "Copied!" : "Copy")
+                                        }
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(promptCopied ? Color.green : Color.accentColor)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
 
-                                HStack(spacing: 10) {
+                            Text(setupPrompt)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .lineLimit(6)
+                                .truncationMode(.tail)
+                        }
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+
+                        // AI app buttons — each copies prompt and opens app
+                        if !detectedAIApps.isEmpty {
+                            VStack(spacing: 6) {
+                                Text("Copy prompt & open in:")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: 8) {
                                     ForEach(detectedAIApps, id: \.bundleId) { app in
-                                        Button(action: { openAIApp(bundleId: app.bundleId) }) {
+                                        Button(action: { copyPromptAndOpen(bundleId: app.bundleId) }) {
                                             HStack(spacing: 5) {
                                                 Image(systemName: app.icon)
                                                     .font(.system(size: 11))
@@ -326,7 +346,7 @@ struct AISetupStepView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                if !serverStarted {
+                if !server.isRunning {
                     Button(action: startServer) {
                         HStack(spacing: 6) {
                             Image(systemName: "server.rack")
@@ -343,12 +363,12 @@ struct AISetupStepView: View {
                 }
 
                 Button(action: nextAction) {
-                    Text(serverStarted ? "Done, Continue" : "Skip for now")
+                    Text(server.isRunning ? "Done, Continue" : "Skip for now")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(serverStarted ? Color.accentColor : Color.primary.opacity(0.05))
-                        .foregroundColor(serverStarted ? .white : .primary)
+                        .background(server.isRunning ? Color.accentColor : Color.primary.opacity(0.05))
+                        .foregroundColor(server.isRunning ? .white : .primary)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -356,40 +376,46 @@ struct AISetupStepView: View {
             .padding(.horizontal, 40)
             .padding(.bottom, 40)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: serverStarted)
-        .onAppear { detectAIApps() }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: server.isRunning)
+        .onAppear {
+            detectAIApps()
+            fetchSetupTemplate()
+        }
     }
 
     private func startServer() {
         server.start()
-        serverStarted = server.isRunning
-    }
-
-    private func copyToken() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(server.authToken, forType: .string)
-        withAnimation { tokenCopied = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation { tokenCopied = false }
+        if server.isRunning && fetchedTemplate == nil {
+            fetchSetupTemplate()
         }
     }
 
-    private func copyInstructions() {
-        let instructions = """
-        I want to configure Chowser (a macOS browser chooser app).
-        The local API server is running at http://localhost:\(server.port).
-        Auth token for POST/DELETE requests: \(server.authToken).
-        Please help me set up my browsers and routing rules.
-        """
+    private func fetchSetupTemplate() {
+        guard !isFetching else { return }
+        isFetching = true
+        Task {
+            guard let url = URL(string: agenticSetupURL),
+                  let (data, _) = try? await URLSession.shared.data(from: url),
+                  let content = String(data: data, encoding: .utf8) else {
+                isFetching = false
+                return
+            }
+            fetchedTemplate = content
+            isFetching = false
+        }
+    }
+
+    private func copyPrompt() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(instructions, forType: .string)
-        withAnimation { instructionsCopied = true }
+        NSPasteboard.general.setString(setupPrompt, forType: .string)
+        withAnimation { promptCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation { instructionsCopied = false }
+            withAnimation { promptCopied = false }
         }
     }
 
-    private func openAIApp(bundleId: String) {
+    private func copyPromptAndOpen(bundleId: String) {
+        copyPrompt()
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
@@ -401,6 +427,7 @@ struct AISetupStepView: View {
         }
     }
 }
+
 
 // MARK: - Rules Step
 struct RulesStepView: View {

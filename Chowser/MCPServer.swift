@@ -23,8 +23,10 @@
 
 import Foundation
 import Network
+import Observation
 
 @MainActor
+@Observable
 final class MCPServer {
     static let shared = MCPServer()
 

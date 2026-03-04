@@ -14,11 +14,23 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
-# Release (bumps version, builds, creates DMG, tags git)
-./scripts/release.sh 2.11.0
+# Release — Direct Download (bumps version, builds, creates DMG, tags git)
+./scripts/release.sh 2.12.0
+
+# Beta release
+./scripts/release.sh 2.12.0-beta.1
+
+# App Store build (uses APP_STORE compilation condition + sandbox entitlements)
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
+  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE'
 ```
 
-CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, auto-publishes DMG to GitHub Releases).
+### CI/CD Pipelines
+
+- **`.github/workflows/release.yml`** — Direct download: triggers on `v*` tag push. Signs with Developer ID, notarizes, creates DMG, updates Sparkle appcast, publishes to GitHub Releases. Tags with `-beta` suffix become pre-releases and update the beta appcast channel.
+- **`.github/workflows/appstore.yml`** — App Store/TestFlight: triggers on push to `pre-release` branch. Builds with sandbox + `APP_STORE` flag, uploads to App Store Connect. Beta testers get builds via TestFlight; merge to main + tag for App Store submission.
+- **`.github/workflows/deploy-docs.yml`** — Docs site deployment to GitHub Pages.
 
 ## Architecture
 
@@ -47,8 +59,11 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 - **`DomainFrequencyTracker.swift`** — Records domain→browser click frequency; suggests auto-routing rules when a domain reaches 30 clicks.
 - **`PickerViewModifiers.swift`** — Three-tier picker background: macOS 26+ glass effect → `ultraThinMaterial` fallback → solid for reduced-transparency.
 - **`ConfigureRuleView.swift`** — Compact in-picker rule creation sheet; auto-prefills host from intercepted URL.
+- **`UpdateManager.swift`** — Sparkle integration for auto-updates (direct download only, `#if !APP_STORE`). Wraps `SPUStandardUpdaterController`, manages automatic check scheduling (every 4 hours), beta channel opt-in via `SUBetaFeedURL`, and EdDSA signature verification.
 - **`UI/Onboarding/OnboardingManager.swift`** — Manages onboarding state and activation policy switching (`.accessory` ↔ `.regular`) for the onboarding window.
 - **`UI/Onboarding/OnboardingView.swift`** — Multi-step onboarding wizard (Welcome → Default Browser → Browsers → Rules → Finish).
+- **`Chowser.entitlements`** — Entitlements for direct download build (hardened runtime, no sandbox).
+- **`ChowserAppStore.entitlements`** — Entitlements for App Store build (sandbox enabled, network client, user-selected file read-write).
 
 ### Patterns
 
@@ -62,63 +77,10 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 - `PickerViewModifiers` uses a three-tier rendering strategy: macOS 26+ `.glassEffect` → `ultraThinMaterial` fallback → solid background for reduced-transparency accessibility.
 - Row views (`BrowserConfigRow`, `RuleRowView`) use local `@State` with commit-on-blur to avoid full-list re-renders during typing.
 
-### Import/Export & CLI Integration
+### Distribution & Updates
 
-- Import functions (`importRules`, `importBrowsers`) use **merge-on-import**: existing entries (matched by ID for rules, identity for browsers) are updated in place; new entries are appended. This allows repeated CLI/API imports without duplicates.
-- CLI arguments: `--browsers=/path/to/file.json --rules=/path/to/rules.json` (processed on app launch)
-- URL scheme: `open "chowser://import?browsers=/path&rules=/path"` (works when app is already running)
-- MCP API server: Start via menu bar → `curl http://localhost:24245/status` to verify, then use `/browsers` and `/rules` endpoints
-
-### API Server (MCP-like)
-
-Chowser includes a lightweight local HTTP API server for programmatic/AI-driven management:
-
-```bash
-# Start the server from the menu bar (or programmatically)
-# Default port: 24245, localhost only
-# Auth token is printed to stdout on start — required for POST/DELETE
-
-# Check server status
-curl http://localhost:24245/status
-
-# List browsers
-curl http://localhost:24245/browsers
-
-# Add a browser
-curl -X POST http://localhost:24245/browsers \
-  -H "X-Chowser-Token: <token>" \
-  -d '{"name": "Chrome", "bundleId": "com.google.Chrome"}'
-
-# List rules
-curl http://localhost:24245/rules
-
-# Add a rule
-curl -X POST http://localhost:24245/rules \
-  -H "X-Chowser-Token: <token>" \
-  -d '{"hostPattern": "github.com", "browserBundleId": "com.google.Chrome", "name": "GitHub"}'
-
-# Delete a rule
-curl -X DELETE "http://localhost:24245/rules?id=<uuid>" \
-  -H "X-Chowser-Token: <token>"
-```
-
-## Iterative Development Workflow
-
-When working on Chowser features, follow this iterative process:
-
-1. **Understand the request** — Ask clarifying questions before making changes. Determine:
-   - Which component is affected (picker, settings, routing, import/export, API)?
-   - Is this a bug fix, new feature, or UI change?
-   - What are the acceptance criteria?
-
-2. **Explore the codebase** — Read the relevant files to understand current behavior before changing anything.
-
-3. **Propose changes** — Describe what you plan to change and why. Wait for user confirmation on non-trivial changes.
-
-4. **Implement incrementally** — Make small, focused changes. Test after each change.
-
-5. **Validate** — Run unit tests (`ChowserTests`), check for build errors, and verify the change doesn't break existing behavior.
-
-6. **Review with user** — Present the changes for review. Ask if any adjustments are needed. Iterate as needed.
-
-This ensures the user stays in control of the development process and can provide feedback at each step.
+- **Two distribution channels**: Direct Download (DMG, full features, Sparkle updates) and Mac App Store (sandboxed, no profiles, App Store updates, ₹500).
+- **Conditional compilation**: `#if APP_STORE` guards sandbox-incompatible code (Process-based browser launching, Sparkle imports). The App Store build uses `NSWorkspace.open()` exclusively.
+- **Sparkle auto-updates**: `UpdateManager` wraps `SPUStandardUpdaterController`. Checks every 4 hours. Supports stable (`SUFeedURL`) and beta (`SUBetaFeedURL`) appcast channels. Beta opt-in via `UserDefaults` key `ChowserJoinBetaProgram`.
+- **Version bumping**: `scripts/release.sh` handles version + build number in pbxproj, archive, DMG creation, notarization, Sparkle appcast item generation, and git tagging. Supports semver (2.12.0) and beta tags (2.12.0-beta.1).
+- **Promo codes**: Generated in App Store Connect → Marketing → Promo Codes (up to 100 per version) for free distribution passes.

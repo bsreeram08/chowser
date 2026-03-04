@@ -1033,6 +1033,16 @@ extension BrowserRoutingRule {
         let browser = configuredBrowsers.first(where: { $0.bundleId == bundleId && $0.profile == profile })
         let customArgs = browser?.customArguments
 
+        #if APP_STORE
+        // App Store builds run in the sandbox. Process-based launching is not available.
+        // Fall back to NSWorkspace for all launches (profile selection is not supported).
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
+            if let error = error {
+                print("Chowser: Failed to open URL: \(error)")
+            }
+        }
+        #else
         // If we have a profile or custom arguments, use Process-based launch.
         //
         // Why not NSWorkspace.openApplication with createsNewApplicationInstance?
@@ -1063,6 +1073,7 @@ extension BrowserRoutingRule {
                 }
             }
         }
+        #endif
 
         // Record frequency for suggestions
         if let domain = url.host {

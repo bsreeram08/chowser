@@ -9,6 +9,9 @@ import AppKit
 import SwiftUI
 import ServiceManagement
 import Carbon
+#if !APP_STORE
+import Sparkle
+#endif
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
@@ -136,6 +139,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     private func setupApplicationState() {
         setupStatusBar()
+        #if !APP_STORE
+        UpdateManager.shared.startUpdater()
+        #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -428,13 +434,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         menu.addItem(NSMenuItem.separator())
 
-        // 6. About Chowser
+        #if !APP_STORE
+        // 6. Check for Updates
+        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        updateItem.isEnabled = UpdateManager.shared.canCheckForUpdates
+        menu.addItem(updateItem)
+        #endif
+
+        // 7. About Chowser
         let aboutItem = NSMenuItem(title: "About Chowser", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
         menu.addItem(NSMenuItem.separator())
 
-        // 7. Quit Chowser
+        // 8. Quit Chowser
         let quitItem = NSMenuItem(title: "Quit Chowser", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
@@ -623,6 +637,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
               url.scheme == "http" || url.scheme == "https" else { return nil }
         return url
     }
+
+    #if !APP_STORE
+    @objc private func checkForUpdates() {
+        UpdateManager.shared.checkForUpdates()
+    }
+    #endif
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)

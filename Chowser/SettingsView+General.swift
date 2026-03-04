@@ -1,5 +1,8 @@
 import SwiftUI
 import AppKit
+#if !APP_STORE
+import Sparkle
+#endif
 
 extension SettingsView {
 
@@ -155,6 +158,48 @@ extension SettingsView {
                 } header: {
                     Text("System")
                 }
+
+                #if !APP_STORE
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Automatically check for updates", isOn: Binding(
+                            get: { UpdateManager.shared.automaticallyChecksForUpdates },
+                            set: { UpdateManager.shared.automaticallyChecksForUpdates = $0 }
+                        ))
+
+                        Divider()
+
+                        Toggle("Join Beta Program", isOn: Binding(
+                            get: { UpdateManager.shared.joinBetaProgram },
+                            set: { UpdateManager.shared.joinBetaProgram = $0 }
+                        ))
+
+                        Text("Get early access to new features and improvements. Beta builds may contain bugs.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+
+                        HStack {
+                            if let lastCheck = UpdateManager.shared.lastUpdateCheckDate {
+                                Text("Last checked: \(lastCheck.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+
+                            Spacer()
+
+                            Button("Check Now") {
+                                UpdateManager.shared.checkForUpdates()
+                            }
+                            .disabled(!UpdateManager.shared.canCheckForUpdates)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Updates")
+                }
+                #endif
 
                 Section {
                     VStack(alignment: .leading, spacing: 6) {

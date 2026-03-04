@@ -83,7 +83,7 @@ jobs:
               <key>method</key>
               <string>app-store-connect</string>
               <key>teamID</key>
-              <string>DN4N8L7YL9</string>
+              <string>TH2VPAUX6Y</string>
               <key>destination</key>
               <string>upload</string>
               <key>signingStyle</key>
@@ -100,7 +100,7 @@ jobs:
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Chowser.xcarchive" \
             CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM=DN4N8L7YL9 \
+            DEVELOPMENT_TEAM=TH2VPAUX6Y \
             ENABLE_APP_SANDBOX=YES \
             CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
             SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE' \

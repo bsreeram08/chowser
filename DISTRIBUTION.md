@@ -80,7 +80,7 @@ Appcast files:
 | `APPLE_CERTIFICATE_PASSWORD` | Password for the .p12 file |
 | `APPLE_ID` | Apple ID email for notarization |
 | `APPLE_ID_PASSWORD` | App-specific password ([generate here](https://appleid.apple.com)) |
-| `APPLE_TEAM_ID` | `DN4N8L7YL9` |
+| `APPLE_TEAM_ID` | `TH2VPAUX6Y` |
 | `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA private key for update signing |
 
 ---
@@ -118,7 +118,7 @@ pre-release branch → merge to main → tag → App Store submission
 | `MAC_PROVISIONING_PROFILE` | Base64-encoded Mac App Store provisioning profile |
 | `APPLE_ID` | Apple ID email |
 | `APPLE_ID_PASSWORD` | App-specific password |
-| `APPLE_TEAM_ID` | `DN4N8L7YL9` |
+| `APPLE_TEAM_ID` | `TH2VPAUX6Y` |
 
 ---
 

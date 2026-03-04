@@ -66,7 +66,7 @@ SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_IDENTITY")
 if [ "$SIGNING_ALLOWED" = "NO" ]; then
     SIGN_ARGS+=(CODE_SIGNING_ALLOWED=NO)
 else
-    SIGN_ARGS+=(DEVELOPMENT_TEAM="DN4N8L7YL9")
+    SIGN_ARGS+=(DEVELOPMENT_TEAM="TH2VPAUX6Y")
 fi
 
 xcodebuild archive \
@@ -89,7 +89,7 @@ if [ "$SHOULD_NOTARIZE" = "YES" ]; then
     echo "Notarizing app..."
     NOTARY_APPLE_ID="${APPLE_ID:-}"
     NOTARY_PASSWORD="${APPLE_ID_PASSWORD:-}"
-    NOTARY_TEAM_ID="${APPLE_TEAM_ID:-DN4N8L7YL9}"
+    NOTARY_TEAM_ID="${APPLE_TEAM_ID:-TH2VPAUX6Y}"
 
     if [ -z "$NOTARY_APPLE_ID" ] || [ -z "$NOTARY_PASSWORD" ]; then
         echo "   APPLE_ID and APPLE_ID_PASSWORD required for notarization"

@@ -4,7 +4,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────
 # Chowser Release Script
 # Usage: ./scripts/release.sh <version>
-# Example: ./scripts/release.sh 2.11.0
+# Example: ./scripts/release.sh 3.0.0
 #
 # Environment variables (CI overrides):
 #   CODE_SIGN_IDENTITY    - Signing identity (default: "Developer ID Application")
@@ -20,13 +20,13 @@ set -euo pipefail
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
     echo "Usage: $0 <version>"
-    echo "   Example: $0 2.11.0"
+    echo "   Example: $0 3.0.0"
     exit 1
 fi
 
 # Validate semver format
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
-    echo "Version must be in semver format (e.g. 2.11.0 or 2.12.0-beta.1)"
+    echo "Version must be in semver format (e.g. 3.0.0 or 2.12.0-beta.1)"
     exit 1
 fi
 

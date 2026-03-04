@@ -57,35 +57,36 @@ final class MCPServer {
         }
 
         listener?.stateUpdateHandler = { [weak self] state in
+            let capturedSelf = self
             switch state {
             case .ready:
                 Task { @MainActor in
-                    guard let self else { return }
-                    print("Chowser MCP: Server listening on localhost:\(self.port)")
-                    print("Chowser MCP: Auth token: \(self.authToken)")
+                    guard let s = capturedSelf else { return }
+                    print("Chowser MCP: Server listening on localhost:\(s.port)")
+                    print("Chowser MCP: Auth token: \(s.authToken)")
                 }
             case .failed(let error):
                 print("Chowser MCP: Server failed: \(error)")
-                Task { @MainActor in self?.stop() }
+                Task { @MainActor in capturedSelf?.stop() }
             default:
                 break
             }
         }
 
         listener?.newConnectionHandler = { [weak self] connection in
-            guard let self else { return }
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.connections.append(connection)
-            }
-            connection.stateUpdateHandler = { [weak self] state in
-                if case .cancelled = state {
-                    Task { @MainActor in
-                        self?.connections.removeAll { $0 === connection }
+                connection.stateUpdateHandler = { [weak self] state in
+                    if case .cancelled = state {
+                        Task { @MainActor [weak self] in
+                            self?.connections.removeAll { $0 === connection }
+                        }
                     }
                 }
+                connection.start(queue: self.serverQueue)
+                self.receiveFullRequest(on: connection, accumulated: Data())
             }
-            connection.start(queue: self.serverQueue)
-            self.receiveFullRequest(on: connection, accumulated: Data())
         }
 
         listener?.start(queue: serverQueue)

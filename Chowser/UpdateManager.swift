@@ -33,32 +33,20 @@ final class UpdateManager: NSObject, ObservableObject, SPUUpdaterDelegate {
     private override init() {
         super.init()
         
-        do {
-            // Create the controller with self as the delegate
-            updaterController = SPUStandardUpdaterController(
-                startingUpdater: false,
-                updaterDelegate: self,
-                userDriverDelegate: nil
-            )
-            
-            updaterController.updater.publisher(for: \.canCheckForUpdates)
-                .assign(to: &$canCheckForUpdates)
-            updaterController.updater.publisher(for: \.lastUpdateCheckDate)
-                .assign(to: &$lastUpdateCheckDate)
-        } catch {
-            print("⚠️ Failed to initialize Sparkle updater: \(error)")
-            // Create a minimal stub to prevent crashes
-            // The updater will simply not be available
-        }
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: false,
+            updaterDelegate: self,
+            userDriverDelegate: nil
+        )
+
+        updaterController.updater.publisher(for: \.canCheckForUpdates)
+            .assign(to: &$canCheckForUpdates)
+        updaterController.updater.publisher(for: \.lastUpdateCheckDate)
+            .assign(to: &$lastUpdateCheckDate)
     }
 
     func startUpdater() {
-        do {
-            try updaterController.startUpdater()
-        } catch {
-            print("⚠️ Updater failed to start: \(error.localizedDescription)")
-            // Fail silently in development - updater is optional
-        }
+        updaterController.startUpdater()
     }
 
     func checkForUpdates() {

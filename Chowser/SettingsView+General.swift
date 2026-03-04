@@ -1,8 +1,5 @@
 import SwiftUI
 import AppKit
-#if !APP_STORE
-import Sparkle
-#endif
 
 extension SettingsView {
 
@@ -159,47 +156,11 @@ extension SettingsView {
                     Text("System")
                 }
 
-                #if !APP_STORE
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Automatically check for updates", isOn: Binding(
-                            get: { UpdateManager.shared.automaticallyChecksForUpdates },
-                            set: { UpdateManager.shared.automaticallyChecksForUpdates = $0 }
-                        ))
-
-                        Divider()
-
-                        Toggle("Join Beta Program", isOn: Binding(
-                            get: { UpdateManager.shared.joinBetaProgram },
-                            set: { UpdateManager.shared.joinBetaProgram = $0 }
-                        ))
-
-                        Text("Get early access to new features and improvements. Beta builds may contain bugs.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-
-                        Divider()
-
-                        HStack {
-                            if let lastCheck = UpdateManager.shared.lastUpdateCheckDate {
-                                Text("Last checked: \(lastCheck.formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.tertiary)
-                            }
-
-                            Spacer()
-
-                            Button("Check Now") {
-                                UpdateManager.shared.checkForUpdates()
-                            }
-                            .disabled(!UpdateManager.shared.canCheckForUpdates)
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    AppStoreUpdateRow()
                 } header: {
                     Text("Updates")
                 }
-                #endif
 
                 Section {
                     MCPServerSettingsRow()
@@ -355,5 +316,56 @@ struct MCPServerSettingsRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation { tokenCopied = false }
         }
+    }
+}
+
+// MARK: - App Store Update Row
+
+struct AppStoreUpdateRow: View {
+    @State private var isChecking = false
+    @State private var checked = false
+
+    private var manager: UpdateManager { UpdateManager.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if manager.updateAvailable, let version = manager.latestVersion {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(Color.green)
+                    Text("Version \(version) available on the App Store")
+                        .font(.system(size: 13))
+                } else if checked {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.green)
+                    Text("Chowser is up to date (\(manager.currentVersion))")
+                        .font(.system(size: 13))
+                } else {
+                    Text("Current version: \(manager.currentVersion)")
+                        .font(.system(size: 13))
+                }
+
+                Spacer()
+
+                if manager.updateAvailable {
+                    Button("Open App Store") {
+                        manager.openAppStore()
+                    }
+                    .font(.system(size: 11))
+                } else {
+                    Button(isChecking ? "Checking…" : "Check Now") {
+                        isChecking = true
+                        Task {
+                            await manager.checkForUpdates()
+                            isChecking = false
+                            checked = true
+                        }
+                    }
+                    .disabled(isChecking)
+                    .font(.system(size: 11))
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

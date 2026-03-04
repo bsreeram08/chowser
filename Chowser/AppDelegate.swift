@@ -9,9 +9,6 @@ import AppKit
 import SwiftUI
 import ServiceManagement
 import Carbon
-#if !APP_STORE
-import Sparkle
-#endif
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
@@ -143,9 +140,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     private func setupApplicationState() {
         setupStatusBar()
-        #if !APP_STORE
-        UpdateManager.shared.startUpdater()
-        #endif
+        Task { await UpdateManager.shared.checkForUpdates() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -438,13 +433,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         menu.addItem(NSMenuItem.separator())
 
-        #if !APP_STORE
         // 6. Check for Updates
-        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        let updateTitle = UpdateManager.shared.updateAvailable
+            ? "Update Available – Open App Store"
+            : "Check for Updates…"
+        let updateItem = NSMenuItem(title: updateTitle, action: #selector(checkForUpdates), keyEquivalent: "")
         updateItem.target = self
-        updateItem.isEnabled = UpdateManager.shared.canCheckForUpdates
         menu.addItem(updateItem)
-        #endif
 
         // 7. About Chowser
         let aboutItem = NSMenuItem(title: "About Chowser", action: #selector(showAbout), keyEquivalent: "")
@@ -642,11 +637,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return url
     }
 
-    #if !APP_STORE
     @objc private func checkForUpdates() {
-        UpdateManager.shared.checkForUpdates()
+        if UpdateManager.shared.updateAvailable {
+            UpdateManager.shared.openAppStore()
+        } else {
+            Task {
+                await UpdateManager.shared.checkForUpdates()
+                // Trigger menu refresh so title updates if an update was found
+                statusItem?.menu?.removeAllItems()
+            }
+        }
     }
-    #endif
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)

@@ -103,7 +103,6 @@ jobs:
             DEVELOPMENT_TEAM=TH2VPAUX6Y \
             ENABLE_APP_SANDBOX=YES \
             CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE' \
             -quiet
 
       - name: Export for App Store

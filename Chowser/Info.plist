@@ -37,15 +37,5 @@
 			</array>
 		</dict>
 	</array>
-	<key>SUFeedURL</key>
-	<string>https://chowser.sreerams.in/appcast.xml</string>
-	<key>SUBetaFeedURL</key>
-	<string>https://chowser.sreerams.in/appcast-beta.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>rl2RpofK+x6g09vh4aavulQFi1t/HNln6dmtphVLZJs=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>14400</integer>
 </dict>
 </plist>

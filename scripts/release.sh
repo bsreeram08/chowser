@@ -13,8 +13,6 @@ set -euo pipefail
 #   APPLE_ID              - Apple ID for notarization
 #   APPLE_ID_PASSWORD     - App-specific password for notarization
 #   APPLE_TEAM_ID         - Team ID for notarization
-#   SPARKLE_PRIVATE_KEY   - EdDSA private key for Sparkle signing
-#   SPARKLE_DOWNLOAD_URL  - Base URL for DMG download in appcast
 # ─────────────────────────────────────────────
 
 VERSION="${1:-}"
@@ -203,59 +201,7 @@ if [ "$SHOULD_NOTARIZE" = "YES" ]; then
     echo "   DMG notarization complete"
 fi
 
-# ─── Step 8: Generate Sparkle appcast ───
-SPARKLE_KEY="${SPARKLE_PRIVATE_KEY:-}"
-DOWNLOAD_URL="${SPARKLE_DOWNLOAD_URL:-https://github.com/bsreeram08/chowser/releases/download/v${VERSION}/Chowser-${VERSION}.dmg}"
-
-if [ -n "$SPARKLE_KEY" ]; then
-    echo "Generating Sparkle appcast..."
-
-    # Locate sign_update from resolved Sparkle package artifacts
-    SIGN_UPDATE=$(find ~/Library/Developer/Xcode/DerivedData/Chowser-*/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update 2>/dev/null | head -1)
-    if [ -z "$SIGN_UPDATE" ]; then
-        SIGN_UPDATE=$(find ~/Library/Developer/Xcode/DerivedData/Chowser-*/SourcePackages/checkouts/Sparkle/bin/sign_update 2>/dev/null | head -1)
-    fi
-
-    if [ -z "$SIGN_UPDATE" ]; then
-        echo "   Warning: sign_update not found. Run 'xcodebuild -resolvePackageDependencies' first."
-        exit 1
-    fi
-
-    # Generate EdDSA signature for the DMG
-    DMG_SIZE_BYTES=$(stat -f%z "$DMG_PATH" 2>/dev/null || stat --printf="%s" "$DMG_PATH" 2>/dev/null)
-    EDDSA_SIG=$(echo "$SPARKLE_KEY" | "$SIGN_UPDATE" --ed-key-file - -p "$DMG_PATH" 2>/dev/null || echo "")
-
-    if [ -n "$EDDSA_SIG" ]; then
-        # Determine channel (beta releases get the beta channel)
-        CHANNEL_TAG=""
-        if [[ "$VERSION" == *"-beta"* ]]; then
-            CHANNEL_TAG="<sparkle:channel>beta</sparkle:channel>"
-        fi
-
-        cat > "$RELEASE_DIR/appcast-item.xml" <<APPCAST_EOF
-        <item>
-            <title>Version ${VERSION}</title>
-            <pubDate>$(date -R)</pubDate>
-            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
-            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-            ${CHANNEL_TAG}
-            <enclosure
-                url="${DOWNLOAD_URL}"
-                sparkle:edSignature="${EDDSA_SIG}"
-                length="${DMG_SIZE_BYTES}"
-                type="application/octet-stream" />
-        </item>
-APPCAST_EOF
-        echo "   Appcast item generated: $RELEASE_DIR/appcast-item.xml"
-    else
-        echo "   Warning: Could not generate EdDSA signature. Install Sparkle's sign_update tool."
-        echo "   Run: swift build --package-path .build/checkouts/Sparkle --product sign_update"
-    fi
-else
-    echo "   Skipping appcast (SPARKLE_PRIVATE_KEY not set)"
-fi
-
-# ─── Step 9: Clean up ───
+# ─── Step 8: Clean up ───
 rm -rf "$ARCHIVE_PATH" "$APP_PATH"
 
 # ─── Step 10: Git tag ───

@@ -1,71 +1,52 @@
-#if !APP_STORE
 import Foundation
-import Combine
-import Sparkle
+import AppKit
 
+/// Checks the App Store for a newer version of Chowser using the iTunes lookup API.
 @MainActor
-final class UpdateManager: NSObject, ObservableObject, SPUUpdaterDelegate {
+final class UpdateManager {
     static let shared = UpdateManager()
 
-    private var updaterController: SPUStandardUpdaterController!
+    private(set) var updateAvailable = false
+    private(set) var latestVersion: String?
+    private let bundleId = "in.sreerams.Chowser"
+    private let appStoreURL = URL(string: "https://apps.apple.com/app/chowser/id6741527291")!
 
-    @Published var canCheckForUpdates = false
-    @Published var lastUpdateCheckDate: Date?
-    
-    nonisolated let objectWillChange = ObservableObjectPublisher()
+    private init() {}
 
-    var automaticallyChecksForUpdates: Bool {
-        get { updaterController.updater.automaticallyChecksForUpdates }
-        set { updaterController.updater.automaticallyChecksForUpdates = newValue }
-    }
+    func checkForUpdates() async {
+        guard let url = URL(string: "https://itunes.apple.com/lookup?bundleId=\(bundleId)") else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let results = json["results"] as? [[String: Any]],
+                  let first = results.first,
+                  let storeVersion = first["version"] as? String else { return }
 
-    var joinBetaProgram: Bool {
-        get { UserDefaults.standard.bool(forKey: "ChowserJoinBetaProgram") }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "ChowserJoinBetaProgram")
-            // Force a re-check so beta/stable channel is picked up
-            if newValue {
-                checkForUpdates()
-            }
+            latestVersion = storeVersion
+            updateAvailable = isNewerVersion(storeVersion, than: currentVersion)
+        } catch {
+            // Silent failure — update check is best-effort
         }
     }
 
-    private override init() {
-        super.init()
-        
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: self,
-            userDriverDelegate: nil
-        )
-
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
-            .assign(to: &$canCheckForUpdates)
-        updaterController.updater.publisher(for: \.lastUpdateCheckDate)
-            .assign(to: &$lastUpdateCheckDate)
+    func openAppStore() {
+        NSWorkspace.shared.open(appStoreURL)
     }
 
-    func startUpdater() {
-        updaterController.startUpdater()
+    var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
-    func checkForUpdates() {
-        updaterController.checkForUpdates(nil)
-    }
-
-    // MARK: - SPUUpdaterDelegate
-
-    nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        let isBeta = UserDefaults.standard.bool(forKey: "ChowserJoinBetaProgram")
-        if isBeta {
-            return Bundle.main.infoDictionary?["SUBetaFeedURL"] as? String
+    private func isNewerVersion(_ store: String, than current: String) -> Bool {
+        let storeParts = store.split(separator: ".").compactMap { Int($0) }
+        let currentParts = current.split(separator: ".").compactMap { Int($0) }
+        let maxLen = max(storeParts.count, currentParts.count)
+        for i in 0..<maxLen {
+            let s = i < storeParts.count ? storeParts[i] : 0
+            let c = i < currentParts.count ? currentParts[i] : 0
+            if s > c { return true }
+            if s < c { return false }
         }
-        return Bundle.main.infoDictionary?["SUFeedURL"] as? String
-    }
-
-    nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
-        let isBeta = UserDefaults.standard.bool(forKey: "ChowserJoinBetaProgram")
-        return isBeta ? ["beta"] : []
+        return false
     }
 }
-#endif

@@ -628,7 +628,7 @@ struct ContentView: View {
 
     private var pickerWidth: CGFloat {
         if browserManager.pickerLayoutMode == "list" {
-            return 320
+            return 400
         }
         let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
         let dims = pickerIconDimensions

@@ -48,6 +48,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             OnboardingManager.shared.showOnboardingWindow {
                 // Once onboarding is complete, setup the rest of the application
                 self.setupApplicationState()
+                // Auto-open Settings so new users know where to go
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.openSettings()
+                }
             }
         } else {
             generateStateAndSetupSystem()

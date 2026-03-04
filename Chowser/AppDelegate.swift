@@ -108,6 +108,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         }
     }
+
+    /// Handles chowser://import URL scheme for importing browsers/rules while the app is running.
+    /// Usage: open "chowser://import?browsers=/path/to/browsers.json&rules=/path/to/rules.json"
+    private func handleImportURL(_ url: URL) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+        let queryItems = components.queryItems ?? []
+        let manager = BrowserManager.shared
+
+        if let browsersPath = queryItems.first(where: { $0.name == "browsers" })?.value {
+            let fileURL = URL(fileURLWithPath: (browsersPath as NSString).expandingTildeInPath)
+            do {
+                try manager.importBrowsers(from: fileURL)
+                print("Chowser: Imported browsers from \(fileURL.path)")
+            } catch {
+                print("Chowser: Failed to import browsers from \(fileURL.path): \(error)")
+            }
+        }
+
+        if let rulesPath = queryItems.first(where: { $0.name == "rules" })?.value {
+            let fileURL = URL(fileURLWithPath: (rulesPath as NSString).expandingTildeInPath)
+            do {
+                try manager.importRules(from: fileURL)
+                print("Chowser: Imported rules from \(fileURL.path)")
+            } catch {
+                print("Chowser: Failed to import rules from \(fileURL.path): \(error)")
+            }
+        }
+    }
     
     private func setupApplicationState() {
         setupStatusBar()
@@ -186,6 +214,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
            let target = URL(string: targetStr),
            target.scheme == "http" || target.scheme == "https" {
             self.application(application, open: [target])
+            return
+        }
+
+        // Handle chowser://import for runtime import of browsers/rules via URL scheme.
+        // Usage: open "chowser://import?browsers=/path/to/browsers.json&rules=/path/to/rules.json"
+        if url.scheme == "chowser", url.host == "import" {
+            handleImportURL(url)
             return
         }
 
@@ -366,7 +401,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Separator
         menu.addItem(NSMenuItem.separator())
         
-        // 5. Settings
+        // 5. API Server (MCP-like)
+        let server = MCPServer.shared
+        if server.isRunning {
+            let stopItem = NSMenuItem(title: "Stop API Server (port \(server.port))", action: #selector(toggleMCPServer), keyEquivalent: "")
+            stopItem.target = self
+            if let icon = NSImage(systemSymbolName: "stop.circle", accessibilityDescription: nil) {
+                icon.isTemplate = true
+                stopItem.image = icon
+            }
+            menu.addItem(stopItem)
+        } else {
+            let startItem = NSMenuItem(title: "Start API Server", action: #selector(toggleMCPServer), keyEquivalent: "")
+            startItem.target = self
+            if let icon = NSImage(systemSymbolName: "play.circle", accessibilityDescription: nil) {
+                icon.isTemplate = true
+                startItem.image = icon
+            }
+            menu.addItem(startItem)
+        }
+
+        // 6. Settings
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -400,6 +455,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
     
     // MARK: - Actions
+
+    @objc private func toggleMCPServer() {
+        let server = MCPServer.shared
+        if server.isRunning {
+            server.stop()
+        } else {
+            server.start()
+        }
+    }
     
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)

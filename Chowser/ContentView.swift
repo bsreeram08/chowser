@@ -276,27 +276,14 @@ struct ContentView: View {
 
     private var browserBarPill: some View {
         let browsers = sortedBrowsers
-        let showScroll = browsers.count > 8
+        let isListMode = browserManager.pickerLayoutMode == "list"
 
         return VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 4) {
-                if showScroll {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .top, spacing: 2) {
-                            ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                                browserIconButton(browser: browser, index: index)
-                            }
-                        }
-                        .padding(.horizontal, 2)
-                    }
-                } else {
-                    ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                        browserIconButton(browser: browser, index: index)
-                    }
-                }
+            if isListMode {
+                browserListLayout(browsers: browsers)
+            } else {
+                browserIconsLayout(browsers: browsers)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
 
             // Subtle rule suggestion banner
             if let suggestedId = suggestedBrowserBundleId,
@@ -324,6 +311,126 @@ struct ContentView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+    }
+
+    @ViewBuilder
+    private func browserIconsLayout(browsers: [BrowserConfig]) -> some View {
+        let showScroll = browsers.count > 8
+
+        HStack(alignment: .top, spacing: 4) {
+            if showScroll {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 2) {
+                        ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                            browserIconButton(browser: browser, index: index)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+            } else {
+                ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                    browserIconButton(browser: browser, index: index)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+    }
+
+    @ViewBuilder
+    private func browserListLayout(browsers: [BrowserConfig]) -> some View {
+        let showScroll = browsers.count > 6
+        let content = VStack(spacing: 2) {
+            ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                browserListRow(browser: browser, index: index)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+
+        if showScroll {
+            ScrollView(.vertical, showsIndicators: false) {
+                content
+            }
+            .frame(maxHeight: 320)
+        } else {
+            content
+        }
+    }
+
+    private func browserListRow(browser: BrowserConfig, index: Int) -> some View {
+        let isSelected = keyboardSelectedBrowserId == browser.id
+        let isHovered = hoveredBrowserId == browser.id
+        let isSuggested = suggestedBrowserBundleId == browser.bundleId
+
+        return Button(action: {
+            let usePrivate = privateMode || NSEvent.modifierFlags.contains(.option)
+            openUrl(with: browser, usePrivateMode: usePrivate)
+        }) {
+            HStack(spacing: 10) {
+                if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 28, height: 28)
+                        .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+                } else {
+                    Image(systemName: "globe")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.secondary)
+                        .frame(width: 28, height: 28)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(browser.name)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? (privateMode ? Color.purple : .primary) : .primary)
+                        .lineLimit(1)
+
+                    if let profileLabel = displayProfileLabel(for: browser) {
+                        Text(profileLabel)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                if isSuggested {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                }
+
+                Text(browser.shortcutKey)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.primary.opacity(0.6))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? (privateMode ? Color.purple.opacity(0.2) : Color.primary.opacity(0.1)) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("picker.browserRow")
+        .accessibilityLabel("Open in \(browser.name)")
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.65)) {
+                hoveredBrowserId = hovering ? browser.id : nil
+                if hovering { keyboardSelectedBrowserId = browser.id }
+            }
+        }
+        .opacity(appeared ? 1 : 0)
+        .animation(
+            .spring(response: 0.3, dampingFraction: 0.7).delay(Double(index) * 0.02),
+            value: appeared
+        )
     }
 
     private func browserIconButton(browser: BrowserConfig, index: Int) -> some View {
@@ -431,6 +538,7 @@ struct ContentView: View {
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
             keyHintChip(keys: ["Esc"], label: "Close")
             Spacer()
+            keyHintChip(keys: ["←", "→"], label: "Navigate")
             keyHintChip(keys: ["↵"], label: "Launch", isAccent: true)
         }
         .padding(.horizontal, 16)
@@ -505,6 +613,9 @@ struct ContentView: View {
     }
 
     private var pickerWidth: CGFloat {
+        if browserManager.pickerLayoutMode == "list" {
+            return 320
+        }
         let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
         let dims = pickerIconDimensions
         let iconSize: CGFloat = dims.hitArea + 4 // hit area + margin
@@ -641,15 +752,22 @@ struct ContentView: View {
             }
         }
 
-        // .option excluded so ⌥+Return triggers private-mode open
-        let disallowed: NSEvent.ModifierFlags = [.command, .control, .function, .shift]
-        if !modifiers.intersection(disallowed).isEmpty { return false }
-
+        // Arrow keys — handled before the general modifier check because macOS
+        // always sets the .function flag for arrow keys which would otherwise
+        // cause them to be filtered out.
         switch event.keyCode {
         case 125: moveSelection(by: 1); return true       // ↓
         case 126: moveSelection(by: -1); return true      // ↑
         case 123: moveSelection(by: -1); return true      // ←
         case 124: moveSelection(by: 1); return true       // →
+        default: break
+        }
+
+        // .option excluded so ⌥+Return triggers private-mode open
+        let disallowed: NSEvent.ModifierFlags = [.command, .control, .function, .shift]
+        if !modifiers.intersection(disallowed).isEmpty { return false }
+
+        switch event.keyCode {
         case 36, 76, 49:                                  // return / enter / space
             let usePrivateMode = privateMode || event.modifierFlags.contains(.option)
             return openSelectedBrowser(usePrivateMode: usePrivateMode)

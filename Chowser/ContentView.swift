@@ -352,14 +352,14 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                }
-                .frame(maxHeight: 320)
-                .onChange(of: keyboardSelectedBrowserId) { _, id in
-                    guard let id else { return }
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                        proxy.scrollTo(id, anchor: .center)
+                    .onChange(of: keyboardSelectedBrowserId) { _, id in
+                        guard let id else { return }
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                            proxy.scrollTo(id, anchor: .center)
+                        }
                     }
                 }
+                .frame(maxHeight: 320)
             }
         } else {
             VStack(spacing: 2) {

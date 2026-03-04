@@ -121,7 +121,8 @@ final class MCPServer {
                 // Try to determine expected content length
                 let headerSection = String(requestString[..<headerEndRange.lowerBound])
                 let contentLength = self.parseContentLength(from: headerSection)
-                let bodyStart = buffer.distance(from: buffer.startIndex, to: buffer.index(buffer.startIndex, offsetBy: requestString.distance(from: requestString.startIndex, to: headerEndRange.upperBound)))
+                let headerEndOffset = requestString.distance(from: requestString.startIndex, to: headerEndRange.upperBound)
+                let bodyStart = headerEndOffset
                 let bodyReceived = buffer.count - bodyStart
 
                 if bodyReceived >= contentLength {

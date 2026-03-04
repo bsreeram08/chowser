@@ -58,15 +58,12 @@ echo "Building Release archive..."
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
-# Support unsigned CI builds via env vars
-SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Developer ID Application}"
-SIGNING_ALLOWED="${CODE_SIGNING_ALLOWED:-YES}"
-
-SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_IDENTITY")
-if [ "$SIGNING_ALLOWED" = "NO" ]; then
-    SIGN_ARGS+=(CODE_SIGNING_ALLOWED=NO)
+# Signing: CI uses Developer ID (set via env), local defaults to unsigned
+if [ -n "${CODE_SIGN_IDENTITY:-}" ]; then
+    SIGN_ARGS=(CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" DEVELOPMENT_TEAM="TH2VPAUX6Y")
 else
-    SIGN_ARGS+=(DEVELOPMENT_TEAM="TH2VPAUX6Y")
+    # Local build — disable signing to avoid cert conflicts
+    SIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-)
 fi
 
 xcodebuild archive \

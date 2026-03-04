@@ -14,12 +14,6 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
-# Release — Direct Download (bumps version, builds, creates DMG, tags git)
-./scripts/release.sh 2.12.0
-
-# Beta release
-./scripts/release.sh 2.12.0-beta.1
-
 # App Store build (uses APP_STORE compilation condition + sandbox entitlements)
 xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
   ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
@@ -28,9 +22,7 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 
 ### CI/CD Pipelines
 
-- **`.github/workflows/release.yml`** — Direct download: triggers on `v*` tag push. Signs with Developer ID, notarizes, creates DMG, updates Sparkle appcast, publishes to GitHub Releases. Tags with `-beta` suffix become pre-releases and update the beta appcast channel.
-- **`.github/workflows/appstore.yml`** — App Store/TestFlight: triggers on push to `pre-release` branch. Builds with sandbox + `APP_STORE` flag, uploads to App Store Connect. Beta testers get builds via TestFlight; merge to main + tag for App Store submission.
-- **`.github/workflows/deploy-docs.yml`** — Docs site deployment to GitHub Pages.
+- **`.github/workflows/deploy-docs.yml`** — Docs site deployment to GitHub Pages (triggers on push to `main` with changes under `docs/`, uses Bun + Vite).
 
 ## Architecture
 
@@ -50,7 +42,7 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 
 - **`AppDelegate.swift`** — Menu bar setup, Apple Event handler (registered in `applicationWillFinishLaunching`), URL interception with source-app tracking, picker/settings/onboarding window lifecycle, clipboard URL handling, `chowser://import` URL scheme handler, MCP server toggle. The picker is a `ChowserPanel` (custom `NSPanel` subclass) so it appears over full-screen apps without a Space switch.
 - **`BrowserManager.swift`** — `@MainActor @Observable` singleton. Owns `[BrowserConfig]` and `[BrowserRoutingRule]`, persisted via `UserDefaults` with debounced writes. Handles routing resolution (host + path + source app matching), browser launching (uses `/usr/bin/open -n` for profile-aware Chromium/Firefox launches), private/incognito mode, import/export JSON (with merge-on-import for both rules and browsers), installed browser detection, domain frequency tracking, and picker layout preferences.
-- **`MCPServer.swift`** — Lightweight local HTTP API server (localhost-only, port 24245) for AI-driven management of browsers and routing rules. Provides REST endpoints: `GET/POST/DELETE /browsers`, `GET/POST/DELETE /rules`, `GET /status`. Start/stop from the menu bar.
+- **`MCPServer.swift`** — `@MainActor @Observable` lightweight local HTTP API server (localhost-only, port 24245) for AI-driven management of browsers and routing rules. Provides REST endpoints: `GET/POST/DELETE /browsers`, `GET/POST/DELETE /rules`, `GET /status`. Start/stop from the menu bar.
 - **`AppEnvironment.swift`** — Process argument flags for UI testing (e.g. `-UITesting`, `-UITesting_MockInstalledBrowsers`). All test isolation goes here.
 - **`ContentView.swift`** — Picker UI (SwiftUI, hosted in the NSPanel). Supports two layout modes: "icons" (horizontal icon bar) and "list" (vertical list with full names and profiles). Includes private mode toggle, in-picker rule creation, clipboard URL display.
 - **`SettingsView.swift`** — Settings container with `NavigationSplitView` sidebar. Decomposed into extensions: `SettingsView+Browsers.swift` (browser list), `SettingsView+Rules.swift` (rule list), `SettingsView+General.swift` (general settings, picker appearance, hidden apps, about). Row views: `BrowserConfigRow.swift`, `RuleRowView.swift`. Sheets: `AddBrowserSheet.swift`, `AddRuleSheet.swift`.
@@ -59,7 +51,7 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 - **`DomainFrequencyTracker.swift`** — Records domain→browser click frequency; suggests auto-routing rules when a domain reaches 30 clicks.
 - **`PickerViewModifiers.swift`** — Three-tier picker background: macOS 26+ glass effect → `ultraThinMaterial` fallback → solid for reduced-transparency.
 - **`ConfigureRuleView.swift`** — Compact in-picker rule creation sheet; auto-prefills host from intercepted URL.
-- **`UpdateManager.swift`** — Sparkle integration for auto-updates (direct download only, `#if !APP_STORE`). Wraps `SPUStandardUpdaterController`, manages automatic check scheduling (every 4 hours), beta channel opt-in via `SUBetaFeedURL`, and EdDSA signature verification.
+- **`UpdateManager.swift`** — App Store update checker (`#if APP_STORE`). Checks the App Store for newer versions and surfaces an "Open App Store" prompt in Settings.
 - **`UI/Onboarding/OnboardingManager.swift`** — Manages onboarding state and activation policy switching (`.accessory` ↔ `.regular`) for the onboarding window.
 - **`UI/Onboarding/OnboardingView.swift`** — Multi-step onboarding wizard (Welcome → Default Browser → Browsers → Rules → Finish).
 - **`Chowser.entitlements`** — Entitlements for direct download build (hardened runtime, no sandbox).
@@ -79,8 +71,7 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 
 ### Distribution & Updates
 
-- **Two distribution channels**: Direct Download (DMG, full features, Sparkle updates) and Mac App Store (sandboxed, no profiles, App Store updates, ₹500).
-- **Conditional compilation**: `#if APP_STORE` guards sandbox-incompatible code (Process-based browser launching, Sparkle imports). The App Store build uses `NSWorkspace.open()` exclusively.
-- **Sparkle auto-updates**: `UpdateManager` wraps `SPUStandardUpdaterController`. Checks every 4 hours. Supports stable (`SUFeedURL`) and beta (`SUBetaFeedURL`) appcast channels. Beta opt-in via `UserDefaults` key `ChowserJoinBetaProgram`.
-- **Version bumping**: `scripts/release.sh` handles version + build number in pbxproj, archive, DMG creation, notarization, Sparkle appcast item generation, and git tagging. Supports semver (2.12.0) and beta tags (2.12.0-beta.1).
+- **App Store only**: Sandboxed build with `APP_STORE` compilation flag + `ChowserAppStore.entitlements`. Updates delivered via App Store. Beta via TestFlight.
+- **Conditional compilation**: `#if APP_STORE` guards sandbox-incompatible code (Process-based browser launching). The App Store build uses `NSWorkspace.open()` exclusively.
+- **Version bumping**: Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `Chowser.xcodeproj/project.pbxproj` before archiving.
 - **Promo codes**: Generated in App Store Connect → Marketing → Promo Codes (up to 100 per version) for free distribution passes.

@@ -5,18 +5,28 @@ set -euo pipefail
 # Chowser Release Script
 # Usage: ./scripts/release.sh <version>
 # Example: ./scripts/release.sh 2.11.0
+#
+# Environment variables (CI overrides):
+#   CODE_SIGN_IDENTITY    - Signing identity (default: "Developer ID Application")
+#   CODE_SIGNING_ALLOWED  - "YES" or "NO" (default: "YES")
+#   NOTARIZE              - "YES" to notarize after build (default: "NO")
+#   APPLE_ID              - Apple ID for notarization
+#   APPLE_ID_PASSWORD     - App-specific password for notarization
+#   APPLE_TEAM_ID         - Team ID for notarization
+#   SPARKLE_PRIVATE_KEY   - EdDSA private key for Sparkle signing
+#   SPARKLE_DOWNLOAD_URL  - Base URL for DMG download in appcast
 # ─────────────────────────────────────────────
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
-    echo "❌ Usage: $0 <version>"
+    echo "Usage: $0 <version>"
     echo "   Example: $0 2.11.0"
     exit 1
 fi
 
 # Validate semver format
-if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ Version must be in semver format (e.g. 2.11.0)"
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+    echo "Version must be in semver format (e.g. 2.11.0 or 2.12.0-beta.1)"
     exit 1
 fi
 
@@ -29,11 +39,11 @@ APP_PATH="$RELEASE_DIR/Chowser.app"
 DMG_PATH="$RELEASE_DIR/Chowser-${VERSION}.dmg"
 SCRIPTS_DIR="$PROJECT_DIR/scripts"
 
-echo "🧭 Chowser Release v${VERSION}"
+echo "Chowser Release v${VERSION}"
 echo "────────────────────────────────"
 
 # ─── Step 1: Update version in Xcode project ───
-echo "📝 Setting version to ${VERSION}..."
+echo "Setting version to ${VERSION}..."
 cd "$PROJECT_DIR"
 
 sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = ${VERSION}/" "$PROJECT/project.pbxproj"
@@ -44,12 +54,12 @@ sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = ${BUILD_N
 echo "   Version: ${VERSION} (build ${BUILD_NUMBER})"
 
 # ─── Step 2: Build archive ───
-echo "🔨 Building Release archive..."
+echo "Building Release archive..."
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
 # Support unsigned CI builds via env vars
-SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Apple Development}"
+SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Developer ID Application}"
 SIGNING_ALLOWED="${CODE_SIGNING_ALLOWED:-YES}"
 
 SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_IDENTITY")
@@ -70,16 +80,43 @@ xcodebuild archive \
 echo "   Archive created"
 
 # ─── Step 3: Export app ───
-echo "📦 Exporting app..."
+echo "Exporting app..."
 cp -R "$ARCHIVE_PATH/Products/Applications/Chowser.app" "$APP_PATH"
 
-# ─── Step 4: Generate DMG background ───
-echo "🎨 Generating styled background..."
+# ─── Step 4: Notarize (if enabled) ───
+SHOULD_NOTARIZE="${NOTARIZE:-NO}"
+if [ "$SHOULD_NOTARIZE" = "YES" ]; then
+    echo "Notarizing app..."
+    NOTARY_APPLE_ID="${APPLE_ID:-}"
+    NOTARY_PASSWORD="${APPLE_ID_PASSWORD:-}"
+    NOTARY_TEAM_ID="${APPLE_TEAM_ID:-DN4N8L7YL9}"
+
+    if [ -z "$NOTARY_APPLE_ID" ] || [ -z "$NOTARY_PASSWORD" ]; then
+        echo "   APPLE_ID and APPLE_ID_PASSWORD required for notarization"
+        exit 1
+    fi
+
+    # Create a ZIP for notarization
+    ditto -c -k --keepParent "$APP_PATH" "$RELEASE_DIR/Chowser-notarize.zip"
+
+    xcrun notarytool submit "$RELEASE_DIR/Chowser-notarize.zip" \
+        --apple-id "$NOTARY_APPLE_ID" \
+        --team-id "$NOTARY_TEAM_ID" \
+        --password "$NOTARY_PASSWORD" \
+        --wait
+
+    xcrun stapler staple "$APP_PATH"
+    rm -f "$RELEASE_DIR/Chowser-notarize.zip"
+    echo "   Notarization complete"
+fi
+
+# ─── Step 5: Generate DMG background ───
+echo "Generating styled background..."
 BG_PATH="$RELEASE_DIR/background.png"
 swift "$SCRIPTS_DIR/generate-dmg-background.swift" "$BG_PATH"
 
-# ─── Step 5: Create styled DMG ───
-echo "💿 Creating DMG..."
+# ─── Step 6: Create styled DMG ───
+echo "Creating DMG..."
 
 STAGING_DIR="$RELEASE_DIR/dmg_staging"
 VOLUME_NAME="Chowser ${VERSION}"
@@ -111,7 +148,6 @@ MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | sed 's/.*\/Volumes/\/Vol
 echo "   Styling DMG window..."
 
 # AppleScript to set window appearance
-# We use label position of icons to right to avoid overlap with background labels
 osascript <<EOF
 tell application "Finder"
     tell disk "$VOLUME_NAME"
@@ -151,31 +187,85 @@ rm -f "$RW_DMG" "$BG_PATH"
 
 if [ -f "$DMG_PATH" ]; then
     DMG_SIZE=$(du -h "$DMG_PATH" | cut -f1)
-    echo "   ✅ DMG created: $DMG_PATH (${DMG_SIZE})"
+    echo "   DMG created: $DMG_PATH (${DMG_SIZE})"
 else
-    echo "   ❌ DMG creation failed"
+    echo "   DMG creation failed"
     exit 1
 fi
 
-# ─── Step 6: Clean up ───
+# ─── Step 7: Notarize DMG (if enabled) ───
+if [ "$SHOULD_NOTARIZE" = "YES" ]; then
+    echo "Notarizing DMG..."
+    xcrun notarytool submit "$DMG_PATH" \
+        --apple-id "$NOTARY_APPLE_ID" \
+        --team-id "$NOTARY_TEAM_ID" \
+        --password "$NOTARY_PASSWORD" \
+        --wait
+
+    xcrun stapler staple "$DMG_PATH"
+    echo "   DMG notarization complete"
+fi
+
+# ─── Step 8: Generate Sparkle appcast ───
+SPARKLE_KEY="${SPARKLE_PRIVATE_KEY:-}"
+DOWNLOAD_URL="${SPARKLE_DOWNLOAD_URL:-https://github.com/bsreeram08/chowser/releases/download/v${VERSION}/Chowser-${VERSION}.dmg}"
+
+if [ -n "$SPARKLE_KEY" ]; then
+    echo "Generating Sparkle appcast..."
+
+    # Generate EdDSA signature for the DMG
+    DMG_SIZE_BYTES=$(stat -f%z "$DMG_PATH" 2>/dev/null || stat --printf="%s" "$DMG_PATH" 2>/dev/null)
+    EDDSA_SIG=$(echo -n "$SPARKLE_KEY" | ./scripts/sign_update "$DMG_PATH" 2>/dev/null || echo "")
+
+    if [ -n "$EDDSA_SIG" ]; then
+        # Determine channel (beta releases get the beta channel)
+        CHANNEL_TAG=""
+        if [[ "$VERSION" == *"-beta"* ]]; then
+            CHANNEL_TAG="<sparkle:channel>beta</sparkle:channel>"
+        fi
+
+        cat > "$RELEASE_DIR/appcast-item.xml" <<APPCAST_EOF
+        <item>
+            <title>Version ${VERSION}</title>
+            <pubDate>$(date -R)</pubDate>
+            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
+            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+            ${CHANNEL_TAG}
+            <enclosure
+                url="${DOWNLOAD_URL}"
+                sparkle:edSignature="${EDDSA_SIG}"
+                length="${DMG_SIZE_BYTES}"
+                type="application/octet-stream" />
+        </item>
+APPCAST_EOF
+        echo "   Appcast item generated: $RELEASE_DIR/appcast-item.xml"
+    else
+        echo "   Warning: Could not generate EdDSA signature. Install Sparkle's sign_update tool."
+        echo "   Run: swift build --package-path .build/checkouts/Sparkle --product sign_update"
+    fi
+else
+    echo "   Skipping appcast (SPARKLE_PRIVATE_KEY not set)"
+fi
+
+# ─── Step 9: Clean up ───
 rm -rf "$ARCHIVE_PATH" "$APP_PATH"
 
-# ─── Step 7: Git tag ───
-echo "🏷️  Creating git tag v${VERSION}..."
+# ─── Step 10: Git tag ───
+echo "Creating git tag v${VERSION}..."
 
 git add -A
 git commit -m "release: v${VERSION}" --allow-empty
 git tag -fa "v${VERSION}" -m "Chowser v${VERSION}"
 
 echo ""
-echo "════════════════════════════════════════"
-echo "  ✅ Chowser v${VERSION} is ready!"
+echo "========================================"
+echo "  Chowser v${VERSION} is ready!"
 echo "────────────────────────────────────────"
 echo "  DMG: $DMG_PATH"
 echo "  Tag: v${VERSION}"
 echo ""
-echo "  To push and overwrite remote tags:"
-echo "    git push origin main --tags --force"
+echo "  To push and trigger release:"
+echo "    git push origin main --tags"
 echo ""
 echo "  Upload $DMG_PATH to GitHub Releases"
-echo "════════════════════════════════════════"
+echo "========================================"

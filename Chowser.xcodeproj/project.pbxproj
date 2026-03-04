@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1FF76C046FBE3D0C66C38124 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4256289010C5E6B965D7B730 /* Foundation.framework */; };
 		25AA97349CB4FAEB8479D3CA /* ChowserUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59D2406EC8317E26EF49F70 /* ChowserUITests.swift */; };
+		AABB001122334455SPARKLE01 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AABB001122334455SPARKLE02 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AABB001122334455SPARKLE01 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +147,9 @@
 				30E5E9F12F4847CD00E18455 /* Chowser */,
 			);
 			name = Chowser;
+			packageProductDependencies = (
+				AABB001122334455SPARKLE02 /* Sparkle */,
+			);
 			productName = Chowser;
 			productReference = 30E5E9EF2F4847CD00E18455 /* Chowser.app */;
 			productType = "com.apple.product-type.application";
@@ -213,6 +218,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 30E5E9F02F4847CD00E18455 /* Products */;
+			packageReferences = (
+				AABB001122334455SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -407,6 +415,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Chowser/Chowser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 202603031918;
@@ -443,6 +452,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Chowser/Chowser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 202603031918;
@@ -577,6 +587,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AABB001122334455SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AABB001122334455SPARKLE02 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AABB001122334455SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 30E5E9E72F4847CD00E18455 /* Project object */;
 }

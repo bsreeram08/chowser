@@ -14,11 +14,23 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
-# Release (bumps version, builds, creates DMG, tags git)
-./scripts/release.sh 2.11.0
+# Release — Direct Download (bumps version, builds, creates DMG, tags git)
+./scripts/release.sh 2.12.0
+
+# Beta release
+./scripts/release.sh 2.12.0-beta.1
+
+# App Store build (uses APP_STORE compilation condition + sandbox entitlements)
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
+  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE'
 ```
 
-CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, auto-publishes DMG to GitHub Releases).
+### CI/CD Pipelines
+
+- **`.github/workflows/release.yml`** — Direct download: triggers on `v*` tag push. Signs with Developer ID, notarizes, creates DMG, updates Sparkle appcast, publishes to GitHub Releases. Tags with `-beta` suffix become pre-releases and update the beta appcast channel.
+- **`.github/workflows/appstore.yml`** — App Store/TestFlight: triggers on push to `pre-release` branch. Builds with sandbox + `APP_STORE` flag, uploads to App Store Connect. Beta testers get builds via TestFlight; merge to main + tag for App Store submission.
+- **`.github/workflows/deploy-docs.yml`** — Docs site deployment to GitHub Pages.
 
 ## Architecture
 
@@ -46,8 +58,11 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 - **`DomainFrequencyTracker.swift`** — Records domain→browser click frequency; suggests auto-routing rules when a domain reaches 30 clicks.
 - **`PickerViewModifiers.swift`** — Three-tier picker background: macOS 26+ glass effect → `ultraThinMaterial` fallback → solid for reduced-transparency.
 - **`ConfigureRuleView.swift`** — Compact in-picker rule creation sheet; auto-prefills host from intercepted URL.
+- **`UpdateManager.swift`** — Sparkle integration for auto-updates (direct download only, `#if !APP_STORE`). Wraps `SPUStandardUpdaterController`, manages automatic check scheduling (every 4 hours), beta channel opt-in via `SUBetaFeedURL`, and EdDSA signature verification.
 - **`UI/Onboarding/OnboardingManager.swift`** — Manages onboarding state and activation policy switching (`.accessory` ↔ `.regular`) for the onboarding window.
 - **`UI/Onboarding/OnboardingView.swift`** — Multi-step onboarding wizard (Welcome → Default Browser → Browsers → Rules → Finish).
+- **`Chowser.entitlements`** — Entitlements for direct download build (hardened runtime, no sandbox).
+- **`ChowserAppStore.entitlements`** — Entitlements for App Store build (sandbox enabled, network client, user-selected file read-write).
 
 ### Patterns
 
@@ -60,3 +75,11 @@ CI runs on `v*` tag push via `.github/workflows/release.yml` (unsigned build, au
 - Onboarding temporarily switches activation policy from `.accessory` to `.regular` (showing a Dock icon) so the onboarding window gets proper focus, then switches back to `.accessory`.
 - `PickerViewModifiers` uses a three-tier rendering strategy: macOS 26+ `.glassEffect` → `ultraThinMaterial` fallback → solid background for reduced-transparency accessibility.
 - Row views (`BrowserConfigRow`, `RuleRowView`) use local `@State` with commit-on-blur to avoid full-list re-renders during typing.
+
+### Distribution & Updates
+
+- **Two distribution channels**: Direct Download (DMG, full features, Sparkle updates) and Mac App Store (sandboxed, no profiles, App Store updates, ₹500).
+- **Conditional compilation**: `#if APP_STORE` guards sandbox-incompatible code (Process-based browser launching, Sparkle imports). The App Store build uses `NSWorkspace.open()` exclusively.
+- **Sparkle auto-updates**: `UpdateManager` wraps `SPUStandardUpdaterController`. Checks every 4 hours. Supports stable (`SUFeedURL`) and beta (`SUBetaFeedURL`) appcast channels. Beta opt-in via `UserDefaults` key `ChowserJoinBetaProgram`.
+- **Version bumping**: `scripts/release.sh` handles version + build number in pbxproj, archive, DMG creation, notarization, Sparkle appcast item generation, and git tagging. Supports semver (2.12.0) and beta tags (2.12.0-beta.1).
+- **Promo codes**: Generated in App Store Connect → Marketing → Promo Codes (up to 100 per version) for free distribution passes.

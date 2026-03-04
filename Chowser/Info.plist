@@ -42,7 +42,7 @@
 	<key>SUBetaFeedURL</key>
 	<string>https://chowser.sreerams.in/appcast-beta.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>PLACEHOLDER_REPLACE_WITH_SPARKLE_EDDSA_PUBLIC_KEY</string>
+	<string>rl2RpofK+x6g09vh4aavulQFi1t/HNln6dmtphVLZJs=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>

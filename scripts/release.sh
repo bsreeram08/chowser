@@ -213,9 +213,20 @@ DOWNLOAD_URL="${SPARKLE_DOWNLOAD_URL:-https://github.com/bsreeram08/chowser/rele
 if [ -n "$SPARKLE_KEY" ]; then
     echo "Generating Sparkle appcast..."
 
+    # Locate sign_update from resolved Sparkle package artifacts
+    SIGN_UPDATE=$(find ~/Library/Developer/Xcode/DerivedData/Chowser-*/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update 2>/dev/null | head -1)
+    if [ -z "$SIGN_UPDATE" ]; then
+        SIGN_UPDATE=$(find ~/Library/Developer/Xcode/DerivedData/Chowser-*/SourcePackages/checkouts/Sparkle/bin/sign_update 2>/dev/null | head -1)
+    fi
+
+    if [ -z "$SIGN_UPDATE" ]; then
+        echo "   Warning: sign_update not found. Run 'xcodebuild -resolvePackageDependencies' first."
+        exit 1
+    fi
+
     # Generate EdDSA signature for the DMG
     DMG_SIZE_BYTES=$(stat -f%z "$DMG_PATH" 2>/dev/null || stat --printf="%s" "$DMG_PATH" 2>/dev/null)
-    EDDSA_SIG=$(echo -n "$SPARKLE_KEY" | ./scripts/sign_update "$DMG_PATH" 2>/dev/null || echo "")
+    EDDSA_SIG=$(echo "$SPARKLE_KEY" | "$SIGN_UPDATE" --ed-key-file - -p "$DMG_PATH" 2>/dev/null || echo "")
 
     if [ -n "$EDDSA_SIG" ]; then
         # Determine channel (beta releases get the beta channel)

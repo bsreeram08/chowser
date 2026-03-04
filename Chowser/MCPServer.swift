@@ -37,7 +37,10 @@ final class MCPServer {
         params.acceptLocalOnly = true
 
         do {
-            let nwPort = NWEndpoint.Port(rawValue: port)!
+            guard let nwPort = NWEndpoint.Port(rawValue: port) else {
+                print("Chowser MCP: Invalid port \(port)")
+                return
+            }
             listener = try NWListener(using: params, on: nwPort)
         } catch {
             print("Chowser MCP: Failed to create listener: \(error)")
@@ -315,7 +318,13 @@ final class MCPServer {
             return httpResponse(status: 200, body: ["status": "updated", "id": idStr])
         }
 
-        // Add new rule
+        // Validate that the target browser exists before attempting to add
+        if !manager.configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) {
+            return httpResponse(status: 422, body: ["error": "Browser not found. Add the browser first.", "browserBundleId": browserBundleId])
+        }
+
+        // Add new rule — track count to detect silent validation failures
+        let countBefore = manager.routingRules.count
         manager.addRoutingRule(
             name: name,
             hostPattern: hostPattern,
@@ -327,8 +336,12 @@ final class MCPServer {
             useRegex: useRegex
         )
 
-        let addedId = manager.routingRules.last?.id.uuidString ?? "unknown"
-        return httpResponse(status: 201, body: ["status": "created", "id": addedId])
+        if manager.routingRules.count > countBefore {
+            let addedId = manager.routingRules.last?.id.uuidString ?? "unknown"
+            return httpResponse(status: 201, body: ["status": "created", "id": addedId])
+        } else {
+            return httpResponse(status: 422, body: ["error": "Rule was not created. Check that the host pattern is valid."])
+        }
     }
 
     private func httpResponse(status: Int, body: [String: Any]) -> Data {
@@ -338,22 +351,21 @@ final class MCPServer {
         case 201: statusText = "Created"
         case 400: statusText = "Bad Request"
         case 404: statusText = "Not Found"
+        case 422: statusText = "Unprocessable Entity"
         case 500: statusText = "Internal Server Error"
         default: statusText = "Unknown"
         }
 
         let jsonData = (try? JSONSerialization.data(withJSONObject: body, options: [.prettyPrinted, .sortedKeys])) ?? Data()
-        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
 
-        let response = """
-        HTTP/1.1 \(status) \(statusText)\r
-        Content-Type: application/json\r
-        Content-Length: \(jsonData.count)\r
-        Connection: close\r
-        Access-Control-Allow-Origin: *\r
-        \r
-        \(jsonString)
-        """
-        return Data(response.utf8)
+        var header = "HTTP/1.1 \(status) \(statusText)\r\n"
+        header += "Content-Type: application/json\r\n"
+        header += "Content-Length: \(jsonData.count)\r\n"
+        header += "Connection: close\r\n"
+        header += "\r\n"
+
+        var responseData = Data(header.utf8)
+        responseData.append(jsonData)
+        return responseData
     }
 }

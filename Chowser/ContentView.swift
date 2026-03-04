@@ -538,7 +538,7 @@ struct ContentView: View {
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
             keyHintChip(keys: ["Esc"], label: "Close")
             Spacer()
-            keyHintChip(keys: ["←", "→"], label: "Navigate")
+            keyHintChip(keys: browserManager.pickerLayoutMode == "list" ? ["↑", "↓"] : ["←", "→"], label: "Navigate")
             keyHintChip(keys: ["↵"], label: "Launch", isAccent: true)
         }
         .padding(.horizontal, 16)

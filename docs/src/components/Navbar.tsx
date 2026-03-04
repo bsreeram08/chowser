@@ -1,27 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Github } from 'lucide-react';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const APP_STORE_URL = "https://apps.apple.com/app/chowser/id6741527291";
+
 export const Navbar = () => {
-    const [downloadUrl, setDownloadUrl] = useState("https://github.com/bsreeram08/chowser/releases/latest");
-
-    useEffect(() => {
-        const fetchLatestRelease = async () => {
-            try {
-                const response = await fetch('https://api.github.com/repos/bsreeram08/chowser/releases/latest');
-                const data = await response.json();
-                const dmgAsset = data.assets?.find((asset: any) => asset.name.endsWith('.dmg'));
-                if (dmgAsset) {
-                    setDownloadUrl(dmgAsset.browser_download_url);
-                }
-            } catch (error) {
-                console.error("Failed to fetch latest release in navbar:", error);
-            }
-        };
-        fetchLatestRelease();
-    }, []);
-
     return (
         <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -35,9 +18,6 @@ export const Navbar = () => {
                     <a href="#agentic-setup">
                         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">AI Setup</Button>
                     </a>
-                    <a href="#security-setup">
-                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Security</Button>
-                    </a>
                     <div className="w-px h-4 bg-border/20 hidden sm:block mx-2" />
                     <a
                         href="https://github.com/bsreeram08/chowser"
@@ -48,12 +28,12 @@ export const Navbar = () => {
                         <Github className="w-5 h-5" />
                     </a>
                     <a
-                        href={downloadUrl}
+                        href={APP_STORE_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:flex border-primary/20 hover:border-primary/40 bg-primary/5 hover:bg-primary/10")}
                     >
-                        Download
+                        App Store
                     </a>
                 </div>
             </div>

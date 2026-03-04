@@ -462,8 +462,10 @@ extension BrowserRoutingRule {
         
         for var browser in decoded {
             if let existingIndex = updatedBrowsers.firstIndex(where: { $0.identity == browser.identity }) {
-                // Update existing browser in place, preserving its shortcut key
+                // Update existing browser in place, preserving its id and shortcut key
+                let existingId = updatedBrowsers[existingIndex].id
                 let existingKey = updatedBrowsers[existingIndex].shortcutKey
+                browser.id = existingId
                 browser.shortcutKey = existingKey
                 updatedBrowsers[existingIndex] = browser
             } else {
@@ -1188,7 +1190,11 @@ extension BrowserRoutingRule {
             pickerShowLabels = defaults.bool(forKey: Constants.pickerShowLabelsKey)
         }
         if let mode = defaults.string(forKey: Constants.pickerLayoutModeKey) {
-            pickerLayoutMode = mode
+            // Only accept known layout modes; ignore unexpected values to avoid invalid picker state
+            let allowedModes: Set<String> = ["icons", "list"]
+            if allowedModes.contains(mode) {
+                pickerLayoutMode = mode
+            }
         }
     }
 

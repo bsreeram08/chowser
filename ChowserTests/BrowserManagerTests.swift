@@ -852,6 +852,7 @@ struct BrowserManagerTests {
             BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
         ]
 
+        let existingId = manager.configuredBrowsers[0].id
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("browsers_update_test.json")
 
         // Create an import file with the same identity but different name
@@ -865,6 +866,7 @@ struct BrowserManagerTests {
         #expect(manager.configuredBrowsers.count == 1)
         #expect(manager.configuredBrowsers[0].name == "Safari (Updated)")
         #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
+        #expect(manager.configuredBrowsers[0].id == existingId)
 
         try FileManager.default.removeItem(at: tempURL)
     }

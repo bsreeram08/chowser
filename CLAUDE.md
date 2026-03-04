@@ -76,6 +76,7 @@ Chowser includes a lightweight local HTTP API server for programmatic/AI-driven 
 ```bash
 # Start the server from the menu bar (or programmatically)
 # Default port: 24245, localhost only
+# Auth token is printed to stdout on start — required for POST/DELETE
 
 # Check server status
 curl http://localhost:24245/status
@@ -85,6 +86,7 @@ curl http://localhost:24245/browsers
 
 # Add a browser
 curl -X POST http://localhost:24245/browsers \
+  -H "X-Chowser-Token: <token>" \
   -d '{"name": "Chrome", "bundleId": "com.google.Chrome"}'
 
 # List rules
@@ -92,10 +94,12 @@ curl http://localhost:24245/rules
 
 # Add a rule
 curl -X POST http://localhost:24245/rules \
+  -H "X-Chowser-Token: <token>" \
   -d '{"hostPattern": "github.com", "browserBundleId": "com.google.Chrome", "name": "GitHub"}'
 
 # Delete a rule
-curl -X DELETE "http://localhost:24245/rules?id=<uuid>"
+curl -X DELETE "http://localhost:24245/rules?id=<uuid>" \
+  -H "X-Chowser-Token: <token>"
 ```
 
 ## Iterative Development Workflow

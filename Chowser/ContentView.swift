@@ -340,21 +340,35 @@ struct ContentView: View {
     @ViewBuilder
     private func browserListLayout(browsers: [BrowserConfig]) -> some View {
         let showScroll = browsers.count > 6
-        let content = VStack(spacing: 2) {
-            ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                browserListRow(browser: browser, index: index)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
 
         if showScroll {
-            ScrollView(.vertical, showsIndicators: false) {
-                content
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 2) {
+                        ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                            browserListRow(browser: browser, index: index)
+                                .id(browser.id)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
+                .frame(maxHeight: 320)
+                .onChange(of: keyboardSelectedBrowserId) { _, id in
+                    guard let id else { return }
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
             }
-            .frame(maxHeight: 320)
         } else {
-            content
+            VStack(spacing: 2) {
+                ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
+                    browserListRow(browser: browser, index: index)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
     }
 
@@ -754,13 +768,17 @@ struct ContentView: View {
 
         // Arrow keys — handled before the general modifier check because macOS
         // always sets the .function flag for arrow keys which would otherwise
-        // cause them to be filtered out.
-        switch event.keyCode {
-        case 125: moveSelection(by: 1); return true       // ↓
-        case 126: moveSelection(by: -1); return true      // ↑
-        case 123: moveSelection(by: -1); return true      // ←
-        case 124: moveSelection(by: 1); return true       // →
-        default: break
+        // cause them to be filtered out. Still reject command/control/shift.
+        if [125, 126, 123, 124].contains(event.keyCode) {
+            let arrowDisallowed: NSEvent.ModifierFlags = [.command, .control, .shift]
+            guard modifiers.subtracting(.function).intersection(arrowDisallowed).isEmpty else { return false }
+            switch event.keyCode {
+            case 125: moveSelection(by: 1); return true       // ↓
+            case 126: moveSelection(by: -1); return true      // ↑
+            case 123: moveSelection(by: -1); return true      // ←
+            case 124: moveSelection(by: 1); return true       // →
+            default: break
+            }
         }
 
         // .option excluded so ⌥+Return triggers private-mode open

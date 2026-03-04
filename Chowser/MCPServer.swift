@@ -7,12 +7,18 @@
 //
 //  Endpoints:
 //    GET  /browsers          — list configured browsers
-//    POST /browsers          — add or update a browser (JSON body)
-//    DELETE /browsers?id=<uuid> — remove a browser by ID
+//    POST /browsers          — add or update a browser (JSON body, token required)
+//    DELETE /browsers?id=<uuid> — remove a browser by ID (token required)
 //    GET  /rules             — list routing rules
-//    POST /rules             — add or update a rule (JSON body)
-//    DELETE /rules?id=<uuid> — remove a rule by ID
+//    POST /rules             — add or update a rule (JSON body, token required)
+//    DELETE /rules?id=<uuid> — remove a rule by ID (token required)
 //    GET  /status            — server health check + app version
+//
+//  Authentication:
+//    State-changing requests (POST/DELETE) require the header:
+//      X-Chowser-Token: <token>
+//    The token is generated on server start and printed to stdout.
+//    GET requests do not require authentication.
 //
 
 import Foundation
@@ -24,14 +30,17 @@ final class MCPServer {
 
     private(set) var isRunning = false
     private(set) var port: UInt16 = 24245
+    private(set) var authToken: String = ""
     private var listener: NWListener?
     private var connections: [NWConnection] = []
+    private let serverQueue = DispatchQueue(label: "in.sreerams.Chowser.MCPServer", qos: .userInitiated)
 
     private init() {}
 
     func start(port: UInt16 = 24245) {
         guard !isRunning else { return }
         self.port = port
+        self.authToken = UUID().uuidString
 
         let params = NWParameters.tcp
         params.acceptLocalOnly = true
@@ -50,7 +59,11 @@ final class MCPServer {
         listener?.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("Chowser MCP: Server listening on localhost:\(port)")
+                Task { @MainActor in
+                    guard let self else { return }
+                    print("Chowser MCP: Server listening on localhost:\(self.port)")
+                    print("Chowser MCP: Auth token: \(self.authToken)")
+                }
             case .failed(let error):
                 print("Chowser MCP: Server failed: \(error)")
                 Task { @MainActor in self?.stop() }
@@ -60,12 +73,22 @@ final class MCPServer {
         }
 
         listener?.newConnectionHandler = { [weak self] connection in
+            guard let self else { return }
             Task { @MainActor in
-                self?.handleConnection(connection)
+                self.connections.append(connection)
             }
+            connection.stateUpdateHandler = { [weak self] state in
+                if case .cancelled = state {
+                    Task { @MainActor in
+                        self?.connections.removeAll { $0 === connection }
+                    }
+                }
+            }
+            connection.start(queue: self.serverQueue)
+            self.receiveFullRequest(on: connection, accumulated: Data())
         }
 
-        listener?.start(queue: .main)
+        listener?.start(queue: serverQueue)
         isRunning = true
     }
 
@@ -77,42 +100,93 @@ final class MCPServer {
         }
         connections.removeAll()
         isRunning = false
+        authToken = ""
         print("Chowser MCP: Server stopped")
     }
 
-    private func handleConnection(_ connection: NWConnection) {
-        connections.append(connection)
+    /// Accumulates data from the connection until the full HTTP request (headers + body based on Content-Length) is received.
+    private nonisolated func receiveFullRequest(on connection: NWConnection, accumulated: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+            guard let self else { return }
 
-        connection.stateUpdateHandler = { [weak self] state in
-            if case .cancelled = state {
-                Task { @MainActor in
-                    self?.connections.removeAll { $0 === connection }
+            var buffer = accumulated
+            if let data {
+                buffer.append(data)
+            }
+
+            // Check if we have the full request: headers parsed and body complete
+            if let requestString = String(data: buffer, encoding: .utf8),
+               let headerEndRange = requestString.range(of: "\r\n\r\n") {
+
+                // Try to determine expected content length
+                let headerSection = String(requestString[..<headerEndRange.lowerBound])
+                let contentLength = self.parseContentLength(from: headerSection)
+                let bodyStart = buffer.distance(from: buffer.startIndex, to: buffer.index(buffer.startIndex, offsetBy: requestString.distance(from: requestString.startIndex, to: headerEndRange.upperBound)))
+                let bodyReceived = buffer.count - bodyStart
+
+                if bodyReceived >= contentLength {
+                    // Full request received — process on MainActor
+                    let requestData = buffer
+                    let token = self.parseAuthToken(from: headerSection)
+                    Task { @MainActor in
+                        let response = self.processHTTPRequest(requestData, authToken: token)
+                        connection.send(content: response, completion: .contentProcessed { _ in
+                            connection.cancel()
+                        })
+                    }
+                    return
                 }
             }
-        }
 
-        connection.start(queue: .main)
-        receiveRequest(on: connection)
-    }
-
-    private func receiveRequest(on connection: NWConnection) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            Task { @MainActor in
-                guard let self = self else { return }
-
-                if let data = data, !data.isEmpty {
-                    let response = self.processHTTPRequest(data)
+            // Request not yet complete — keep reading (or stop if connection closed/errored)
+            if isComplete || error != nil {
+                // Incomplete request, try to process what we have
+                let requestData = buffer
+                let headerSection: String
+                if let rs = String(data: buffer, encoding: .utf8),
+                   let r = rs.range(of: "\r\n\r\n") {
+                    headerSection = String(rs[..<r.lowerBound])
+                } else {
+                    headerSection = ""
+                }
+                let token = self.parseAuthToken(from: headerSection)
+                Task { @MainActor in
+                    let response = self.processHTTPRequest(requestData, authToken: token)
                     connection.send(content: response, completion: .contentProcessed { _ in
                         connection.cancel()
                     })
-                } else if isComplete || error != nil {
-                    connection.cancel()
                 }
+            } else {
+                // Continue accumulating
+                self.receiveFullRequest(on: connection, accumulated: buffer)
             }
         }
     }
 
-    private func processHTTPRequest(_ data: Data) -> Data {
+    private nonisolated func parseContentLength(from headerSection: String) -> Int {
+        for line in headerSection.components(separatedBy: "\r\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            if parts.count == 2,
+               parts[0].trimmingCharacters(in: .whitespaces).lowercased() == "content-length",
+               let length = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                return length
+            }
+        }
+        return 0
+    }
+
+    private nonisolated func parseAuthToken(from headerSection: String) -> String? {
+        for line in headerSection.components(separatedBy: "\r\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            if parts.count == 2,
+               parts[0].trimmingCharacters(in: .whitespaces).lowercased() == "x-chowser-token" {
+                return parts[1].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
+    }
+
+    private func processHTTPRequest(_ data: Data, authToken requestToken: String?) -> Data {
         guard let requestString = String(data: data, encoding: .utf8) else {
             return httpResponse(status: 400, body: ["error": "Invalid request"])
         }
@@ -136,6 +210,13 @@ final class MCPServer {
         let queryString = pathComponents.count > 1 ? String(pathComponents[1]) : ""
         let queryParams = parseQueryString(queryString)
 
+        // Require auth token for state-changing methods
+        if method == "POST" || method == "DELETE" {
+            guard let token = requestToken, token == self.authToken else {
+                return httpResponse(status: 401, body: ["error": "Unauthorized. Provide X-Chowser-Token header with the server auth token."])
+            }
+        }
+
         // Extract body (after empty line)
         var body: Data?
         if let emptyLineIndex = requestString.range(of: "\r\n\r\n") {
@@ -148,7 +229,7 @@ final class MCPServer {
         return routeRequest(method: method, path: path, queryParams: queryParams, body: body)
     }
 
-    private func parseQueryString(_ query: String) -> [String: String] {
+    private nonisolated func parseQueryString(_ query: String) -> [String: String] {
         guard !query.isEmpty else { return [:] }
         var params: [String: String] = [:]
         for pair in query.split(separator: "&") {
@@ -344,12 +425,13 @@ final class MCPServer {
         }
     }
 
-    private func httpResponse(status: Int, body: [String: Any]) -> Data {
+    private nonisolated func httpResponse(status: Int, body: [String: Any]) -> Data {
         let statusText: String
         switch status {
         case 200: statusText = "OK"
         case 201: statusText = "Created"
         case 400: statusText = "Bad Request"
+        case 401: statusText = "Unauthorized"
         case 404: statusText = "Not Found"
         case 422: statusText = "Unprocessable Entity"
         case 500: statusText = "Internal Server Error"

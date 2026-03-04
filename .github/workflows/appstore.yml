@@ -87,7 +87,7 @@ jobs:
               <key>destination</key>
               <string>upload</string>
               <key>signingStyle</key>
-              <string>automatic</string>
+              <string>manual</string>
           </dict>
           </plist>
           EOF
@@ -99,7 +99,8 @@ jobs:
             -scheme Chowser \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Chowser.xcarchive" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=TH2VPAUX6Y \
             ENABLE_APP_SANDBOX=YES \
             CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \

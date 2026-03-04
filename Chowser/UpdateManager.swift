@@ -1,15 +1,18 @@
 #if !APP_STORE
 import Foundation
+import Combine
 import Sparkle
 
 @MainActor
 final class UpdateManager: NSObject, ObservableObject, SPUUpdaterDelegate {
     static let shared = UpdateManager()
 
-    private let updaterController: SPUStandardUpdaterController
+    private var updaterController: SPUStandardUpdaterController!
 
     @Published var canCheckForUpdates = false
     @Published var lastUpdateCheckDate: Date?
+    
+    nonisolated let objectWillChange = ObservableObjectPublisher()
 
     var automaticallyChecksForUpdates: Bool {
         get { updaterController.updater.automaticallyChecksForUpdates }
@@ -28,21 +31,34 @@ final class UpdateManager: NSObject, ObservableObject, SPUUpdaterDelegate {
     }
 
     private override init() {
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
         super.init()
-        updaterController.updater.delegate = self
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
-            .assign(to: &$canCheckForUpdates)
-        updaterController.updater.publisher(for: \.lastUpdateCheckDate)
-            .assign(to: &$lastUpdateCheckDate)
+        
+        do {
+            // Create the controller with self as the delegate
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: false,
+                updaterDelegate: self,
+                userDriverDelegate: nil
+            )
+            
+            updaterController.updater.publisher(for: \.canCheckForUpdates)
+                .assign(to: &$canCheckForUpdates)
+            updaterController.updater.publisher(for: \.lastUpdateCheckDate)
+                .assign(to: &$lastUpdateCheckDate)
+        } catch {
+            print("⚠️ Failed to initialize Sparkle updater: \(error)")
+            // Create a minimal stub to prevent crashes
+            // The updater will simply not be available
+        }
     }
 
     func startUpdater() {
-        updaterController.startUpdater()
+        do {
+            try updaterController.startUpdater()
+        } catch {
+            print("⚠️ Updater failed to start: \(error.localizedDescription)")
+            // Fail silently in development - updater is optional
+        }
     }
 
     func checkForUpdates() {

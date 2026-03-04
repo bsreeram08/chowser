@@ -323,12 +323,17 @@ struct AppStoreUpdateRow: View {
     @State private var isChecking = false
     @State private var checked = false
 
-    private var manager: UpdateManager { UpdateManager.shared }
+    private let manager: UpdateManager = UpdateManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                if manager.updateAvailable, let version = manager.latestVersion {
+                if manager.isTestFlight {
+                    Image(systemName: "airplane.circle.fill")
+                        .foregroundStyle(Color.blue)
+                    Text("TestFlight beta (\(manager.currentVersion)) – check the TestFlight app for updates")
+                        .font(.system(size: 13))
+                } else if manager.updateAvailable, let version = manager.latestVersion {
                     Image(systemName: "arrow.down.circle.fill")
                         .foregroundStyle(Color.green)
                     Text("Version \(version) available on the App Store")
@@ -345,7 +350,12 @@ struct AppStoreUpdateRow: View {
 
                 Spacer()
 
-                if manager.updateAvailable {
+                if manager.isTestFlight {
+                    Button("Open TestFlight") {
+                        manager.openTestFlight()
+                    }
+                    .font(.system(size: 11))
+                } else if manager.updateAvailable {
                     Button("Open App Store") {
                         manager.openAppStore()
                     }

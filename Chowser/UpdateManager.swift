@@ -1,8 +1,10 @@
 import Foundation
 import AppKit
+import Observation
 
 /// Checks the App Store for a newer version of Chowser using the iTunes lookup API.
 @MainActor
+@Observable
 final class UpdateManager {
     static let shared = UpdateManager()
 
@@ -33,11 +35,31 @@ final class UpdateManager {
         NSWorkspace.shared.open(appStoreURL)
     }
 
+    func openTestFlight() {
+        // itms-beta:// deep-links directly into the TestFlight app
+        if let url = URL(string: "itms-beta://") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
-    private func isNewerVersion(_ store: String, than current: String) -> Bool {
+    /// `true` when running a TestFlight build. Detected by the presence of the sandbox receipt
+    /// Apple places at `App.app/Contents/_MASReceipt/sandboxReceipt` for TestFlight builds,
+    /// as opposed to `receipt` for App Store builds.
+    var isTestFlight: Bool {
+        hasSandboxReceipt(in: Bundle.main.bundleURL)
+    }
+
+    /// Separated from `isTestFlight` so tests can pass an arbitrary bundle URL.
+    func hasSandboxReceipt(in bundleURL: URL) -> Bool {
+        let sandboxReceipt = bundleURL.appendingPathComponent("Contents/_MASReceipt/sandboxReceipt")
+        return FileManager.default.fileExists(atPath: sandboxReceipt.path)
+    }
+
+    func isNewerVersion(_ store: String, than current: String) -> Bool {
         let storeParts = store.split(separator: ".").compactMap { Int($0) }
         let currentParts = current.split(separator: ".").compactMap { Int($0) }
         let maxLen = max(storeParts.count, currentParts.count)

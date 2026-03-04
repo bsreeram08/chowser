@@ -255,12 +255,57 @@ final class MCPServer {
         // MARK: - Status
         case ("GET", "/status"):
             let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+            let endpoints: [[String: Any]] = [
+                [
+                    "method": "GET", "path": "/status",
+                    "auth": false,
+                    "description": "Server health check, app version, and full API schema.",
+                ],
+                [
+                    "method": "GET", "path": "/browsers",
+                    "auth": false,
+                    "description": "List all configured browsers.",
+                    "response_fields": ["id", "name", "bundleId", "shortcutKey", "profile?", "customArguments?"],
+                ],
+                [
+                    "method": "POST", "path": "/browsers",
+                    "auth": true,
+                    "description": "Add a new browser, or update an existing one (matched by bundleId + profile). Returns 201 on create, 200 on update.",
+                    "body_fields": ["name (required)", "bundleId (required)", "profile?", "shortcutKey?", "customArguments?"],
+                ],
+                [
+                    "method": "DELETE", "path": "/browsers",
+                    "auth": true,
+                    "description": "Remove a browser by id. Query param: ?id=<uuid>",
+                    "query_params": ["id (required): browser UUID from GET /browsers"],
+                ],
+                [
+                    "method": "GET", "path": "/rules",
+                    "auth": false,
+                    "description": "List all routing rules.",
+                    "response_fields": ["id", "name", "hostPattern", "browserBundleId", "isEnabled", "usePrivateMode", "useRegex", "pathPrefix?", "profile?", "sourceAppBundleId?"],
+                ],
+                [
+                    "method": "POST", "path": "/rules",
+                    "auth": true,
+                    "description": "Create a new rule (201), or update an existing one by including its id in the body (200). The target browser must already exist. useRegex=true treats hostPattern as a regex.",
+                    "body_fields": ["hostPattern (required)", "browserBundleId (required)", "id? (provide to update existing rule)", "name?", "pathPrefix?", "profile?", "sourceAppBundleId?", "usePrivateMode?", "useRegex?", "isEnabled?"],
+                ],
+                [
+                    "method": "DELETE", "path": "/rules",
+                    "auth": true,
+                    "description": "Remove a routing rule by id. Query param: ?id=<uuid>",
+                    "query_params": ["id (required): rule UUID from GET /rules"],
+                ],
+            ]
             return httpResponse(status: 200, body: [
                 "status": "ok",
                 "app": "Chowser",
                 "version": version,
                 "browsers_count": manager.configuredBrowsers.count,
                 "rules_count": manager.routingRules.count,
+                "auth_header": "X-Chowser-Token",
+                "endpoints": endpoints,
             ] as [String: Any])
 
         // MARK: - Browsers

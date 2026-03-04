@@ -431,7 +431,6 @@ extension BrowserRoutingRule {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserRoutingRule].self, from: data)
         
-        let existingById = Dictionary(uniqueKeysWithValues: routingRules.map { ($0.id, $0) })
         var updatedRules = routingRules
         
         for rule in decoded {

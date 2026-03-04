@@ -805,6 +805,102 @@ struct BrowserManagerTests {
         try FileManager.default.removeItem(at: tempURL)
     }
 
+    @Test("Import updates existing rules with matching IDs")
+    @MainActor
+    func importUpdatesExistingRules() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.apple.Safari"
+        )
+
+        let ruleId = manager.routingRules[0].id
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_update_test.json")
+        try manager.exportRules(to: tempURL)
+
+        // Modify the exported file to update the rule
+        var exported = try JSONDecoder().decode([BrowserRoutingRule].self, from: Data(contentsOf: tempURL))
+        exported[0].name = "GitHub Updated"
+        exported[0].browserBundleId = "com.google.Chrome"
+        try JSONEncoder().encode(exported).write(to: tempURL)
+
+        // Import should update the existing rule, not add a new one
+        try manager.importRules(from: tempURL)
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].id == ruleId)
+        #expect(manager.routingRules[0].name == "GitHub Updated")
+        #expect(manager.routingRules[0].browserBundleId == "com.google.Chrome")
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Import updates existing browsers with matching identity")
+    @MainActor
+    func importUpdatesExistingBrowsers() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("browsers_update_test.json")
+
+        // Create an import file with the same identity but different name
+        let updatedBrowsers = [
+            BrowserConfig(name: "Safari (Updated)", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+        try JSONEncoder().encode(updatedBrowsers).write(to: tempURL)
+
+        try manager.importBrowsers(from: tempURL)
+
+        #expect(manager.configuredBrowsers.count == 1)
+        #expect(manager.configuredBrowsers[0].name == "Safari (Updated)")
+        #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Import adds new rules alongside existing ones")
+    @MainActor
+    func importAddsNewRulesAlongsideExisting() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.apple.Safari"
+        )
+
+        // Create a new rule with a different ID
+        let newRules = [
+            BrowserRoutingRule(name: "Google", hostPattern: "google.com", browserBundleId: "com.apple.Safari"),
+        ]
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_add_test.json")
+        try JSONEncoder().encode(newRules).write(to: tempURL)
+
+        try manager.importRules(from: tempURL)
+
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.routingRules[0].name == "GitHub")
+        #expect(manager.routingRules[1].name == "Google")
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
     @Test("Installed browsers list includes profile info when profiles exist")
     func installedBrowsersIncludeProfiles() {
         let browsers = BrowserManager.getInstalledBrowsers()

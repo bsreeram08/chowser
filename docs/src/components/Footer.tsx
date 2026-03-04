@@ -13,9 +13,10 @@ export const Footer = () => {
                     <span className="text-muted-foreground/60">© {new Date().getFullYear()}</span>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-6 text-muted-foreground">
-                    <a href="#" className="hover:text-foreground transition-colors">Home</a>
-                    <a href="#agentic-setup" className="hover:text-foreground transition-colors">AI Setup</a>
-                    <a href="#security-setup" className="hover:text-foreground transition-colors">Security</a>
+                    <a href="/" className="hover:text-foreground transition-colors">Home</a>
+                    <a href="/#agentic-setup" className="hover:text-foreground transition-colors">AI Setup</a>
+                    <a href="/#security-setup" className="hover:text-foreground transition-colors">Security</a>
+                    <a href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
                 </div>
             </div>
         </footer>

@@ -64,6 +64,7 @@ final class MCPServer {
             case .ready:
                 Task { @MainActor in
                     guard let s = capturedSelf else { return }
+                    s.isRunning = true
                     print("Chowser MCP: Server listening on localhost:\(s.port)")
                     print("Chowser MCP: Auth token: \(s.authToken)")
                 }
@@ -92,7 +93,6 @@ final class MCPServer {
         }
 
         listener?.start(queue: serverQueue)
-        isRunning = true
     }
 
     func stop() {

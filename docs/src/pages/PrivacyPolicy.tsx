@@ -75,10 +75,8 @@ export const PrivacyPolicy = () => {
                         </h2>
                         <p>
                             Chowser makes network requests only to check for app
-                            updates via Sparkle (direct download version only).
-                            The Mac App Store version uses Apple's built-in
-                            update mechanism. No user data is transmitted during
-                            update checks.
+                            updates via the App Store. No user data is transmitted
+                            during update checks.
                         </p>
                     </section>
 

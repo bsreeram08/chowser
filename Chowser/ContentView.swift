@@ -552,7 +552,6 @@ struct ContentView: View {
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
             keyHintChip(keys: ["Esc"], label: "Close")
             Spacer()
-            keyHintChip(keys: browserManager.pickerLayoutMode == "list" ? ["↑", "↓"] : ["←", "→"], label: "Navigate")
             keyHintChip(keys: ["↵"], label: "Launch", isAccent: true)
         }
         .padding(.horizontal, 16)
@@ -568,6 +567,7 @@ struct ContentView: View {
                 Text(key)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(isAccent ? .white : (isActive ? Color.purple : Color.primary.opacity(0.6)))
+                    .fixedSize()
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
                     .background(
@@ -580,6 +580,7 @@ struct ContentView: View {
             }
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
+                .fixedSize()
                 .foregroundStyle(
                     isAccent ? Color.accentColor :
                         (isActive ? Color.purple : Color.secondary)
@@ -628,7 +629,7 @@ struct ContentView: View {
 
     private var pickerWidth: CGFloat {
         if browserManager.pickerLayoutMode == "list" {
-            return 320
+            return 400
         }
         let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
         let dims = pickerIconDimensions

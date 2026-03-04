@@ -4,7 +4,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────
 # Chowser Release Script
 # Usage: ./scripts/release.sh <version>
-# Example: ./scripts/release.sh 2.11.0
+# Example: ./scripts/release.sh 3.0.0
 #
 # Environment variables (CI overrides):
 #   CODE_SIGN_IDENTITY    - Signing identity (default: "Developer ID Application")
@@ -13,20 +13,18 @@ set -euo pipefail
 #   APPLE_ID              - Apple ID for notarization
 #   APPLE_ID_PASSWORD     - App-specific password for notarization
 #   APPLE_TEAM_ID         - Team ID for notarization
-#   SPARKLE_PRIVATE_KEY   - EdDSA private key for Sparkle signing
-#   SPARKLE_DOWNLOAD_URL  - Base URL for DMG download in appcast
 # ─────────────────────────────────────────────
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
     echo "Usage: $0 <version>"
-    echo "   Example: $0 2.11.0"
+    echo "   Example: $0 3.0.0"
     exit 1
 fi
 
 # Validate semver format
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
-    echo "Version must be in semver format (e.g. 2.11.0 or 2.12.0-beta.1)"
+    echo "Version must be in semver format (e.g. 3.0.0 or 2.12.0-beta.1)"
     exit 1
 fi
 
@@ -58,15 +56,12 @@ echo "Building Release archive..."
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
-# Support unsigned CI builds via env vars
-SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Developer ID Application}"
-SIGNING_ALLOWED="${CODE_SIGNING_ALLOWED:-YES}"
-
-SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_IDENTITY")
-if [ "$SIGNING_ALLOWED" = "NO" ]; then
-    SIGN_ARGS+=(CODE_SIGNING_ALLOWED=NO)
+# Signing: CI uses Developer ID (set via env), local defaults to unsigned
+if [ -n "${CODE_SIGN_IDENTITY:-}" ]; then
+    SIGN_ARGS=(CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" DEVELOPMENT_TEAM="TH2VPAUX6Y")
 else
-    SIGN_ARGS+=(DEVELOPMENT_TEAM="TH2VPAUX6Y")
+    # Local build — disable signing to avoid cert conflicts
+    SIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-)
 fi
 
 xcodebuild archive \
@@ -206,48 +201,7 @@ if [ "$SHOULD_NOTARIZE" = "YES" ]; then
     echo "   DMG notarization complete"
 fi
 
-# ─── Step 8: Generate Sparkle appcast ───
-SPARKLE_KEY="${SPARKLE_PRIVATE_KEY:-}"
-DOWNLOAD_URL="${SPARKLE_DOWNLOAD_URL:-https://github.com/bsreeram08/chowser/releases/download/v${VERSION}/Chowser-${VERSION}.dmg}"
-
-if [ -n "$SPARKLE_KEY" ]; then
-    echo "Generating Sparkle appcast..."
-
-    # Generate EdDSA signature for the DMG
-    DMG_SIZE_BYTES=$(stat -f%z "$DMG_PATH" 2>/dev/null || stat --printf="%s" "$DMG_PATH" 2>/dev/null)
-    EDDSA_SIG=$(echo -n "$SPARKLE_KEY" | ./scripts/sign_update "$DMG_PATH" 2>/dev/null || echo "")
-
-    if [ -n "$EDDSA_SIG" ]; then
-        # Determine channel (beta releases get the beta channel)
-        CHANNEL_TAG=""
-        if [[ "$VERSION" == *"-beta"* ]]; then
-            CHANNEL_TAG="<sparkle:channel>beta</sparkle:channel>"
-        fi
-
-        cat > "$RELEASE_DIR/appcast-item.xml" <<APPCAST_EOF
-        <item>
-            <title>Version ${VERSION}</title>
-            <pubDate>$(date -R)</pubDate>
-            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
-            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-            ${CHANNEL_TAG}
-            <enclosure
-                url="${DOWNLOAD_URL}"
-                sparkle:edSignature="${EDDSA_SIG}"
-                length="${DMG_SIZE_BYTES}"
-                type="application/octet-stream" />
-        </item>
-APPCAST_EOF
-        echo "   Appcast item generated: $RELEASE_DIR/appcast-item.xml"
-    else
-        echo "   Warning: Could not generate EdDSA signature. Install Sparkle's sign_update tool."
-        echo "   Run: swift build --package-path .build/checkouts/Sparkle --product sign_update"
-    fi
-else
-    echo "   Skipping appcast (SPARKLE_PRIVATE_KEY not set)"
-fi
-
-# ─── Step 9: Clean up ───
+# ─── Step 8: Clean up ───
 rm -rf "$ARCHIVE_PATH" "$APP_PATH"
 
 # ─── Step 10: Git tag ───

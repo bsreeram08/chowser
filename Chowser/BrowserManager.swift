@@ -287,7 +287,8 @@ extension BrowserRoutingRule {
         }
 
         temporaryRouteExpirationTimer = Timer.scheduledTimer(withTimeInterval: expiresAt.timeIntervalSinceNow, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
                 self?.temporaryRoute = nil
             }
         }

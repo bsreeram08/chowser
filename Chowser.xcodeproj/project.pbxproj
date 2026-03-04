@@ -9,10 +9,16 @@
 /* Begin PBXBuildFile section */
 		1FF76C046FBE3D0C66C38124 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4256289010C5E6B965D7B730 /* Foundation.framework */; };
 		25AA97349CB4FAEB8479D3CA /* ChowserUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59D2406EC8317E26EF49F70 /* ChowserUITests.swift */; };
-		AABB001122334455SPARKLE01 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AABB001122334455SPARKLE02 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		3032E9E32F58AB500027E23B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 30E5E9E72F4847CD00E18455 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 30E5E9EE2F4847CD00E18455;
+			remoteInfo = Chowser;
+		};
 		CFC3E7415FCB405E9A35AE14 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 30E5E9E72F4847CD00E18455 /* Project object */;
@@ -24,6 +30,7 @@
 
 /* Begin PBXFileReference section */
 		0835040E4AFBA041A2260392 /* ChowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3032E9DD2F58AB500027E23B /* ChowserScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		30E5E9EF2F4847CD00E18455 /* Chowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4256289010C5E6B965D7B730 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		97B7470017E24968B7459B57 /* ChowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -31,9 +38,17 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3032E9EC2F58ABA70027E23B /* Exceptions for "Chowser" folder in "ChowserTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BrowserConfigTests.swift,
+			);
+			target = B4481878B16547B69BC9538F /* ChowserTests */;
+		};
 		30E5EA042F4848BA00E18455 /* Exceptions for "Chowser" folder in "Chowser" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				BrowserConfigTests.swift,
 				Info.plist,
 			);
 			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
@@ -41,10 +56,16 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		3032E9DE2F58AB500027E23B /* ChowserScreenshotTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ChowserScreenshotTests;
+			sourceTree = "<group>";
+		};
 		30E5E9F12F4847CD00E18455 /* Chowser */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				30E5EA042F4848BA00E18455 /* Exceptions for "Chowser" folder in "Chowser" target */,
+				3032E9EC2F58ABA70027E23B /* Exceptions for "Chowser" folder in "ChowserTests" target */,
 			);
 			path = Chowser;
 			sourceTree = "<group>";
@@ -65,11 +86,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		3032E9DA2F58AB500027E23B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		30E5E9EC2F4847CD00E18455 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AABB001122334455SPARKLE01 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,6 +115,7 @@
 			children = (
 				30E5E9F12F4847CD00E18455 /* Chowser */,
 				B2664C3112464B0CB7F91A42 /* ChowserTests */,
+				3032E9DE2F58AB500027E23B /* ChowserScreenshotTests */,
 				30E5E9F02F4847CD00E18455 /* Products */,
 				AC5C1A2A235C60E8E1E5D638 /* Frameworks */,
 				3319B9B7684339E4554F64B9 /* ChowserUITests */,
@@ -100,6 +128,7 @@
 				30E5E9EF2F4847CD00E18455 /* Chowser.app */,
 				97B7470017E24968B7459B57 /* ChowserTests.xctest */,
 				0835040E4AFBA041A2260392 /* ChowserUITests.xctest */,
+				3032E9DD2F58AB500027E23B /* ChowserScreenshotTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -131,6 +160,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3032E9DC2F58AB500027E23B /* ChowserScreenshotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3032E9E52F58AB500027E23B /* Build configuration list for PBXNativeTarget "ChowserScreenshotTests" */;
+			buildPhases = (
+				3032E9D92F58AB500027E23B /* Sources */,
+				3032E9DA2F58AB500027E23B /* Frameworks */,
+				3032E9DB2F58AB500027E23B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3032E9E42F58AB500027E23B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				3032E9DE2F58AB500027E23B /* ChowserScreenshotTests */,
+			);
+			name = ChowserScreenshotTests;
+			packageProductDependencies = (
+			);
+			productName = ChowserScreenshotTests;
+			productReference = 3032E9DD2F58AB500027E23B /* ChowserScreenshotTests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		30E5E9EE2F4847CD00E18455 /* Chowser */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 30E5E9FA2F4847CE00E18455 /* Build configuration list for PBXNativeTarget "Chowser" */;
@@ -148,7 +200,6 @@
 			);
 			name = Chowser;
 			packageProductDependencies = (
-				AABB001122334455SPARKLE02 /* Sparkle */,
 			);
 			productName = Chowser;
 			productReference = 30E5E9EF2F4847CD00E18455 /* Chowser.app */;
@@ -202,6 +253,10 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					3032E9DC2F58AB500027E23B = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 30E5E9EE2F4847CD00E18455;
+					};
 					30E5E9EE2F4847CD00E18455 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -216,22 +271,29 @@
 			);
 			mainGroup = 30E5E9E62F4847CD00E18455;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 30E5E9F02F4847CD00E18455 /* Products */;
-			packageReferences = (
-				AABB001122334455SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */,
-			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				30E5E9EE2F4847CD00E18455 /* Chowser */,
 				B4481878B16547B69BC9538F /* ChowserTests */,
 				EE1E63C8E51DADBF513BC3AA /* ChowserUITests */,
+				3032E9DC2F58AB500027E23B /* ChowserScreenshotTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		3032E9DB2F58AB500027E23B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		30E5E9ED2F4847CD00E18455 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -256,6 +318,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3032E9D92F58AB500027E23B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		30E5E9EB2F4847CD00E18455 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -281,6 +350,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		3032E9E42F58AB500027E23B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
+			targetProxy = 3032E9E32F58AB500027E23B /* PBXContainerItemProxy */;
+		};
 		3CFD781F9867429494175C77 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
@@ -289,6 +363,46 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		3032E9E62F58AB500027E23B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 202603050139;
+				DEVELOPMENT_TEAM = TH2VPAUX6Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 3.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserScreenshotTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Chowser;
+			};
+			name = Debug;
+		};
+		3032E9E72F58AB500027E23B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 202603050139;
+				DEVELOPMENT_TEAM = TH2VPAUX6Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 3.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserScreenshotTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Chowser;
+			};
+			name = Release;
+		};
 		30E5E9F82F4847CE00E18455 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -418,7 +532,7 @@
 				CODE_SIGN_ENTITLEMENTS = Chowser/Chowser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202603031918;
+				CURRENT_PROJECT_VERSION = 202603050139;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -433,7 +547,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.11.0;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -452,13 +566,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = Chowser/Chowser.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Chowser/ChowserAppStore.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202603031918;
+				CURRENT_PROJECT_VERSION = 202603050139;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
-				ENABLE_APP_SANDBOX = NO;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -470,7 +585,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.11.0;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -501,10 +616,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202603031918;
+				CURRENT_PROJECT_VERSION = 202603050139;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.11.0;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -533,10 +648,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202603031918;
+				CURRENT_PROJECT_VERSION = 202603050139;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.11.0;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -555,6 +670,15 @@
 			buildConfigurations = (
 				BA38A795BCD648FC9CD17365 /* Debug */,
 				A1C2D3E4F5A6B7C8D9E0F1A2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3032E9E52F58AB500027E23B /* Build configuration list for PBXNativeTarget "ChowserScreenshotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3032E9E62F58AB500027E23B /* Debug */,
+				3032E9E72F58AB500027E23B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -588,23 +712,7 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		AABB001122334455SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
-		AABB001122334455SPARKLE02 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AABB001122334455SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 30E5E9E72F4847CD00E18455 /* Project object */;

@@ -315,8 +315,7 @@ struct RuleTesterView: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(.purple)
                         }
-                    } else if let fallback = manager.configuredBrowsers.first {
-                        let browserName = fallback.name + (fallback.profile != nil ? " (\(fallback.profile!))" : "")
+                    } else if !manager.configuredBrowsers.isEmpty {
                         Text("No rules match. Choose from the browsers picker.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)

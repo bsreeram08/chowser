@@ -1,8 +1,5 @@
 import SwiftUI
 import AppKit
-#if !APP_STORE
-import Sparkle
-#endif
 
 extension SettingsView {
 
@@ -159,47 +156,17 @@ extension SettingsView {
                     Text("System")
                 }
 
-                #if !APP_STORE
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Automatically check for updates", isOn: Binding(
-                            get: { UpdateManager.shared.automaticallyChecksForUpdates },
-                            set: { UpdateManager.shared.automaticallyChecksForUpdates = $0 }
-                        ))
-
-                        Divider()
-
-                        Toggle("Join Beta Program", isOn: Binding(
-                            get: { UpdateManager.shared.joinBetaProgram },
-                            set: { UpdateManager.shared.joinBetaProgram = $0 }
-                        ))
-
-                        Text("Get early access to new features and improvements. Beta builds may contain bugs.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-
-                        Divider()
-
-                        HStack {
-                            if let lastCheck = UpdateManager.shared.lastUpdateCheckDate {
-                                Text("Last checked: \(lastCheck.formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.tertiary)
-                            }
-
-                            Spacer()
-
-                            Button("Check Now") {
-                                UpdateManager.shared.checkForUpdates()
-                            }
-                            .disabled(!UpdateManager.shared.canCheckForUpdates)
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    AppStoreUpdateRow()
                 } header: {
                     Text("Updates")
                 }
-                #endif
+
+                Section {
+                    MCPServerSettingsRow()
+                } header: {
+                    Text("API Server")
+                }
 
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
@@ -262,5 +229,143 @@ extension SettingsView {
         let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(shortVersion) (\(build))"
+    }
+}
+
+// MARK: - MCP Server Settings Row
+
+struct MCPServerSettingsRow: View {
+    @State private var isRunning = MCPServer.shared.isRunning
+    @State private var tokenCopied = false
+
+    private var server: MCPServer { MCPServer.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(isRunning ? Color.green : Color.secondary.opacity(0.4))
+                    .frame(width: 8, height: 8)
+
+                if isRunning {
+                    Text("Running on port \(server.port)")
+                        .font(.system(size: 13))
+                } else {
+                    Text("Stopped")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button(isRunning ? "Stop" : "Start") {
+                    if isRunning {
+                        server.stop()
+                    } else {
+                        server.start()
+                    }
+                    isRunning = server.isRunning
+                }
+                .font(.system(size: 11))
+            }
+
+            if isRunning {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Auth Token")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        Text(server.authToken)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        Button(action: copyToken) {
+                            Image(systemName: tokenCopied ? "checkmark" : "doc.on.clipboard")
+                                .font(.system(size: 11))
+                                .foregroundStyle(tokenCopied ? Color.green : Color.secondary)
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.05)))
+
+                    Text("Use this token to authenticate POST/DELETE requests to the API.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            Text("The local API server lets AI assistants (Claude, ChatGPT, etc.) configure your browsers and rules.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRunning)
+    }
+
+    private func copyToken() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(server.authToken, forType: .string)
+        withAnimation { tokenCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation { tokenCopied = false }
+        }
+    }
+}
+
+// MARK: - App Store Update Row
+
+struct AppStoreUpdateRow: View {
+    @State private var isChecking = false
+    @State private var checked = false
+
+    private var manager: UpdateManager { UpdateManager.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if manager.updateAvailable, let version = manager.latestVersion {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(Color.green)
+                    Text("Version \(version) available on the App Store")
+                        .font(.system(size: 13))
+                } else if checked {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.green)
+                    Text("Chowser is up to date (\(manager.currentVersion))")
+                        .font(.system(size: 13))
+                } else {
+                    Text("Current version: \(manager.currentVersion)")
+                        .font(.system(size: 13))
+                }
+
+                Spacer()
+
+                if manager.updateAvailable {
+                    Button("Open App Store") {
+                        manager.openAppStore()
+                    }
+                    .font(.system(size: 11))
+                } else {
+                    Button(isChecking ? "Checking…" : "Check Now") {
+                        isChecking = true
+                        Task {
+                            await manager.checkForUpdates()
+                            isChecking = false
+                            checked = true
+                        }
+                    }
+                    .disabled(isChecking)
+                    .font(.system(size: 11))
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

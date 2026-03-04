@@ -138,7 +138,7 @@ export const Home: React.FC = () => {
           setDownloadUrl(dmgAsset.browser_download_url);
         }
         if (data.tag_name) {
-          // Remove "v" prefix if it exists to just show "2.11.0" etc
+          // Remove "v" prefix if it exists to just show "3.0.0" etc
           setDownloadVersion(data.tag_name.replace(/^v/, ""));
         }
       } catch (error) {

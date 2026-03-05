@@ -140,7 +140,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     private func setupApplicationState() {
         setupStatusBar()
-        Task { await UpdateManager.shared.checkForUpdates() }
+
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -433,15 +433,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         menu.addItem(NSMenuItem.separator())
 
-        // 6. Check for Updates
-        let updateTitle = UpdateManager.shared.updateAvailable
-            ? "Update Available – Open App Store"
-            : "Check for Updates…"
-        let updateItem = NSMenuItem(title: updateTitle, action: #selector(checkForUpdates), keyEquivalent: "")
-        updateItem.target = self
-        menu.addItem(updateItem)
-
-        // 7. About Chowser
+        // 6. About Chowser
         let aboutItem = NSMenuItem(title: "About Chowser", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
@@ -635,18 +627,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
               let url = URL(string: s),
               url.scheme == "http" || url.scheme == "https" else { return nil }
         return url
-    }
-
-    @objc private func checkForUpdates() {
-        if UpdateManager.shared.updateAvailable {
-            UpdateManager.shared.openAppStore()
-        } else {
-            Task {
-                await UpdateManager.shared.checkForUpdates()
-                // Trigger menu refresh so title updates if an update was found
-                statusItem?.menu?.removeAllItems()
-            }
-        }
     }
 
     @objc private func quitApp() {

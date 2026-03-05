@@ -156,11 +156,7 @@ extension SettingsView {
                     Text("System")
                 }
 
-                Section {
-                    AppStoreUpdateRow()
-                } header: {
-                    Text("Updates")
-                }
+
 
                 Section {
                     MCPServerSettingsRow()
@@ -317,63 +313,3 @@ struct MCPServerSettingsRow: View {
     }
 }
 
-// MARK: - App Store Update Row
-
-struct AppStoreUpdateRow: View {
-    @State private var isChecking = false
-    @State private var checked = false
-
-    private let manager: UpdateManager = UpdateManager.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                if manager.isTestFlight {
-                    Image(systemName: "airplane.circle.fill")
-                        .foregroundStyle(Color.blue)
-                    Text("TestFlight beta (\(manager.currentVersion)) – check the TestFlight app for updates")
-                        .font(.system(size: 13))
-                } else if manager.updateAvailable, let version = manager.latestVersion {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(Color.green)
-                    Text("Version \(version) available on the App Store")
-                        .font(.system(size: 13))
-                } else if checked {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.green)
-                    Text("Chowser is up to date (\(manager.currentVersion))")
-                        .font(.system(size: 13))
-                } else {
-                    Text("Current version: \(manager.currentVersion)")
-                        .font(.system(size: 13))
-                }
-
-                Spacer()
-
-                if manager.isTestFlight {
-                    Button("Open TestFlight") {
-                        manager.openTestFlight()
-                    }
-                    .font(.system(size: 11))
-                } else if manager.updateAvailable {
-                    Button("Open App Store") {
-                        manager.openAppStore()
-                    }
-                    .font(.system(size: 11))
-                } else {
-                    Button(isChecking ? "Checking…" : "Check Now") {
-                        isChecking = true
-                        Task {
-                            await manager.checkForUpdates()
-                            isChecking = false
-                            checked = true
-                        }
-                    }
-                    .disabled(isChecking)
-                    .font(.system(size: 11))
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}

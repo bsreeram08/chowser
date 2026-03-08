@@ -5,6 +5,7 @@ struct RuleRowView: View {
     let rule: BrowserRoutingRule
     let configuredBrowsers: [BrowserConfig]
     let hasSearchQuery: Bool
+    let densityPreference: String
 
     let onUpdate: (BrowserRoutingRule) -> Void
     let onEdit: () -> Void
@@ -18,11 +19,21 @@ struct RuleRowView: View {
     let canMoveDown: Bool
 
     @State private var isHoveringRow = false
+    
+    // Density multipliers
+    private var densityMultiplier: CGFloat {
+        switch densityPreference {
+        case "compact": return 0.8
+        case "comfortable": return 1.2
+        default: return 1.0
+        }
+    }
 
     init(
         rule: BrowserRoutingRule,
         configuredBrowsers: [BrowserConfig],
         hasSearchQuery: Bool,
+        densityPreference: String = "default",
         onUpdate: @escaping (BrowserRoutingRule) -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void,
@@ -36,6 +47,7 @@ struct RuleRowView: View {
         self.rule = rule
         self.configuredBrowsers = configuredBrowsers
         self.hasSearchQuery = hasSearchQuery
+        self.densityPreference = densityPreference
         self.onUpdate = onUpdate
         self.onEdit = onEdit
         self.onDelete = onDelete
@@ -65,9 +77,51 @@ struct RuleRowView: View {
         return configuredBrowsers.first(where: { $0.identity == identity })?.name ?? rule.browserBundleId
     }
 
+    private var quickActionsView: some View {
+        HStack(spacing: 4) {
+            // Toggle button
+            Button(action: {
+                var updated = rule
+                updated.isEnabled = !rule.isEnabled
+                onUpdate(updated)
+            }) {
+                Image(systemName: rule.isEnabled ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(rule.isEnabled ? .green : .tertiary)
+            }
+            .buttonStyle(.plain)
+            .help(rule.isEnabled ? "Disable rule" : "Enable rule")
+            
+            // Duplicate button
+            Button(action: onDuplicate) {
+                Image(systemName: "plus.square.on.square")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Duplicate rule")
+            
+            // Delete button
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red.opacity(isHoveringRow ? 1.0 : 0.5))
+            }
+            .buttonStyle(.plain)
+            .help("Delete rule")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(Color.secondary.opacity(0.1))
+        )
+    }
+
     var body: some View {
         HStack(spacing: 16) {
-            VStack(spacing: 4) {
+            // Quick toggle (always visible on hover or always on in compact mode)
+            VStack(spacing: 2) {
                 Toggle("", isOn: Binding(
                     get: { rule.isEnabled },
                     set: { newValue in
@@ -78,13 +132,10 @@ struct RuleRowView: View {
                 ))
                 .labelsHidden()
                 .toggleStyle(.switch)
+                .controlSize(.small)
                 .accessibilityLabel("Enable rule \(rule.name)")
-
-                Text(rule.isEnabled ? "ON" : "OFF")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(rule.isEnabled ? .green : .secondary)
             }
-            .frame(width: 40)
+            .frame(width: 36)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -152,6 +203,12 @@ struct RuleRowView: View {
 
             Spacer()
 
+            // Inline quick actions (visible on hover)
+            quickActionsView
+                .opacity(isHoveringRow ? 1.0 : 0.6)
+                .animation(.easeInOut(duration: 0.15), value: isHoveringRow)
+
+            // Edit button
             Button(action: onEdit) {
                 Text("Edit")
                     .font(.system(size: 11, weight: .medium))

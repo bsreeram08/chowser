@@ -919,6 +919,9 @@ extension BrowserRoutingRule {
     // MARK: - Installed Browsers
 
     static func getInstalledBrowsers(includeHidden: Bool = false) -> [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
+        // Clear the profile cache so we always pick up the latest profiles on disk.
+        // This is cheap — detectProfiles reads a single JSON file per browser.
+        BrowserProfileDetector.clearCache()
         if AppEnvironment.shouldUseMockInstalledBrowsers {
             let mockEntries: [(String, String, String?)] = [
                 ("Google Chrome", "com.google.Chrome", nil),

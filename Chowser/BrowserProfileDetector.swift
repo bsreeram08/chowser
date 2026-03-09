@@ -31,6 +31,9 @@ enum BrowserProfileDetector {
     }
 
     private static func detectChromiumProfiles(bundleId: String) -> [BrowserProfile] {
+        _ = SandboxBookmarkManager.shared.startAccessing()
+        defer { SandboxBookmarkManager.shared.stopAccessing() }
+
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let pathSuffix: String
         switch bundleId {
@@ -61,11 +64,14 @@ enum BrowserProfileDetector {
     }
 
     private static func detectFirefoxProfiles(bundleId: String) -> [BrowserProfile] {
+        _ = SandboxBookmarkManager.shared.startAccessing()
+        defer { SandboxBookmarkManager.shared.stopAccessing() }
+
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let pathSuffix = bundleId == "org.mozilla.firefox" ? "Firefox/profiles.ini" : "Zen/profiles.ini"
         let iniURL = appSupport.appendingPathComponent(pathSuffix)
 
-        guard let content = try? String(contentsOf: iniURL) else { return [] }
+        guard let content = try? String(contentsOf: iniURL, encoding: .utf8) else { return [] }
 
         var profiles: [BrowserProfile] = []
         let lines = content.components(separatedBy: .newlines)

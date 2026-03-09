@@ -173,6 +173,12 @@ extension SettingsView {
 
 
                 Section {
+                    ProfileAccessSettingsRow()
+                } header: {
+                    Text("Browser Profile Access")
+                }
+
+                Section {
                     MCPServerSettingsRow()
                 } header: {
                     Text("API Server")
@@ -323,6 +329,49 @@ struct MCPServerSettingsRow: View {
         withAnimation { tokenCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation { tokenCopied = false }
+        }
+    }
+}
+
+// MARK: - Profile Access Settings Row
+
+struct ProfileAccessSettingsRow: View {
+    @State private var hasAccess = SandboxBookmarkManager.shared.hasBookmark
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(hasAccess ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
+
+                if hasAccess {
+                    Text("Access granted")
+                        .font(.system(size: 13))
+                } else {
+                    Text("No access — profiles won't be detected")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button(hasAccess ? "Re-grant Access" : "Grant Access") {
+                    if SandboxBookmarkManager.shared.promptForAccess() {
+                        withAnimation { hasAccess = true }
+                        BrowserProfileDetector.clearCache()
+                    }
+                }
+                .font(.system(size: 11))
+            }
+
+            Text("Chowser reads browser profile data from Application Support to show separate profiles (e.g. Chrome Work, Chrome Personal).")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .onAppear {
+            hasAccess = SandboxBookmarkManager.shared.hasBookmark
         }
     }
 }

@@ -199,6 +199,85 @@ struct BrowserCircle: View {
     }
 }
 
+// MARK: - Profile Access Step
+struct ProfileAccessStepView: View {
+    let nextAction: () -> Void
+    @State private var accessGranted = false
+
+    var body: some View {
+        VStack(spacing: 30) {
+            Spacer()
+
+            Image(systemName: "folder.badge.gearshape")
+                .font(.system(size: 60))
+                .foregroundStyle(Color.orange.gradient)
+                .shadow(color: Color.orange.opacity(0.3), radius: 10, y: 5)
+
+            VStack(spacing: 12) {
+                Text("Browser Profiles")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+
+                Text("To detect your Chrome, Firefox, and other browser profiles, Chowser needs one-time access to your Application Support folder.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if accessGranted {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Access granted")
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.green)
+                    .padding(.top, 4)
+                }
+            }
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                if !accessGranted {
+                    Button(action: grantAccess) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder")
+                            Text("Grant Access")
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button(action: nextAction) {
+                    Text(accessGranted ? "Continue" : "Skip for now")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(accessGranted ? Color.accentColor : Color.primary.opacity(0.05))
+                        .foregroundColor(accessGranted ? .white : .primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 40)
+        }
+    }
+
+    private func grantAccess() {
+        if SandboxBookmarkManager.shared.promptForAccess() {
+            withAnimation { accessGranted = true }
+            BrowserProfileDetector.clearCache()
+        }
+    }
+}
+
 // MARK: - AI Setup Step
 
 // Known AI desktop app bundle IDs

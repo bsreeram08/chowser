@@ -57,7 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     private func generateStateAndSetupSystem() {
         setupApplicationState()
-        handleCLIImportArguments()
+        // Removed: handleCLIImportArguments()
         
         if AppEnvironment.shouldOpenSettingsOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -72,71 +72,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
-    /// Handles --rules and --browsers CLI arguments for AI-assisted import.
-    /// Usage: Chowser --rules=/path/to/rules.json --browsers=/path/to/browsers.json
-    private func handleCLIImportArguments() {
-        let args = ProcessInfo.processInfo.arguments
-        var browsersPath: String?
-        var rulesPath: String?
-
-        for arg in args {
-            if arg.hasPrefix("--browsers=") {
-                browsersPath = String(arg.dropFirst("--browsers=".count))
-            } else if arg.hasPrefix("--rules=") {
-                rulesPath = String(arg.dropFirst("--rules=".count))
-            }
-        }
-
-        let manager = BrowserManager.shared
-
-        if let path = browsersPath {
-            let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-            do {
-                try manager.importBrowsers(from: url)
-                print("Chowser: Imported browsers from \(url.path)")
-            } catch {
-                print("Chowser: Failed to import browsers from \(url.path): \(error)")
-            }
-        }
-
-        if let path = rulesPath {
-            let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-            do {
-                try manager.importRules(from: url)
-                print("Chowser: Imported rules from \(url.path)")
-            } catch {
-                print("Chowser: Failed to import rules from \(url.path): \(error)")
-            }
-        }
-    }
-
-    /// Handles chowser://import URL scheme for importing browsers/rules while the app is running.
-    /// Usage: open "chowser://import?browsers=/path/to/browsers.json&rules=/path/to/rules.json"
-    private func handleImportURL(_ url: URL) {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
-        let queryItems = components.queryItems ?? []
-        let manager = BrowserManager.shared
-
-        if let browsersPath = queryItems.first(where: { $0.name == "browsers" })?.value {
-            let fileURL = URL(fileURLWithPath: (browsersPath as NSString).expandingTildeInPath)
-            do {
-                try manager.importBrowsers(from: fileURL)
-                print("Chowser: Imported browsers from \(fileURL.path)")
-            } catch {
-                print("Chowser: Failed to import browsers from \(fileURL.path): \(error)")
-            }
-        }
-
-        if let rulesPath = queryItems.first(where: { $0.name == "rules" })?.value {
-            let fileURL = URL(fileURLWithPath: (rulesPath as NSString).expandingTildeInPath)
-            do {
-                try manager.importRules(from: fileURL)
-                print("Chowser: Imported rules from \(fileURL.path)")
-            } catch {
-                print("Chowser: Failed to import rules from \(fileURL.path): \(error)")
-            }
-        }
-    }
     
     private func setupApplicationState() {
         setupStatusBar()
@@ -206,7 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         guard let url = urls.first else { return }
 
-        // Feature 4: Handle chowser:// internal scheme (from Share Extension).
+        // Feature 4: Handle chowser://internal scheme (from Share Extension).
         if url.scheme == "chowser", url.host == "open",
            let targetStr = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                .queryItems?.first(where: { $0.name == "url" })?.value,
@@ -219,9 +154,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Handle chowser://import for runtime import of browsers/rules via URL scheme.
         // Usage: open "chowser://import?browsers=/path/to/browsers.json&rules=/path/to/rules.json"
         if url.scheme == "chowser", url.host == "import" {
-            handleImportURL(url)
-            return
+            // Legacy functionality removed: handleImportURL(url)
         }
+        // The `return` statement was removed as part of the legacy functionality removal.
 
         let manager = BrowserManager.shared
         

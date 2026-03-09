@@ -1,4 +1,6 @@
 import SwiftUI
+import Foundation
+import AppKit
 import UniformTypeIdentifiers
 
 struct AddRuleSheet: View {
@@ -6,6 +8,7 @@ struct AddRuleSheet: View {
     @Binding var isPresented: Bool
     
     var prefillURL: URL? = nil
+    var preselectedBrowserIdentity: String? = nil
 
     @State private var ruleName = ""
     @State private var hostPattern = ""
@@ -15,253 +18,188 @@ struct AddRuleSheet: View {
     @State private var usePrivateMode = false
     @State private var useRegex = false
 
-    private var effectiveBrowserIdentity: String {
-        if !selectedBrowserIdentity.isEmpty { return selectedBrowserIdentity }
-        return manager.configuredBrowsers.first?.identity ?? ""
-    }
-
-    private var hostPatternIsValid: Bool {
-        manager.isValidRoutingHostPattern(hostPattern, useRegex: useRegex)
-    }
-
-    private var canCreateRule: Bool {
-        hostPatternIsValid
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            header
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("New Routing Rule")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                    Text("Define how links should be routed automatically.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(action: { isPresented = false }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(24)
+            .background(Color.primary.opacity(0.02))
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ruleNameSection
-                    hostPatternSection
-                    pathPrefixSection
-                    browserPickerSection
-                    sourceAppSection
-                    privateModeSection
+                VStack(spacing: 24) {
+                    // Rule Name
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Name".uppercased())
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Work, Personal, etc.", text: $ruleName)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 14))
+                            .padding(12)
+                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                    }
 
-                    Text("Rules are checked in order. First enabled match opens directly.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                    // Matching logic
+                    DetailSection(title: "Matching", icon: "app.connected.to.app.below.fill") {
+                        VStack(spacing: 16) {
+                            DetailRow(label: "URL Pattern") {
+                                TextField("e.g. *.github.com", text: $hostPattern)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .onChange(of: hostPattern) { _, _ in updateRuleNameIfNeeded() }
+                            }
+                            
+                            HStack {
+                                Toggle("Regex", isOn: $useRegex)
+                                    .toggleStyle(.checkbox)
+                                
+                                Spacer()
+                                
+                                Button(pathPrefix.isEmpty ? "Add Path" : "Path: \(pathPrefix)") {
+                                    if pathPrefix.isEmpty { pathPrefix = "/" }
+                                    else { pathPrefix = "" }
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.accent)
+                            }
+                            
+                            if !pathPrefix.isEmpty {
+                                TextField("Path Prefix", text: $pathPrefix)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .padding(8)
+                                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                            }
+                        }
+                    }
+
+                    // Destination
+                    DetailSection(title: "Destination", icon: "paperplane.fill") {
+                        VStack(spacing: 16) {
+                            DetailRow(label: "Browser") {
+                                Picker("", selection: $selectedBrowserIdentity) {
+                                    ForEach(manager.configuredBrowsers) { browser in
+                                        Text(browser.name).tag(browser.identity)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                            }
+                            
+                            Toggle("Use Private Mode", isOn: $usePrivateMode)
+                                .toggleStyle(.checkbox)
+                        }
+                    }
+                    
+                    // Context
+                    DetailSection(title: "Context", icon: "cpu.fill") {
+                        DetailRow(label: "Source App") {
+                            Button(action: chooseSourceApp) {
+                                AppBadgeView(bundleId: sourceAppBundleId, fallbackText: "Any Application")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 14)
+                .padding(24)
             }
 
             Divider()
 
-            footer
+            // Footer
+            HStack {
+                Button("Cancel") { isPresented = false }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                Button(action: saveRule) {
+                    Text("Create Rule")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(canSave ? Color.accentColor : Color.secondary.opacity(0.3), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSave)
+            }
+            .padding(20)
+            .background(Color.primary.opacity(0.01))
         }
-        .frame(width: 460, height: 420)
+        .frame(width: 500, height: 620)
         .onAppear {
             if let prefillURL = prefillURL, hostPattern.isEmpty {
-                let host = prefillURL.host ?? ""
-                hostPattern = host
-                
-                let components = host.split(separator: ".")
-                if components.count >= 2 {
-                    ruleName = String(components[components.count - 2]).capitalized
-                } else {
-                    ruleName = host.capitalized
-                }
+                hostPattern = prefillURL.host ?? ""
+                updateRuleNameIfNeeded()
             }
-            if selectedBrowserIdentity.isEmpty {
+            if let identity = preselectedBrowserIdentity, !identity.isEmpty {
+                selectedBrowserIdentity = identity
+            } else if selectedBrowserIdentity.isEmpty {
                 selectedBrowserIdentity = manager.configuredBrowsers.first?.identity ?? ""
             }
         }
-        .accessibilityIdentifier("settings.addRule.root")
     }
-
-    private var header: some View {
-        HStack {
-            Text("Add Routing Rule")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-
-            Spacer()
-
-            Button(action: { isPresented = false }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 12)
+    
+    private var canSave: Bool {
+        !hostPattern.isEmpty && !selectedBrowserIdentity.isEmpty
     }
-
-    private var ruleNameSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Rule Name")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            TextField("Work links", text: $ruleName)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("settings.addRule.nameField")
+    
+    private func updateRuleNameIfNeeded() {
+        guard ruleName.isEmpty else { return }
+        let components = hostPattern.split(separator: ".")
+        if components.count >= 2 {
+            ruleName = String(components[components.count - 2]).capitalized
+        } else {
+            ruleName = hostPattern.capitalized
         }
     }
-
-    private var hostPatternSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Host Pattern")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Toggle("Regex", isOn: $useRegex)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .font(.system(size: 10))
-            }
-
-            TextField(useRegex ? ".*\\.internal-dev\\.company\\.com" : "*, example.com, or *.example.com", text: $hostPattern)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
-                .accessibilityIdentifier("settings.addRule.hostField")
-
-            if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text(useRegex ? "Invalid regular expression" : "Host pattern must be *, example.com, or *.example.com")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.red)
-            }
-
-            Button("Use example host") {
-                hostPattern = "github.com"
-                if ruleName.isEmpty {
-                    ruleName = "github"
-                }
-                if selectedBrowserIdentity.isEmpty {
-                    selectedBrowserIdentity = manager.configuredBrowsers.first?.identity ?? ""
-                }
-            }
-            .buttonStyle(.borderless)
-            .font(.system(size: 10))
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier("settings.addRule.fillTestHostButton")
-        }
-    }
-
-    private var pathPrefixSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Path Prefix (Optional)")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            TextField("/team", text: $pathPrefix)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
-                .accessibilityIdentifier("settings.addRule.pathField")
-        }
-    }
-
-    private var browserPickerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Open In")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            Picker("Browser", selection: $selectedBrowserIdentity) {
-                ForEach(manager.configuredBrowsers) { browser in
-                    Text(browser.name).tag(browser.identity)
-                }
-            }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("settings.addRule.browserPicker")
-        }
-    }
-
-    private var sourceAppSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Source App (Optional)")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                if let bundleId = sourceAppBundleId,
-                   let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                    let name = (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? bundleId
-                    Text(name)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                    Button("Clear") { sourceAppBundleId = nil }
-                        .buttonStyle(.borderless)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Any app")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Button("Choose App…") { chooseSourceApp() }
-                    .buttonStyle(.bordered)
-            }
-            Text("Only route links opened from this specific app.")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    private var privateModeSection: some View {
-        Toggle("Open in Private / Incognito", isOn: $usePrivateMode)
-            .font(.system(size: 12))
-    }
-
+    
     private func chooseSourceApp() {
         let panel = NSOpenPanel()
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.applicationBundle]
-        panel.title = "Choose Source App"
-        panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url {
             sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
         }
     }
-
-    private var footer: some View {
-        HStack {
-            Button("Cancel") {
-                isPresented = false
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("settings.addRule.cancelButton")
-
-            Spacer()
-
-            Button("Add Rule") {
-                if let browser = manager.configuredBrowsers.first(where: { $0.identity == effectiveBrowserIdentity }) {
-                    manager.addRoutingRule(
-                        name: ruleName,
-                        hostPattern: hostPattern,
-                        pathPrefix: pathPrefix,
-                        browserBundleId: browser.bundleId,
-                        profile: browser.profile,
-                        sourceAppBundleId: sourceAppBundleId,
-                        usePrivateMode: usePrivateMode,
-                        useRegex: useRegex
-                    )
-                }
-                isPresented = false
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canCreateRule)
-            .accessibilityIdentifier("settings.addRule.confirmButton")
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+    
+    private func saveRule() {
+        let parts = selectedBrowserIdentity.split(separator: "|")
+        let browserBundleId = String(parts[0])
+        let profile = parts.count > 1 ? String(parts[1]) : nil
+        
+        manager.addRoutingRule(
+            name: ruleName,
+            hostPattern: hostPattern,
+            pathPrefix: pathPrefix.isEmpty ? nil : pathPrefix,
+            browserBundleId: browserBundleId,
+            profile: profile,
+            sourceAppBundleId: sourceAppBundleId,
+            usePrivateMode: usePrivateMode,
+            useRegex: useRegex
+        )
+        isPresented = false
     }
 }

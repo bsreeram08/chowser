@@ -12,5 +12,16 @@
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>/Library/Application Support/Google/Chrome/</string>
+		<string>/Library/Application Support/BraveSoftware/Brave-Browser/</string>
+		<string>/Library/Application Support/Microsoft Edge/</string>
+		<string>/Library/Application Support/Vivaldi/</string>
+		<string>/Library/Application Support/Arc/</string>
+		<string>/Library/Application Support/Dia/</string>
+		<string>/Library/Application Support/Firefox/</string>
+		<string>/Library/Application Support/Zen/</string>
+	</array>
 </dict>
 </plist>

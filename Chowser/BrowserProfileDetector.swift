@@ -22,31 +22,55 @@ enum BrowserProfileDetector {
     }
 
     private static func detectProfilesUncached(for bundleId: String) -> [BrowserProfile] {
-        if bundleId.contains("Chrome") || bundleId == "com.brave.Browser" || bundleId == "com.microsoft.edgemac" || bundleId == "com.vivaldi.Vivaldi" || bundleId == "company.thebrowser.Browser" || bundleId == "company.thebrowser.dia" {
-            return detectChromiumProfiles(bundleId: bundleId)
-        } else if bundleId == "org.mozilla.firefox" || bundleId == "app.zen-browser.zen" {
-            return detectFirefoxProfiles(bundleId: bundleId)
+        let id = bundleId.lowercased()
+        if id.contains("chrome") || id == "com.brave.browser" || id == "com.microsoft.edgemac" || id == "com.vivaldi.vivaldi" || id == "company.thebrowser.browser" || id == "company.thebrowser.dia" {
+            return detectChromiumProfiles(bundleId: id)
+        } else if id == "org.mozilla.firefox" || id == "app.zen-browser.zen" {
+            return detectFirefoxProfiles(bundleId: id)
         }
         return []
     }
 
     private static func detectChromiumProfiles(bundleId: String) -> [BrowserProfile] {
-        _ = SandboxBookmarkManager.shared.startAccessing()
+        let bookmarkedURL = SandboxBookmarkManager.shared.startAccessing()
         defer { SandboxBookmarkManager.shared.stopAccessing() }
 
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport: URL
+        if let bookmarked = bookmarkedURL {
+            appSupport = bookmarked
+        } else {
+            // Fallback: Construct the real Application Support path if we're in a sandbox.
+            // In a sandbox, FileManager.default.urls(for: .applicationSupportDirectory, ...) returns the container path.
+            // We want the real ~/Library/Application Support.
+            let home = NSHomeDirectory()
+            if home.contains("/Containers/") {
+                // Escape from ~/Library/Containers/bundle.id/Data to ~
+                let realHome = URL(fileURLWithPath: home).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                appSupport = realHome.appendingPathComponent("Library/Application Support")
+            } else {
+                appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            }
+        }
         let pathSuffix: String
-        switch bundleId {
-        case "com.google.Chrome": pathSuffix = "Google/Chrome/Local State"
-        case "com.brave.Browser": pathSuffix = "BraveSoftware/Brave-Browser/Local State"
+        switch bundleId.lowercased() {
+        case "com.google.chrome": pathSuffix = "Google/Chrome/Local State"
+        case "com.brave.browser": pathSuffix = "BraveSoftware/Brave-Browser/Local State"
         case "com.microsoft.edgemac": pathSuffix = "Microsoft Edge/Local State"
-        case "com.vivaldi.Vivaldi": pathSuffix = "Vivaldi/Local State"
-        case "company.thebrowser.Browser": pathSuffix = "Arc/User Data/Local State"
+        case "com.vivaldi.vivaldi": pathSuffix = "Vivaldi/Local State"
+        case "company.thebrowser.browser": pathSuffix = "Arc/User Data/Local State"
         case "company.thebrowser.dia": pathSuffix = "Dia/User Data/Local State"
         default: return []
         }
 
-        let localStateURL = appSupport.appendingPathComponent(pathSuffix)
+        var localStateURL = appSupport.appendingPathComponent(pathSuffix)
+        
+        // Fallback for Dia: Check if User Data is missing in the path
+        if bundleId.lowercased() == "company.thebrowser.dia" && !FileManager.default.fileExists(atPath: localStateURL.path) {
+            let altURL = appSupport.appendingPathComponent("Dia/Local State")
+            if FileManager.default.fileExists(atPath: altURL.path) {
+                localStateURL = altURL
+            }
+        }
         guard let data = try? Data(contentsOf: localStateURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let profile = json["profile"] as? [String: Any],
@@ -64,10 +88,23 @@ enum BrowserProfileDetector {
     }
 
     private static func detectFirefoxProfiles(bundleId: String) -> [BrowserProfile] {
-        _ = SandboxBookmarkManager.shared.startAccessing()
+        let bookmarkedURL = SandboxBookmarkManager.shared.startAccessing()
         defer { SandboxBookmarkManager.shared.stopAccessing() }
 
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport: URL
+        if let bookmarked = bookmarkedURL {
+            appSupport = bookmarked
+        } else {
+            // Fallback: Construct the real Application Support path if we're in a sandbox.
+            let home = NSHomeDirectory()
+            if home.contains("/Containers/") {
+                // Escape from ~/Library/Containers/bundle.id/Data to ~
+                let realHome = URL(fileURLWithPath: home).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                appSupport = realHome.appendingPathComponent("Library/Application Support")
+            } else {
+                appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            }
+        }
         let pathSuffix = bundleId == "org.mozilla.firefox" ? "Firefox/profiles.ini" : "Zen/profiles.ini"
         let iniURL = appSupport.appendingPathComponent(pathSuffix)
 

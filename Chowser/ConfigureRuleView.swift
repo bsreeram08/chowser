@@ -1,7 +1,8 @@
 import SwiftUI
+import Foundation
+import AppKit
+import UniformTypeIdentifiers
 
-/// Compact sheet for creating a routing rule directly from the intercepted URL context.
-/// Pre-populates rule name and host pattern from the intercepted URL's domain.
 struct ConfigureRuleView: View {
     var browserManager: BrowserManager
     let interceptedURL: URL
@@ -14,165 +15,146 @@ struct ConfigureRuleView: View {
     @State private var selectedBrowserIdentity = ""
     @State private var usePrivateMode = false
 
-    enum Field: Hashable {
-        case ruleName
-        case hostPattern
-    }
-
-    @FocusState private var focusedField: Field?
-
-    private var isFormValid: Bool {
-        !ruleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && browserManager.isValidRoutingHostPattern(hostPattern)
-            && !selectedBrowserIdentity.isEmpty
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            header
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("New Routing Rule")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text("Automatic routing for \(interceptedURL.host ?? "this domain")")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(action: { isPresented = false }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(20)
+            .background(Color.primary.opacity(0.02))
+
             Divider()
-            formFields
+
+            VStack(spacing: 20) {
+                // Rule Identity
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Rule Name".uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    
+                    TextField("Enter name...", text: $ruleName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .padding(10)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                }
+
+                // Configuration Card
+                VStack(spacing: 16) {
+                    DetailRow(label: "Host") {
+                        Text(hostPattern)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Divider().opacity(0.5)
+                    
+                    DetailRow(label: "Open In") {
+                        Picker("", selection: $selectedBrowserIdentity) {
+                            ForEach(browserManager.configuredBrowsers) { browser in
+                                Text(browser.name).tag(browser.identity)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+                    
+                    Divider().opacity(0.5)
+                    
+                    Toggle("Use Private Mode", isOn: $usePrivateMode)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .padding(16)
+                .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+            }
+            .padding(20)
+
             Divider()
-            footer
+
+            // Footer
+            HStack {
+                Button("Cancel") { isPresented = false }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                Button(action: saveRule) {
+                    Text("Save Rule")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(canSave ? Color.accentColor : Color.secondary.opacity(0.3), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSave)
+            }
+            .padding(16)
+            .background(Color.primary.opacity(0.01))
         }
-        .frame(width: 340)
+        .frame(width: 360)
         .onAppear {
             prefillFromURL()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                focusedField = .ruleName
-            }
         }
-        .accessibilityIdentifier("picker.configureRule.root")
     }
-
-    // MARK: Header
-
-    private var header: some View {
-        HStack {
-            Text("Configure Rule")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-            Spacer()
-            Button(action: { isPresented = false }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
+    
+    private var canSave: Bool {
+        !ruleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !selectedBrowserIdentity.isEmpty
     }
-
-    // MARK: Form Fields
-
-    private var formFields: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Rule Name")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                TextField("e.g. github", text: $ruleName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                    .focused($focusedField, equals: .ruleName)
-                    .accessibilityIdentifier("picker.configureRule.nameField")
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("URL Pattern")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                TextField("*, example.com, or *.example.com", text: $hostPattern)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
-                    .accessibilityIdentifier("picker.configureRule.hostField")
-
-                if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && !browserManager.isValidRoutingHostPattern(hostPattern) {
-                    Text("Invalid pattern. Use *, example.com, or *.example.com")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.red)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Open In")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Picker("Browser", selection: $selectedBrowserIdentity) {
-                    ForEach(browserManager.configuredBrowsers) { browser in
-                        Text(browser.name).tag(browser.identity)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .accessibilityIdentifier("picker.configureRule.browserPicker")
-            }
-
-            Toggle("Open in Private / Incognito", isOn: $usePrivateMode)
-                .font(.system(size: 12))
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
-    }
-
-    // MARK: Footer
-
-    private var footer: some View {
-        HStack {
-            Button("Cancel") {
-                isPresented = false
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("picker.configureRule.cancelButton")
-
-            Spacer()
-
-            Button("Save Rule") {
-                if let browser = browserManager.configuredBrowsers.first(where: { $0.identity == selectedBrowserIdentity }) {
-                    browserManager.addRoutingRule(
-                        name: ruleName,
-                        hostPattern: hostPattern,
-                        pathPrefix: nil,
-                        browserBundleId: browser.bundleId,
-                        profile: browser.profile,
-                        usePrivateMode: usePrivateMode
-                    )
-                }
-                isPresented = false
-                onSave()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!isFormValid)
-            .accessibilityIdentifier("picker.configureRule.saveButton")
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-
-    // MARK: Helpers
-
+    
     private func prefillFromURL() {
         let host = interceptedURL.host ?? ""
         hostPattern = host
-
+        
         let components = host.split(separator: ".")
         if components.count >= 2 {
-            ruleName = String(components[components.count - 2])
+            ruleName = String(components[components.count - 2]).capitalized
         } else {
-            ruleName = host
+            ruleName = host.capitalized
         }
-
+        
         if let preselected = preselectedBrowserBundleId,
            let browser = browserManager.configuredBrowsers.first(where: { $0.bundleId == preselected }) {
             selectedBrowserIdentity = browser.identity
         } else {
             selectedBrowserIdentity = browserManager.configuredBrowsers.first?.identity ?? ""
         }
+    }
+    
+    private func saveRule() {
+        let parts = selectedBrowserIdentity.split(separator: "|")
+        let browserBundleId = String(parts[0])
+        let profile = parts.count > 1 ? String(parts[1]) : nil
+        
+        browserManager.addRoutingRule(
+            name: ruleName,
+            hostPattern: hostPattern,
+            pathPrefix: nil,
+            browserBundleId: browserBundleId,
+            profile: profile,
+            usePrivateMode: usePrivateMode
+        )
+        isPresented = false
+        onSave()
     }
 }

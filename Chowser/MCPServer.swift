@@ -444,7 +444,7 @@ final class MCPServer {
             updated.usePrivateMode = usePrivateMode
             updated.useRegex = useRegex
             updated.isEnabled = isEnabled
-            manager.updateRoutingRule(updated)
+            manager.updateRule(updated)
             return httpResponse(status: 200, body: ["status": "updated", "id": idStr])
         }
 

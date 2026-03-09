@@ -199,84 +199,6 @@ struct BrowserCircle: View {
     }
 }
 
-// MARK: - Profile Access Step
-struct ProfileAccessStepView: View {
-    let nextAction: () -> Void
-    @State private var accessGranted = false
-
-    var body: some View {
-        VStack(spacing: 30) {
-            Spacer()
-
-            Image(systemName: "folder.badge.gearshape")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.orange.gradient)
-                .shadow(color: Color.orange.opacity(0.3), radius: 10, y: 5)
-
-            VStack(spacing: 12) {
-                Text("Browser Profiles")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-
-                Text("To detect your Chrome, Firefox, and other browser profiles, Chowser needs one-time access to your Application Support folder.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if accessGranted {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Access granted")
-                    }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.green)
-                    .padding(.top, 4)
-                }
-            }
-
-            Spacer()
-
-            VStack(spacing: 12) {
-                if !accessGranted {
-                    Button(action: grantAccess) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "folder")
-                            Text("Grant Access")
-                        }
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button(action: nextAction) {
-                    Text(accessGranted ? "Continue" : "Skip for now")
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(accessGranted ? Color.accentColor : Color.primary.opacity(0.05))
-                        .foregroundColor(accessGranted ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 40)
-        }
-    }
-
-    private func grantAccess() {
-        if SandboxBookmarkManager.shared.promptForAccess() {
-            withAnimation { accessGranted = true }
-            BrowserProfileDetector.clearCache()
-        }
-    }
-}
 
 // MARK: - AI Setup Step
 
@@ -306,7 +228,16 @@ struct AISetupStepView: View {
 
     /// Full prompt: remote template + API credentials appended.
     private var setupPrompt: String {
-        let base = fetchedTemplate ?? "Configure my Chowser browser chooser app. Help me set up browsers and routing rules."
+        let base = fetchedTemplate ?? """
+I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac. It's a browser chooser app with a local MCP-style HTTP API server for configuration.
+
+Your goal is to configure my browsers and routing rules.
+
+1. **Discover API Schema**: Start by calling `GET /status` to see endpoints and required JSON fields.
+2. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari).
+3. **Configure**: Use `POST /browsers` to add profiles and `POST /rules` to set routing. Use the credentials below.
+4. **Confirm**: Show a summary and ask for confirmation before making changes.
+"""
         return """
         \(base)
 

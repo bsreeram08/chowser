@@ -1,902 +1,487 @@
 import SwiftUI
+import Foundation
+import AppKit
 import UniformTypeIdentifiers
 
-// MARK: - Rule Detail View (Master-Detail Panel)
+// MARK: - Rules Page Redesign (Master-Detail)
 
-struct RuleDetailView: View {
+extension SettingsView {
+    
+    struct RuleGroup: Identifiable {
+        let id: String // browser identity
+        let browser: BrowserConfig
+        let rules: [BrowserRoutingRule]
+    }
+    
+    var groupedRoutingRules: [RuleGroup] {
+        let rules = filteredRoutingRules
+        let browsers = browserManager.configuredBrowsers
+        
+        // Group rules by browser identity
+        let grouped = Dictionary(grouping: rules) { rule in
+            "\(rule.browserBundleId)|\(rule.profile ?? "")"
+        }
+        
+        // Map to RuleGroup objects, only for browsers that have rules or all browsers?
+        // Let's show all configured browsers as sections, so user can easily add rules to any.
+        return browsers.map { browser in
+            RuleGroup(
+                id: browser.identity,
+                browser: browser,
+                rules: grouped[browser.identity] ?? []
+            )
+        }
+    }
+    
+    var filteredRoutingRules: [BrowserRoutingRule] {
+        let query = ruleSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty {
+            return browserManager.routingRules
+        }
+        
+        return browserManager.routingRules.filter { rule in
+            rule.name.lowercased().contains(query) ||
+            rule.hostPattern.lowercased().contains(query) ||
+            (rule.pathPrefix ?? "").lowercased().contains(query)
+        }
+    }
+    
+    var rulesSection: some View {
+        HStack(spacing: 0) {
+            // Sidebar List of Rules
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("Rules")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                    
+                    Spacer()
+                    
+                    Button(action: { 
+                        preselectedRuleBrowserIdentity = nil
+                        showingAddRuleSheet = true 
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Add new routing rule")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 20)
+                
+                // Search Field
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    
+                    TextField("Search rules...", text: $ruleSearchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+                
+                Divider()
+                
+                // Rules List
+                List(selection: $selectedRuleId) {
+                    let groups = groupedRoutingRules
+                    let isSearching = !ruleSearchText.isEmpty
+                    
+                    if groups.flatMap({ $0.rules }).isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: isSearching ? "magnifyingglass" : "bolt.horizontal.circle")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.tertiary)
+                            Text(isSearching ? "No Matches Found" : "No Rules Configured")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.top, 40)
+                        .listRowBackground(Color.clear)
+                    } else {
+                        ForEach(groups) { group in
+                            // Only show browsers that have rules matching the search,
+                            // or all browsers if not searching.
+                            if !group.rules.isEmpty || (!isSearching && !browserManager.configuredBrowsers.isEmpty) {
+                                Section {
+                                    ForEach(group.rules) { rule in
+                                        RuleRowView(
+                                            rule: rule,
+                                            browser: group.browser,
+                                            isSelected: selectedRuleId == rule.id
+                                        )
+                                        .tag(rule.id)
+                                        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+                                        .listRowSeparator(.hidden)
+                                        .listRowBackground(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .fill(selectedRuleId == rule.id ? Color.accentColor : Color.clear)
+                                        )
+                                    }
+                                } header: {
+                                    HStack {
+                                        if let icon = AppMetadataCache.shared.icon(for: group.browser.bundleId) {
+                                            Image(nsImage: icon)
+                                                .resizable()
+                                                .frame(width: 14, height: 14)
+                                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        }
+                                        
+                                        Text(group.browser.name)
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.secondary)
+                                        
+                                        Spacer()
+                                        
+                                        Button(action: {
+                                            preselectedRuleBrowserIdentity = group.id
+                                            showingAddRuleSheet = true
+                                        }) {
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .padding(.vertical, 8)
+                                }
+                            }
+                        }
+                    }
+                }
+                .listStyle(.sidebar) // SideBar list style handles sections better on macOS
+                .scrollContentBackground(.hidden)
+            }
+            .frame(width: 300)
+            .background(Color.primary.opacity(0.01))
+            
+            Divider()
+            
+            // Rule Detail Area
+            ZStack {
+                if let ruleId = selectedRuleId, let rule = browserManager.routingRules.first(where: { $0.id == ruleId }) {
+                    ModernRuleDetailView(
+                        rule: rule,
+                        manager: browserManager,
+                        onUpdate: { updated in
+                            browserManager.updateRule(updated)
+                        },
+                        onDelete: {
+                            browserManager.removeRoutingRule(id: ruleId)
+                            selectedRuleId = nil
+                        }
+                    )
+                    .id(ruleId)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                } else {
+                    rulesPlaceholderView
+                        .transition(.opacity)
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedRuleId)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+    }
+    
+    private var rulesPlaceholderView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "bolt.shield.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.accent.gradient)
+                .shadow(color: .accentColor.opacity(0.15), radius: 20, y: 10)
+            
+            VStack(spacing: 8) {
+                Text("Select a Rule")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                
+                Text("View and edit your automatic routing configuration here.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 40)
+            
+            RuleTesterView(manager: browserManager)
+                .frame(maxWidth: 400)
+                .padding(.top, 20)
+        }
+    }
+}
+
+// MARK: - Modern Rule Detail View
+
+struct ModernRuleDetailView: View {
     let rule: BrowserRoutingRule
     let manager: BrowserManager
     let onUpdate: (BrowserRoutingRule) -> Void
     let onDelete: () -> Void
-    let onDuplicate: () -> Void
-
-    @State private var ruleName: String
-    @State private var hostPattern: String
-    @State private var pathPrefix: String
-    @State private var selectedBrowserIdentity: String
-    @State private var sourceAppBundleId: String?
-    @State private var usePrivateMode: Bool
-    @State private var useRegex: Bool
-    @State private var isEnabled: Bool
-
-    init(rule: BrowserRoutingRule, manager: BrowserManager, onUpdate: @escaping (BrowserRoutingRule) -> Void, onDelete: @escaping () -> Void, onDuplicate: @escaping () -> Void) {
+    
+    @State private var localRule: BrowserRoutingRule
+    
+    init(rule: BrowserRoutingRule, manager: BrowserManager, onUpdate: @escaping (BrowserRoutingRule) -> Void, onDelete: @escaping () -> Void) {
         self.rule = rule
         self.manager = manager
         self.onUpdate = onUpdate
         self.onDelete = onDelete
-        self.onDuplicate = onDuplicate
-
-        self._ruleName = State(initialValue: rule.name)
-        self._hostPattern = State(initialValue: rule.hostPattern)
-        self._pathPrefix = State(initialValue: rule.pathPrefix ?? "")
-        self._usePrivateMode = State(initialValue: rule.usePrivateMode)
-        self._useRegex = State(initialValue: rule.useRegex)
-        self._isEnabled = State(initialValue: rule.isEnabled)
-
-        // Find existing identity or fallback to first
-        let identity = "\(rule.browserBundleId)|\(rule.profile ?? "")"
-        if manager.configuredBrowsers.contains(where: { $0.identity == identity }) {
-            self._selectedBrowserIdentity = State(initialValue: identity)
-        } else {
-            self._selectedBrowserIdentity = State(initialValue: manager.configuredBrowsers.first?.identity ?? "")
-        }
-
-        self._sourceAppBundleId = State(initialValue: rule.sourceAppBundleId)
+        self._localRule = State(initialValue: rule)
     }
-
-    private var effectiveBrowserIdentity: String {
-        if !selectedBrowserIdentity.isEmpty { return selectedBrowserIdentity }
-        return manager.configuredBrowsers.first?.identity ?? ""
-    }
-
-    private var hostPatternIsValid: Bool {
-        manager.isValidRoutingHostPattern(hostPattern, useRegex: useRegex)
-    }
-
-    private var canSaveRule: Bool {
-        hostPatternIsValid
-    }
-
+    
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Header with rule name and status toggle
-                detailHeader
-                    .padding(20)
-
-                Divider()
-
-                // Main rule configuration
-                VStack(alignment: .leading, spacing: 14) {
-                    ruleNameSection
-                    hostPatternSection
-                    pathPrefixSection
-                    browserPickerSection
-                    sourceAppSection
-                    privateModeSection
-                }
-                .padding(20)
-
-                Divider()
-
-                // Test URL section
-                RuleTesterView(manager: manager)
-                    .padding(20)
-            }
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var detailHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Rule Details")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-
-                    HStack(spacing: 8) {
-                        Toggle("Enabled", isOn: $isEnabled)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .onChange(of: isEnabled) { _, newValue in
-                                commitChanges(isEnabled: newValue)
-                            }
-
-                        if isEnabled {
-                            Text("Active")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.green)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.green.opacity(0.12), in: Capsule())
-                        } else {
-                            Text("Disabled")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.12), in: Capsule())
-                        }
+            VStack(alignment: .leading, spacing: 32) {
+                // Header Block
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TextField("Rule Name", text: $localRule.name)
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .textFieldStyle(.plain)
+                            .onChange(of: localRule.name) { _, _ in update() }
+                        
+                        Text("Configures how links are automatically routed.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
                     }
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Button(action: onDuplicate) {
-                        Label("Duplicate", systemImage: "doc.on.doc")
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(role: .destructive, action: onDelete) {
-                        Label("Delete", systemImage: "trash")
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-        }
-    }
-
-    private var ruleNameSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Rule Name")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            TextField("Work links", text: $ruleName)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 13))
-                .onChange(of: ruleName) { _, _ in commitChanges() }
-        }
-    }
-
-    private var hostPatternSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Host Pattern")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Toggle("Regex", isOn: $useRegex)
+                    
+                    Spacer()
+                    
+                    Toggle("", isOn: Binding(
+                        get: { localRule.isEnabled },
+                        set: { localRule.isEnabled = $0; update() }
+                    ))
                     .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .font(.system(size: 10))
-                    .onChange(of: useRegex) { _, _ in commitChanges() }
-            }
-
-            TextField(useRegex ? ".*\\.internal-dev\\.company\\.com" : "*, example.com, or *.example.com", text: $hostPattern)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
-                .onChange(of: hostPattern) { _, _ in commitChanges() }
-
-            if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text(useRegex ? "Invalid regular expression" : "Host pattern must be *, example.com, or *.example.com")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.red)
-            }
-        }
-    }
-
-    private var pathPrefixSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Path Prefix (Optional)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            TextField("/team", text: $pathPrefix)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
-                .onChange(of: pathPrefix) { _, _ in commitChanges() }
-
-            Text("Only match URLs with paths starting with this prefix")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    private var browserPickerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Open In")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            Picker("Browser", selection: $selectedBrowserIdentity) {
-                ForEach(manager.configuredBrowsers) { browser in
-                    HStack {
-                        if let icon = AppMetadataCache.shared.icon(for: browser.bundleId) {
-                            Image(nsImage: icon)
-                                .resizable()
-                                .frame(width: 16, height: 16)
+                    .controlSize(.small)
+                }
+                
+                // Configuration Sections
+                VStack(spacing: 24) {
+                    // 1. Matching
+                    DetailSection(title: "Matching Conditions", icon: "arrow.triangle.merge") {
+                        VStack(spacing: 20) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Domain / Host Pattern")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                
+                                TextField("e.g. *.github.com", text: $localRule.hostPattern)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 13, design: .monospaced))
+                                    .padding(10)
+                                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                                    .onChange(of: localRule.hostPattern) { _, _ in update() }
+                            }
+                            
+                            HStack(spacing: 24) {
+                                Toggle("Use Regex", isOn: Binding(
+                                    get: { localRule.useRegex },
+                                    set: { localRule.useRegex = $0; update() }
+                                ))
+                                .toggleStyle(.checkbox)
+                                
+                                Spacer()
+                                
+                                Button(localRule.pathPrefix == nil ? "Add Path" : "Remove Path") {
+                                    if localRule.pathPrefix == nil {
+                                        localRule.pathPrefix = "/"
+                                    } else {
+                                        localRule.pathPrefix = nil
+                                    }
+                                    update()
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.accent)
+                            }
+                            
+                            if let path = localRule.pathPrefix {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Path Prefix")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                    
+                                    TextField("/", text: Binding(
+                                        get: { path },
+                                        set: { localRule.pathPrefix = $0; update() }
+                                    ))
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .padding(10)
+                                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
                         }
-                        Text(browser.name)
                     }
-                    .tag(browser.identity)
+                    
+                    // 2. Destination
+                    DetailSection(title: "Destination", icon: "paperplane.fill") {
+                        VStack(spacing: 16) {
+                            DetailRow(label: "Browser") {
+                                Picker("", selection: Binding(
+                                    get: { "\(localRule.browserBundleId)|\(localRule.profile ?? "")" },
+                                    set: { val in
+                                        let parts = val.split(separator: "|")
+                                        localRule.browserBundleId = String(parts[0])
+                                        localRule.profile = parts.count > 1 ? String(parts[1]) : nil
+                                        update()
+                                    }
+                                )) {
+                                    ForEach(manager.configuredBrowsers) { browser in
+                                        Text(browser.name).tag(browser.identity)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                .controlSize(.small)
+                            }
+                            
+                            Toggle("Use Private Mode", isOn: Binding(
+                                get: { localRule.usePrivateMode },
+                                set: { localRule.usePrivateMode = $0; update() }
+                            ))
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                    
+                    // 3. Context
+                    DetailSection(title: "Context", icon: "app.badge.checkmark") {
+                        DetailRow(label: "Source Application") {
+                            Button(action: chooseSourceApp) {
+                                AppBadgeView(bundleId: localRule.sourceAppBundleId, fallbackText: "Any Application")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
-            }
-            .pickerStyle(.menu)
-            .onChange(of: selectedBrowserIdentity) { _, _ in commitChanges() }
-        }
-    }
-
-    private var sourceAppSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Source App (Optional)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                if let bundleId = sourceAppBundleId,
-                   let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                    let name = (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? bundleId
-                    Text(name)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                    Button("Clear") { sourceAppBundleId = nil; commitChanges() }
-                        .buttonStyle(.borderless)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Any app")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Button("Choose App…") { chooseSourceApp() }
+                
+                Spacer(minLength: 40)
+                
+                // Footer Actions
+                HStack(spacing: 16) {
+                    Button(action: duplicate) {
+                        Label("Duplicate", systemImage: "doc.on.doc")
+                    }
                     .buttonStyle(.bordered)
+                    
+                    Spacer()
+                    
+                    Button(role: .destructive, action: onDelete) {
+                        Label("Delete Rule", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
             }
-
-            Text("Only route links opened from this specific app.")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+            .padding(40)
+        }
+        .onChange(of: rule) { _, newValue in
+            localRule = newValue
         }
     }
-
-    private var privateModeSection: some View {
-        Toggle("Open in Private / Incognito", isOn: $usePrivateMode)
-            .font(.system(size: 12))
-            .onChange(of: usePrivateMode) { _, _ in commitChanges() }
+    
+    private func update() {
+        onUpdate(localRule)
     }
-
+    
+    private func duplicate() {
+        manager.duplicateRoutingRule(id: rule.id)
+    }
+    
     private func chooseSourceApp() {
         let panel = NSOpenPanel()
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.applicationBundle]
-        panel.title = "Choose Source App"
-        panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url {
-            sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
-            commitChanges()
-        }
-    }
-
-    private func commitChanges(isEnabled: Bool? = nil) {
-        guard let browser = manager.configuredBrowsers.first(where: { $0.identity == effectiveBrowserIdentity }) else { return }
-
-        var updated = rule
-        let pName = ruleName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pHost = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pPath = pathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let normalizedHost = useRegex ? pHost : manager.normalizedRoutingHostPattern(pHost)
-
-        updated.name = pName.isEmpty ? normalizedHost : pName
-        updated.hostPattern = normalizedHost
-        updated.pathPrefix = pPath.isEmpty ? nil : (pPath.hasPrefix("/") ? pPath : "/\(pPath)")
-        updated.browserBundleId = browser.bundleId
-        updated.profile = browser.profile
-        updated.sourceAppBundleId = sourceAppBundleId
-        updated.usePrivateMode = usePrivateMode
-        updated.useRegex = useRegex
-        if let isEnabled = isEnabled {
-            updated.isEnabled = isEnabled
-        }
-
-        onUpdate(updated)
-    }
-}
-
-// MARK: - Rule Grouping
-
-struct RuleGroup: Identifiable {
-    let id: String
-    let name: String
-    let icon: String
-    let rules: [BrowserRoutingRule]
-    var isExpanded: Bool = true
-}
-
-// MARK: - Rules View Mode
-
-enum RulesViewMode: String, CaseIterable, Identifiable {
-    case flat = "List"
-    case grouped = "Grouped"
-    case compact = "Compact"
-    
-    var id: String { rawValue }
-    
-    var icon: String {
-        switch self {
-        case .flat:
-            return "list.bullet"
-        case .grouped:
-            return "square.grid.2x2"
-        case .compact:
-            return "list.dash"
+            localRule.sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
+            update()
         }
     }
 }
 
-extension SettingsView {
-
-    /// Groups rules by target browser for collapsible sections
-    var rulesByBrowser: [RuleGroup] {
-        let grouped = Dictionary(grouping: browserManager.routingRules) { rule in
-            rule.browserBundleId
-        }
-        
-        return grouped.compactMap { (bundleId, rules) -> RuleGroup? in
-            let browser = browserManager.configuredBrowsers.first { $0.bundleId == bundleId }
-            let name = browser?.name ?? bundleId
-            return RuleGroup(
-                id: bundleId,
-                name: name,
-                icon: "globe",
-                rules: rules.sorted { ($0.name) < ($1.name) }
-            )
-        }.sorted { $0.name < $1.name }
-    }
-
-    /// Groups rules by enabled/disabled status
-    var rulesByStatus: [RuleGroup] {
-        let enabled = browserManager.routingRules.filter { $0.isEnabled }
-        let disabled = browserManager.routingRules.filter { !$0.isEnabled }
-        
-        return [
-            RuleGroup(id: "enabled", name: "Active Rules", icon: "checkmark.circle.fill", rules: enabled),
-            RuleGroup(id: "disabled", name: "Disabled Rules", icon: "circle.slash", rules: disabled)
-        ]
-    }
-
-    var hasRuleSearchQuery: Bool {
-        !ruleSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var filteredRoutingRules: [BrowserRoutingRule] {
-        hasRuleSearchQuery ? filteredRules : browserManager.routingRules
-    }
-
-    func updateFilteredRules() {
-        guard hasRuleSearchQuery else { filteredRules = []; return }
-        let query = ruleSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let browserNames = Dictionary(
-            browserManager.configuredBrowsers.map { ($0.bundleId, $0.name) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        filteredRules = browserManager.routingRules.filter { rule in
-            let targetBrowser = browserNames[rule.browserBundleId] ?? ""
-            return rule.name.localizedStandardContains(query)
-                || rule.hostPattern.localizedStandardContains(query)
-                || (rule.pathPrefix ?? "").localizedStandardContains(query)
-                || targetBrowser.localizedStandardContains(query)
-        }
-    }
-
-    var activeRoutingRulesCount: Int {
-        browserManager.routingRules.filter(\.isEnabled).count
-    }
-
-    var rulesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            rulesHeader
-
-            if browserManager.configuredBrowsers.isEmpty {
-                rulesEmptyState(showBrowserWarning: true)
-            } else if browserManager.routingRules.isEmpty {
-                rulesEmptyState(showBrowserWarning: false)
-            } else {
-                rulesMasterDetailView
-            }
-        }
-        .sheet(item: $ruleToEdit) { rule in
-            EditRuleSheet(rule: rule, manager: browserManager, isPresented: Binding(
-                get: { ruleToEdit != nil },
-                set: { if !$0 { ruleToEdit = nil } }
-            ))
-        }
-    }
-
-    private var rulesHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Rules")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    Text("Automatically route links by domain and optional path prefix.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-
-                    HStack(spacing: 6) {
-                        rulesStatusBadge(title: "\(browserManager.routingRules.count) Total", color: .secondary)
-                        rulesStatusBadge(
-                            title: "\(activeRoutingRulesCount) Active",
-                            color: activeRoutingRulesCount > 0 ? .green : .secondary
-                        )
-                    }
-                    .padding(.top, 4)
-                }
-
-                Spacer()
-
-                // View mode picker
-                Picker("View", selection: $rulesViewMode) {
-                    ForEach(RulesViewMode.allCases) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-                .help("Switch between list, grouped, and compact views")
-
-                HStack(spacing: 8) {
-                    Menu {
-                        Button(action: exportRules) {
-                            Label("Export Rules…", systemImage: "square.and.arrow.up")
-                        }
-                        .disabled(browserManager.routingRules.isEmpty)
-                        .accessibilityIdentifier("settings.exportRulesButton")
-
-                        Button(action: importRules) {
-                            Label("Import Rules…", systemImage: "square.and.arrow.down")
-                        }
-                        .accessibilityIdentifier("settings.importRulesButton")
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .menuStyle(.borderlessButton)
-                    .frame(width: 28)
-                    .accessibilityIdentifier("settings.rulesMenuButton")
-
-                    Button(action: { showingAddRuleSheet = true }) {
-                        Label("Add Rule", systemImage: "plus")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .disabled(browserManager.configuredBrowsers.isEmpty)
-                    .accessibilityIdentifier("settings.addRuleButton")
-                    .accessibilityLabel("Add a new routing rule")
-                }
-            }
-
-            if !browserManager.configuredBrowsers.isEmpty && !browserManager.routingRules.isEmpty {
-                sectionSearchField(
-                    placeholder: "Filter rules by name, host, path, or browser",
-                    text: $ruleSearchText,
-                    accessibilityIdentifier: "settings.rule.searchField"
-                )
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 12)
-    }
-
-    private func rulesEmptyState(showBrowserWarning: Bool) -> some View {
-        VStack(spacing: 10) {
-            if showBrowserWarning {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.orange)
-                Text("Add at least one browser first")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                Text("Routing rules need a target browser. Configure browsers in the Browsers tab.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            } else {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.quaternary)
-                Text("No routing rules yet")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                Text("Create a rule like *.github.com → Arc.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                Button("Add Rule") {
-                    showingAddRuleSheet = true
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .accessibilityIdentifier("settings.emptyRules.addRuleButton")
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var rulesMasterDetailView: some View {
-        // Use the selected view mode
-        Group {
-            switch rulesViewMode {
-            case .flat, .compact:
-                rulesListPanelWithDetail
-            case .grouped:
-                rulesGroupedView
-            }
-        }
-    }
-
-    private var rulesListPanelWithDetail: some View {
-        NavigationSplitView {
-            rulesListPanel
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    rulesFooter
-                        .background(.bar)
-                }
-        } detail: {
-            if let rule = selectedRule {
-                RuleDetailView(
-                    rule: rule,
-                    manager: browserManager,
-                    onUpdate: { updated in
-                        browserManager.updateRoutingRule(updated)
-                        selectedRule = updated
-                    },
-                    onDelete: {
-                        browserManager.removeRoutingRule(id: rule.id)
-                        selectedRule = nil
-                    },
-                    onDuplicate: {
-                        browserManager.duplicateRoutingRule(id: rule.id)
-                    }
-                )
-                .id(rule.id)
-            } else {
-                rulesPlaceholderView
-            }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: ruleSearchText) { updateFilteredRules() }
-        .onChange(of: browserManager.routingRules) { updateFilteredRules() }
-        .onAppear { updateFilteredRules() }
-    }
-
-    private var rulesGroupedView: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // Group by enabled status
-                ForEach(rulesByStatus) { group in
-                    if !group.rules.isEmpty {
-                        CollapsibleRuleGroup(
-                            group: group,
-                            isExpanded: expandedRuleGroups.contains(group.id),
-                            configuredBrowsers: browserManager.configuredBrowsers,
-                            onToggle: {
-                                if expandedRuleGroups.contains(group.id) {
-                                    expandedRuleGroups.remove(group.id)
-                                } else {
-                                    expandedRuleGroups.insert(group.id)
-                                }
-                            },
-                            onUpdateRule: { updated in
-                                browserManager.updateRoutingRule(updated)
-                            },
-                            onEditRule: { rule in
-                                selectedRule = rule
-                            },
-                            onDeleteRule: { rule in
-                                browserManager.removeRoutingRule(id: rule.id)
-                            },
-                            onDuplicateRule: { rule in
-                                browserManager.duplicateRoutingRule(id: rule.id)
-                            }
-                        )
-                    }
-                }
-
-                // Group by browser
-                if !rulesByBrowser.isEmpty {
-                    Divider()
-                        .padding(.horizontal, 20)
-
-                    Text("By Browser")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-
-                    ForEach(rulesByBrowser) { group in
-                        if !group.rules.isEmpty {
-                            CollapsibleRuleGroup(
-                                group: group,
-                                isExpanded: expandedRuleGroups.contains(group.id),
-                                configuredBrowsers: browserManager.configuredBrowsers,
-                                onToggle: {
-                                    if expandedRuleGroups.contains(group.id) {
-                                        expandedRuleGroups.remove(group.id)
-                                    } else {
-                                        expandedRuleGroups.insert(group.id)
-                                    }
-                                },
-                                onUpdateRule: { updated in
-                                    browserManager.updateRoutingRule(updated)
-                                },
-                                onEditRule: { rule in
-                                    selectedRule = rule
-                                },
-                                onDeleteRule: { rule in
-                                    browserManager.removeRoutingRule(id: rule.id)
-                                },
-                                onDuplicateRule: { rule in
-                                    browserManager.duplicateRoutingRule(id: rule.id)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-            .padding(20)
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var rulesListPanel: some View {
-        List(selection: $selectedRule) {
-            if hasRuleSearchQuery {
-                ForEach(filteredRoutingRules) { rule in
-                    ruleCompactRow(rule)
-                        .tag(rule)
-                }
-                .onDelete(perform: removeFilteredRules)
-            } else {
-                ForEach(browserManager.routingRules) { rule in
-                    ruleCompactRow(rule)
-                        .tag(rule)
-                }
-                .onMove { indices, destination in
-                    browserManager.moveRoutingRules(from: indices, to: destination)
-                }
-                .onDelete { indices in
-                    browserManager.removeRoutingRules(at: indices)
-                }
-            }
-        }
-        .listStyle(.inset)
-        .accessibilityIdentifier("settings.rulesList")
-        .frame(minWidth: 260, maxWidth: 340)
-    }
-
-    private func ruleCompactRow(_ rule: BrowserRoutingRule) -> some View {
-        let targetBrowserName: String = {
-            let identity = "\(rule.browserBundleId)|\(rule.profile ?? "")"
-            return browserManager.configuredBrowsers.first(where: { $0.identity == identity })?.name ?? rule.browserBundleId
-        }()
-
-        return HStack(spacing: 10) {
-            Circle()
-                .fill(rule.isEnabled ? Color.green : Color.secondary.opacity(0.4))
-                .frame(width: 8, height: 8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(rule.name)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                    if rule.useRegex {
-                        Text("regex")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 3)
-                            .padding(.vertical, 1)
-                            .background(Color.orange.opacity(0.12), in: Capsule())
-                    }
-                }
-                Text(rule.hostPattern)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Image(systemName: "arrow.right")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-
-            Text(targetBrowserName)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var rulesPlaceholderView: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 10) {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.quaternary)
-                Text("Select a rule to view details")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text("Click any rule in the list to edit it")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer()
-
-            RuleTesterView(manager: browserManager)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var rulesFooter: some View {
-        HStack(spacing: 4) {
-            Image(systemName: hasRuleSearchQuery ? "magnifyingglass" : "arrow.up.arrow.down")
-                .font(.system(size: 9))
-                .foregroundStyle(.quaternary)
-            Text(hasRuleSearchQuery
-                 ? "Clear search to drag and reorder rules."
-                 : "Drag to reorder · First enabled match wins.")
-                .font(.system(size: 10))
-                .foregroundStyle(.quaternary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Creates a `RuleRowView` with all closure callbacks bound to `browserManager`.
-    @ViewBuilder
-    func ruleRow(_ rule: BrowserRoutingRule, hasSearchQuery: Bool) -> some View {
-        let currentIndex = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }) ?? 0
-        let canMoveUp = currentIndex > 0
-        let canMoveDown = currentIndex < browserManager.routingRules.count - 1
-        
-        RuleRowView(
-            rule: rule,
-            configuredBrowsers: browserManager.configuredBrowsers,
-            hasSearchQuery: hasSearchQuery,
-            densityPreference: browserManager.densityPreference,
-            onUpdate: { updated in
-                browserManager.updateRoutingRule(updated)
-            },
-            onEdit: {
-                ruleToEdit = rule
-            },
-            onDelete: { withAnimation(.easeInOut(duration: 0.2)) { browserManager.removeRoutingRule(id: rule.id) } },
-            onDuplicate: { browserManager.duplicateRoutingRule(id: rule.id) },
-            onMoveUp: {
-                guard let index = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }),
-                      index > 0 else { return }
-                browserManager.moveRoutingRules(from: IndexSet(integer: index), to: index - 1)
-            },
-            onMoveDown: {
-                guard let index = browserManager.routingRules.firstIndex(where: { $0.id == rule.id }),
-                      index < browserManager.routingRules.count - 1 else { return }
-                browserManager.moveRoutingRules(from: IndexSet(integer: index), to: index + 2)
-            },
-            isValidHostPattern: { browserManager.isValidRoutingHostPattern($0) },
-            canMoveUp: canMoveUp,
-            canMoveDown: canMoveDown
-        )
-        .equatable()
-        .id(rule.id)
-    }
-
-    func rulesStatusBadge(title: String, color: Color) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.12), in: Capsule())
-    }
-
-    func exportRules() {
-        let panel = NSSavePanel()
-        panel.title = "Export Routing Rules"
-        panel.nameFieldStringValue = "ChowserRules.json"
-        panel.allowedContentTypes = [.json]
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
-        do {
-            try browserManager.exportRules(to: url)
-        } catch {
-            print("Export failed: \(error.localizedDescription)")
-        }
-    }
-
-    func importRules() {
-        let panel = NSOpenPanel()
-        panel.title = "Import Routing Rules"
-        panel.allowedContentTypes = [.json]
-        panel.allowsMultipleSelection = false
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
-        do {
-            try browserManager.importRules(from: url)
-        } catch {
-            print("Import failed: \(error.localizedDescription)")
-        }
-    }
-
-    func removeFilteredRules(at offsets: IndexSet) {
-        var idsToRemove: [UUID] = []
-        for offset in offsets where filteredRoutingRules.indices.contains(offset) {
-            idsToRemove.append(filteredRoutingRules[offset].id)
-        }
-        for id in idsToRemove {
-            browserManager.removeRoutingRule(id: id)
-        }
-    }
-}
+// MARK: - Rule Tester View
 
 struct RuleTesterView: View {
-    var manager: BrowserManager
-    @State private var testURLText = ""
-
+    let manager: BrowserManager
+    @State private var urlString: String = ""
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Test a Link")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.accent)
+                Text("Tester")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            }
             
-            TextField("Paste a URL here...", text: $testURLText)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
+            TextField("Paste a link to see where it goes...", text: $urlString)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .padding(12)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
             
-            if !testURLText.isEmpty {
-                let cleaned = testURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-                // Add https schema if it's just a raw domain or path for easier testing
-                let urlString = cleaned.contains("://") ? cleaned : "https://\(cleaned)"
-                
-                if let url = URL(string: urlString), url.host != nil {
-                    if let route = manager.resolvedRoute(for: url) {
-                        let browserName = route.browser.name + (route.browser.profile != nil ? " (\(route.browser.profile!))" : "")
-                        if let rule = route.rule {
-                            Text("Opens in **\(browserName)** (Matches rule: '\(rule.name)')")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.green)
-                        } else {
-                            Text("Opens in **\(browserName)** (Temporary Focus Mode)")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.purple)
-                        }
-                    } else if !manager.configuredBrowsers.isEmpty {
-                        Text("No rules match. Choose from the browsers picker.")
+            if !urlString.isEmpty {
+                ResultView(manager: manager, input: urlString)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+        }
+        .padding(20)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: urlString)
+    }
+}
+
+struct ResultView: View {
+    let manager: BrowserManager
+    let input: String
+    
+    var body: some View {
+        if let url = URL(string: input.contains("://") ? input : "https://\(input)"), url.host != nil {
+            if let result = manager.resolvedRoute(for: url) {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.green)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Matched: \(result.rule?.name ?? "Default")")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Chowser will open \(result.browser.name)")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text("Waiting for a valid URL...")
-                        .font(.system(size: 11))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+            } else {
+                HStack(spacing: 12) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                    Text("No matching rule. The browser picker will appear.")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
             }
+        } else {
+            Text("Enter a valid URL to test routing.")
+                .font(.system(size: 11))
+                .foregroundStyle(.red.opacity(0.8))
+                .padding(.leading, 8)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.04)))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
     }
 }
-
-

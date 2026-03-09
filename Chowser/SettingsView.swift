@@ -11,33 +11,16 @@ struct SettingsView: View {
     @State var showingResetConfirmation = false
     @State var browserSearchText = ""
     @State var ruleSearchText = ""
-    @State var filteredRules: [BrowserRoutingRule] = []
     @State var newHiddenBundleId = ""
     
     @State var browserToEdit: BrowserConfig? = nil
     @State var ruleToEdit: BrowserRoutingRule? = nil
-    @State var selectedRule: BrowserRoutingRule? = nil
-    @State var expandedRuleGroups: Set<String> = []
-    @State var rulesViewMode: RulesViewMode = .flat
+    @State var selectedRuleId: UUID? = nil
+    @State var preselectedRuleBrowserIdentity: String? = nil
     @State var browserViewMode: SettingsView.BrowserViewMode = .grid
     @State var draggedBrowserId: UUID? = nil
     @State var dropTargetBrowserId: UUID? = nil
 
-    enum RulesViewMode: String, CaseIterable, Identifiable {
-        case flat = "List"
-        case grouped = "Grouped"
-        case compact = "Compact"
-
-        var id: String { rawValue }
-
-        var icon: String {
-            switch self {
-            case .flat: return "list.bullet"
-            case .grouped: return "rectangle.grid.2x2"
-            case .compact: return "list.bullet.rectangle"
-            }
-        }
-    }
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -110,11 +93,12 @@ struct SettingsView: View {
             AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
         }
         .sheet(isPresented: $showingAddRuleSheet) {
-            AddRuleSheet(manager: browserManager, isPresented: $showingAddRuleSheet, prefillURL: currentPrefillURL)
+            AddRuleSheet(manager: browserManager, isPresented: $showingAddRuleSheet, prefillURL: currentPrefillURL, preselectedBrowserIdentity: preselectedRuleBrowserIdentity)
         }
         .onChange(of: showingAddRuleSheet) { 
             if !showingAddRuleSheet { 
-                currentPrefillURL = nil 
+                currentPrefillURL = nil
+                preselectedRuleBrowserIdentity = nil
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenCreateRuleFromMenu"))) { notification in

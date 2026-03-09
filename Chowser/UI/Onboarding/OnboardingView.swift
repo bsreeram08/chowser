@@ -51,21 +51,12 @@ struct OnboardingView: View {
                     BrowsersStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                 case 3:
-                    if SandboxBookmarkManager.shared.hasBookmark {
-                        Color.clear.onAppear {
-                            DispatchQueue.main.async { goNext() }
-                        }
-                    } else {
-                        ProfileAccessStepView(nextAction: goNext)
-                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                    }
-                case 4:
                     AISetupStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                case 5:
+                case 4:
                     RulesStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                case 6:
+                case 5:
                     FinishStepView(doneAction: onComplete)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                 default:

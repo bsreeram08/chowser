@@ -13,46 +13,6 @@ final class SandboxBookmarkManager {
 
     private init() {}
 
-    // MARK: - Query
-
-    /// Whether a stored bookmark exists and can be resolved.
-    var hasBookmark: Bool {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return false }
-        var isStale = false
-        guard let _ = try? URL(
-            resolvingBookmarkData: data,
-            options: .withSecurityScope,
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ) else { return false }
-        return true
-    }
-
-    // MARK: - Grant Access via NSOpenPanel
-
-    /// Shows an NSOpenPanel for the user to grant access to Application Support.
-    /// Returns `true` if the bookmark was successfully saved.
-    @discardableResult
-    func promptForAccess() -> Bool {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first
-
-        let panel = NSOpenPanel()
-        panel.title = "Grant Browser Profile Access"
-        panel.message = "Select your Application Support folder so Chowser can detect browser profiles (Chrome, Firefox, etc.)."
-        panel.prompt = "Grant Access"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = appSupport
-        panel.treatsFilePackagesAsDirectories = false
-
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
-        return saveBookmark(for: url)
-    }
-
     // MARK: - Scoped Access
 
     /// Starts accessing the bookmarked directory. Returns the resolved URL, or nil if unavailable.
@@ -73,11 +33,6 @@ final class SandboxBookmarkManager {
             bookmarkDataIsStale: &isStale
         ) else { return nil }
 
-        // Refresh stale bookmark
-        if isStale {
-            _ = saveBookmark(for: url)
-        }
-
         guard url.startAccessingSecurityScopedResource() else { return nil }
         accessedURL = url
         accessCount = 1
@@ -92,17 +47,5 @@ final class SandboxBookmarkManager {
             url.stopAccessingSecurityScopedResource()
             accessedURL = nil
         }
-    }
-
-    // MARK: - Private
-
-    private func saveBookmark(for url: URL) -> Bool {
-        guard let data = try? url.bookmarkData(
-            options: .withSecurityScope,
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        ) else { return false }
-        UserDefaults.standard.set(data, forKey: bookmarkKey)
-        return true
     }
 }

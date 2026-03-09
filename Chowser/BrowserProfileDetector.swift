@@ -22,7 +22,7 @@ enum BrowserProfileDetector {
     }
 
     private static func detectProfilesUncached(for bundleId: String) -> [BrowserProfile] {
-        if bundleId.contains("Chrome") || bundleId == "com.brave.Browser" || bundleId == "com.microsoft.edgemac" || bundleId == "com.vivaldi.Vivaldi" || bundleId == "company.thebrowser.Browser" || bundleId == "company.thebrowser.Dia" {
+        if bundleId.contains("Chrome") || bundleId == "com.brave.Browser" || bundleId == "com.microsoft.edgemac" || bundleId == "com.vivaldi.Vivaldi" || bundleId == "company.thebrowser.Browser" || bundleId == "company.thebrowser.dia" {
             return detectChromiumProfiles(bundleId: bundleId)
         } else if bundleId == "org.mozilla.firefox" || bundleId == "app.zen-browser.zen" {
             return detectFirefoxProfiles(bundleId: bundleId)
@@ -39,7 +39,7 @@ enum BrowserProfileDetector {
         case "com.microsoft.edgemac": pathSuffix = "Microsoft Edge/Local State"
         case "com.vivaldi.Vivaldi": pathSuffix = "Vivaldi/Local State"
         case "company.thebrowser.Browser": pathSuffix = "Arc/User Data/Local State"
-        case "company.thebrowser.Dia": pathSuffix = "Dia/User Data/Local State"
+        case "company.thebrowser.dia": pathSuffix = "Dia/User Data/Local State"
         default: return []
         }
 

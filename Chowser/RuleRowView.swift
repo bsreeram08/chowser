@@ -87,7 +87,7 @@ struct RuleRowView: View {
             }) {
                 Image(systemName: rule.isEnabled ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 14))
-                    .foregroundStyle(rule.isEnabled ? .green : .tertiary)
+                    .foregroundStyle(rule.isEnabled ? Color.green : Color.secondary.opacity(0.3))
             }
             .buttonStyle(.plain)
             .help(rule.isEnabled ? "Disable rule" : "Enable rule")

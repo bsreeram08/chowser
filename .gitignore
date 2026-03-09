@@ -53,3 +53,5 @@ release/
 # Rust
 target/
 **/target/
+
+.forgecouncil

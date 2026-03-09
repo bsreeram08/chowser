@@ -131,7 +131,7 @@ Browsers are classified into families for launch-argument selection:
 
 | Family | Bundle ID patterns | Launch args |
 |--------|-------------------|-------------|
-| `.chromium` | `com.google.Chrome`, `com.brave.Browser`, `com.microsoft.edgemac`, `com.vivaldi.Vivaldi`, `company.thebrowser.Browser`, `company.thebrowser.Dia`, `org.chromium.Chromium`, `com.operasoftware.Opera` | `--profile-directory=X`, `--incognito` |
+| `.chromium` | `com.google.Chrome`, `com.brave.Browser`, `com.microsoft.edgemac`, `com.vivaldi.Vivaldi`, `company.thebrowser.Browser`, `company.thebrowser.dia`, `org.chromium.Chromium`, `com.operasoftware.Opera` | `--profile-directory=X`, `--incognito` |
 | `.firefox` | `org.mozilla.firefox`, `app.zen-browser.zen`, `org.mozilla.librewolf`, `net.waterfox.waterfox` | `-P X`, `-private` |
 | `.other` | Everything else | No profile args |
 

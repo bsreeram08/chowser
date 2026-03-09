@@ -158,7 +158,7 @@ Decisions that would surprise a new contributor. Each entry explains the "why" t
 - Detect and expose Arc profiles like other Chromium browsers
 - Treat Arc as a single browser entry without profile support
 
-**Decision**: Arc's bundle IDs (`company.thebrowser.Browser`, `company.thebrowser.Dia`) are in the Chromium family for launch argument purposes, but profile detection works — however, in practice Arc profiles are managed internally and the flag may not select the correct space. The profile detection still runs and users can choose profiles, but results may vary.
+**Decision**: Arc's bundle IDs (`company.thebrowser.Browser`, `company.thebrowser.dia`) are in the Chromium family for launch argument purposes, but profile detection works — however, in practice Arc profiles are managed internally and the flag may not select the correct space. The profile detection still runs and users can choose profiles, but results may vary.
 
 **Trade-offs**:
 - Gained: Simpler UX for Arc users; no broken profile selection

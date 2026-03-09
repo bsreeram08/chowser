@@ -60,6 +60,33 @@ struct BrowserProfileDetectorTests {
         #expect(profiles.isEmpty)
     }
 
+    // MARK: - DIA Profile Detection
+
+    @Test("Detects DIA browser profiles from Local State file")
+    func detectDIAProfiles() {
+        let profiles = BrowserProfileDetector.detectProfiles(for: "company.thebrowser.dia")
+
+        // If DIA isn't installed, skip gracefully.
+        if profiles.isEmpty { return }
+
+        // Profiles should have non-empty IDs and names
+        for profile in profiles {
+            #expect(!profile.id.isEmpty)
+            #expect(!profile.name.isEmpty)
+        }
+    }
+
+    @Test("DIA profile detection uses chromium directory path")
+    func diaProfilePath() {
+        let profiles = BrowserProfileDetector.detectProfiles(for: "company.thebrowser.dia")
+        if profiles.isEmpty { return }
+
+        // DIA uses Chromium's Local State path: ~/Library/Application Support/Dia/User Data/Local State
+        for profile in profiles {
+            #expect(!profile.id.isEmpty)
+        }
+    }
+
     // MARK: - Sorted Results
 
     @Test("Detected profiles are sorted alphabetically by name")

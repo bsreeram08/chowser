@@ -194,7 +194,7 @@ if profiles.isEmpty {
 
 **CONFIRMED via web research:**
 
-1. **Bundle ID**: `company.thebrowser.Dia`
+1. **Bundle ID**: `company.thebrowser.dia`
 2. **Storage Location**: `~/Library/Application Support/Dia/User Data/`
 3. **Format**: **Chromium-style** - uses Local State JSON (same as Chrome/Edge)
 4. **Profile Structure**:

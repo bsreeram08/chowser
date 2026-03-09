@@ -57,6 +57,7 @@ extension BrowserRoutingRule {
         static let pickerIconSizeKey = "pickerIconSize"
         static let pickerShowLabelsKey = "pickerShowLabels"
         static let pickerLayoutModeKey = "pickerLayoutMode"
+        static let densityPreferenceKey = "densityPreference"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -121,6 +122,13 @@ extension BrowserRoutingRule {
     var pickerLayoutMode: String = "icons" {
         didSet {
             defaults.set(pickerLayoutMode, forKey: Constants.pickerLayoutModeKey)
+        }
+    }
+
+    /// Settings UI density: "compact", "default", or "comfortable".
+    var densityPreference: String = "default" {
+        didSet {
+            defaults.set(densityPreference, forKey: Constants.densityPreferenceKey)
         }
     }
 
@@ -1000,6 +1008,13 @@ extension BrowserRoutingRule {
         case chromium, firefox, other
     }
 
+    /// Browsers that enforce a single-process model and reject `/usr/bin/open -n`.
+    /// For these, we omit `-n` so macOS routes the args to the already-running instance
+    /// via the single-instance socket — the existing process then handles --profile-directory.
+    private static let singleInstanceBrowsers: Set<String> = [
+        "company.thebrowser.dia",
+    ]
+
     private static func browserFamily(for bundleId: String) -> BrowserFamily {
         if bundleId.localizedCaseInsensitiveContains("Chrome") ||
            bundleId.localizedCaseInsensitiveContains("Brave") ||
@@ -1007,6 +1022,7 @@ extension BrowserRoutingRule {
            bundleId.localizedCaseInsensitiveContains("Vivaldi") ||
            bundleId.localizedCaseInsensitiveContains("Arc") ||
            bundleId == "company.thebrowser.Browser" ||
+           bundleId == "company.thebrowser.dia" ||
            bundleId.localizedCaseInsensitiveContains("Chromium") ||
            bundleId.localizedCaseInsensitiveContains("Opera") {
             return .chromium
@@ -1058,8 +1074,14 @@ extension BrowserRoutingRule {
         if let info = Self.launchInfo(forBundleID: bundleId, profile: profile, customArguments: customArgs, url: url, usePrivateMode: usePrivateMode) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            // -n forces a new instance; --args passes everything after it directly to the app.
-            process.arguments = ["-n", "-a", appURL.path, "--args"] + info.arguments
+            // -n forces a new instance; single-instance browsers like Dia reject it.
+            // For those we omit -n so the OS routes args to the running instance via
+            // the single-instance socket, which handles --profile-directory correctly.
+            let isSingleInstance = Self.singleInstanceBrowsers.contains(bundleId)
+            let openArgs = isSingleInstance
+                ? ["-a", appURL.path, "--args"] + info.arguments
+                : ["-n", "-a", appURL.path, "--args"] + info.arguments
+            process.arguments = openArgs
             do {
                 try process.run()
             } catch {
@@ -1206,6 +1228,12 @@ extension BrowserRoutingRule {
             let allowedModes: Set<String> = ["icons", "list"]
             if allowedModes.contains(mode) {
                 pickerLayoutMode = mode
+            }
+        }
+        if let density = defaults.string(forKey: Constants.densityPreferenceKey) {
+            let allowedDensities: Set<String> = ["compact", "default", "comfortable"]
+            if allowedDensities.contains(density) {
+                densityPreference = density
             }
         }
     }

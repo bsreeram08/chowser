@@ -523,8 +523,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let hostingController = NSHostingController(rootView: SettingsView())
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Chowser Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.setContentSize(NSSize(width: 900, height: 600))
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 1100, height: 700))
+        window.minSize = NSSize(width: 900, height: 600)
+        window.maxSize = NSSize(width: 2000, height: 1500)
         window.center()
         window.isReleasedWhenClosed = false
 

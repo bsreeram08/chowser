@@ -123,6 +123,20 @@ extension SettingsView {
                         }
                     }
                     .padding(.vertical, 4)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Density", selection: $manager.densityPreference) {
+                            Text("Compact").tag("compact")
+                            Text("Default").tag("default")
+                            Text("Comfortable").tag("comfortable")
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        Text("Compact shows more items with less spacing. Comfortable adds extra space and larger text.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.top, 4)
                 } header: {
                     Text("Picker Appearance")
                 }

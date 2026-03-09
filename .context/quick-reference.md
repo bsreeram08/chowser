@@ -77,7 +77,7 @@ xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination '
 | Microsoft Edge | `com.microsoft.edgemac` | Chromium | `Local State` JSON | `--incognito` | Yes |
 | Vivaldi | `com.vivaldi.Vivaldi` | Chromium | `Local State` JSON | `--incognito` | Yes |
 | Arc | `company.thebrowser.Browser` | Chromium | `Local State` JSON* | `--incognito` | Yes |
-| Dia | `company.thebrowser.Dia` | Chromium | `Local State` JSON | `--incognito` | Yes |
+| Dia | `company.thebrowser.dia` | Chromium | `Local State` JSON | `--incognito` | Yes |
 | Chromium | `org.chromium.Chromium` | Chromium | `Local State` JSON | `--incognito` | Yes |
 | Opera | `com.operasoftware.Opera` | Chromium | — | `--incognito` | Yes |
 | Firefox | `org.mozilla.firefox` | Firefox | `profiles.ini` | `-private` | Yes |

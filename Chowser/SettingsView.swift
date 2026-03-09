@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct SettingsView: View {
-    var browserManager = BrowserManager.shared
+    @State var browserManager = BrowserManager.shared
 
     @State var showingAddSheet = false
     @State var showingAddRuleSheet = false
@@ -16,6 +16,28 @@ struct SettingsView: View {
     
     @State var browserToEdit: BrowserConfig? = nil
     @State var ruleToEdit: BrowserRoutingRule? = nil
+    @State var selectedRule: BrowserRoutingRule? = nil
+    @State var expandedRuleGroups: Set<String> = []
+    @State var rulesViewMode: RulesViewMode = .flat
+    @State var browserViewMode: SettingsView.BrowserViewMode = .grid
+    @State var draggedBrowserId: UUID? = nil
+    @State var dropTargetBrowserId: UUID? = nil
+
+    enum RulesViewMode: String, CaseIterable, Identifiable {
+        case flat = "List"
+        case grouped = "Grouped"
+        case compact = "Compact"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .flat: return "list.bullet"
+            case .grouped: return "rectangle.grid.2x2"
+            case .compact: return "list.bullet.rectangle"
+            }
+        }
+    }
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -49,27 +71,30 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedSection) {
-                ForEach(SettingsSection.allCases) { section in
-                    let count = sidebarBadge(for: section)
-                    HStack(spacing: 0) {
-                        Label(section.rawValue, systemImage: section.icon)
-                        Spacer()
-                        if count > 0 {
-                            Text("\(count)")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.secondary.opacity(0.18), in: Capsule())
-                        }
+                // Configuration section
+                Section {
+                    ForEach([SettingsSection.browsers, .rules], id: \.self) { section in
+                        sidebarRow(for: section)
                     }
-                    .tag(section)
-                    .accessibilityIdentifier(section.accessibilityIdentifier)
+                } header: {
+                    Text("Configuration")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                
+                // System section
+                Section {
+                    ForEach([SettingsSection.apps, .general], id: \.self) { section in
+                        sidebarRow(for: section)
+                    }
+                } header: {
+                    Text("System")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
+            .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 240)
             .accessibilityIdentifier("settings.sidebar")
         } detail: {
             switch selectedSection {
@@ -79,7 +104,8 @@ struct SettingsView: View {
             case .general: generalSection
             }
         }
-        .frame(width: 900, height: 600)
+        .frame(minWidth: 1100, idealWidth: 1300, minHeight: 700, idealHeight: 900)
+        .frame(minWidth: 900, minHeight: 600)
         .sheet(isPresented: $showingAddSheet) {
             AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
         }
@@ -137,6 +163,96 @@ struct SettingsView: View {
 
     func getAppIcon(bundleId: String) -> NSImage? {
         BrowserManager.icon(forBrowserBundleID: bundleId)
+    }
+
+    @ViewBuilder
+    private func sidebarRow(for section: SettingsSection) -> some View {
+        let count = sidebarBadge(for: section)
+        let isSelected = selectedSection == section
+        let accentColor = sectionAccentColor(for: section)
+        
+        HStack(spacing: 0) {
+            Label {
+                Text(section.rawValue)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+            } icon: {
+                Image(systemName: section.icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(isSelected ? accentColor : .secondary)
+            }
+            Spacer()
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(isSelected ? accentColor : .secondary)
+                    .monospacedDigit()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? accentColor.opacity(0.15) : .secondary.opacity(0.18), in: Capsule())
+            }
+        }
+        .tag(section)
+        .accessibilityIdentifier(section.accessibilityIdentifier)
+    }
+
+    private func sectionAccentColor(for section: SettingsSection) -> Color {
+        switch section {
+        case .browsers: return .blue
+        case .rules: return .orange
+        case .apps: return .purple
+        case .general: return .green
+        }
+    }
+
+    func sidebarBadge(for section: SettingsSection) -> Int {
+        switch section {
+        case .browsers:
+            return browserManager.configuredBrowsers.count
+        case .rules:
+            return browserManager.routingRules.filter(\.isEnabled).count
+        case .apps:
+            return browserManager.hiddenBundleIDs.count
+        case .general:
+            return 0
+        }
+    }
+    
+    // MARK: - Density Helpers
+    
+    var densityMultiplier: CGFloat {
+        switch browserManager.densityPreference {
+        case "compact": return 0.75
+        case "comfortable": return 1.25
+        default: return 1.0
+        }
+    }
+    
+    private var baseSpacing: CGFloat { 4 }
+    
+    private var densityPadding: CGFloat {
+        baseSpacing * densityMultiplier
+    }
+    
+    private var densitySpacing: CGFloat {
+        baseSpacing * densityMultiplier
+    }
+    
+    private var densityFontSize: CGFloat {
+        13 * densityMultiplier
+    }
+    
+    private var densityIconSize: CGFloat {
+        24 * densityMultiplier
+    }
+    
+    /// Returns dynamic spacing that respects the density preference
+    func dynamicPadding(_ points: CGFloat) -> CGFloat {
+        points * densityMultiplier
+    }
+    
+    /// Returns a font size that respects the density preference
+    func dynamicFontSize(_ baseSize: CGFloat) -> CGFloat {
+        baseSize * densityMultiplier
     }
 }
 

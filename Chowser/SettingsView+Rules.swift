@@ -59,14 +59,15 @@ struct RuleDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 0) {
                 // Header with rule name and status toggle
                 detailHeader
+                    .padding(20)
 
                 Divider()
 
                 // Main rule configuration
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 14) {
                     ruleNameSection
                     hostPatternSection
                     pathPrefixSection
@@ -74,13 +75,14 @@ struct RuleDetailView: View {
                     sourceAppSection
                     privateModeSection
                 }
+                .padding(20)
 
                 Divider()
 
                 // Test URL section
                 RuleTesterView(manager: manager)
+                    .padding(20)
             }
-            .padding(20)
         }
         .background(Color(nsColor: .windowBackgroundColor))
     }
@@ -89,11 +91,11 @@ struct RuleDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(\"Rule Details\")
+                    Text("Rule Details")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                     HStack(spacing: 8) {
-                        Toggle(\"Enabled\", isOn: $isEnabled)
+                        Toggle("Enabled", isOn: $isEnabled)
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .onChange(of: isEnabled) { _, newValue in
@@ -101,14 +103,14 @@ struct RuleDetailView: View {
                             }
 
                         if isEnabled {
-                            Text(\"Active\")
+                            Text("Active")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.green)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.green.opacity(0.12), in: Capsule())
                         } else {
-                            Text(\"Disabled\")
+                            Text("Disabled")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 6)
@@ -122,13 +124,13 @@ struct RuleDetailView: View {
 
                 HStack(spacing: 8) {
                     Button(action: onDuplicate) {
-                        Label(\"Duplicate\", systemImage: \"doc.on.doc\")
+                        Label("Duplicate", systemImage: "doc.on.doc")
                             .font(.system(size: 11))
                     }
                     .buttonStyle(.bordered)
 
                     Button(role: .destructive, action: onDelete) {
-                        Label(\"Delete\", systemImage: \"trash\")
+                        Label("Delete", systemImage: "trash")
                             .font(.system(size: 11))
                     }
                     .buttonStyle(.bordered)
@@ -139,11 +141,11 @@ struct RuleDetailView: View {
 
     private var ruleNameSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(\"Rule Name\")
+            Text("Rule Name")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            TextField(\"Work links\", text: $ruleName)
+            TextField("Work links", text: $ruleName)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 13))
                 .onChange(of: ruleName) { _, _ in commitChanges() }
@@ -153,24 +155,24 @@ struct RuleDetailView: View {
     private var hostPatternSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(\"Host Pattern\")
+                Text("Host Pattern")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Toggle(\"Regex\", isOn: $useRegex)
+                Toggle("Regex", isOn: $useRegex)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                     .font(.system(size: 10))
                     .onChange(of: useRegex) { _, _ in commitChanges() }
             }
 
-            TextField(useRegex ? \".*\\.internal-dev\\.company\\.com\" : \"*, example.com, or *.example.com\", text: $hostPattern)
+            TextField(useRegex ? ".*\\.internal-dev\\.company\\.com" : "*, example.com, or *.example.com", text: $hostPattern)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .onChange(of: hostPattern) { _, _ in commitChanges() }
 
             if !hostPattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hostPatternIsValid {
-                Text(useRegex ? \"Invalid regular expression\" : \"Host pattern must be *, example.com, or *.example.com\")
+                Text(useRegex ? "Invalid regular expression" : "Host pattern must be *, example.com, or *.example.com")
                     .font(.system(size: 10))
                     .foregroundStyle(.red)
             }
@@ -179,16 +181,16 @@ struct RuleDetailView: View {
 
     private var pathPrefixSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(\"Path Prefix (Optional)\")
+            Text("Path Prefix (Optional)")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            TextField(\"/team\", text: $pathPrefix)
+            TextField("/team", text: $pathPrefix)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .onChange(of: pathPrefix) { _, _ in commitChanges() }
 
-            Text(\"Only match URLs with paths starting with this prefix\")
+            Text("Only match URLs with paths starting with this prefix")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -196,11 +198,11 @@ struct RuleDetailView: View {
 
     private var browserPickerSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(\"Open In\")
+            Text("Open In")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Picker(\"Browser\", selection: $selectedBrowserIdentity) {
+            Picker("Browser", selection: $selectedBrowserIdentity) {
                 ForEach(manager.configuredBrowsers) { browser in
                     HStack {
                         if let icon = AppMetadataCache.shared.icon(for: browser.bundleId) {
@@ -220,7 +222,7 @@ struct RuleDetailView: View {
 
     private var sourceAppSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(\"Source App (Optional)\")
+            Text("Source App (Optional)")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
 
@@ -230,45 +232,45 @@ struct RuleDetailView: View {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
                         .resizable()
                         .frame(width: 16, height: 16)
-                    let name = (Bundle(url: appURL)?.object(forInfoDictionaryKey: \"CFBundleName\") as? String) ?? bundleId
+                    let name = (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? bundleId
                     Text(name)
                         .font(.system(size: 12))
                         .lineLimit(1)
-                    Button(\"Clear\") { sourceAppBundleId = nil; commitChanges() }
+                    Button("Clear") { sourceAppBundleId = nil; commitChanges() }
                         .buttonStyle(.borderless)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 } else {
-                    Text(\"Any app\")
+                    Text("Any app")
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                Button(\"Choose App…\") { chooseSourceApp() }
+                Button("Choose App…") { chooseSourceApp() }
                     .buttonStyle(.bordered)
             }
 
-            Text(\"Only route links opened from this specific app.\")
+            Text("Only route links opened from this specific app.")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
     }
 
     private var privateModeSection: some View {
-        Toggle(\"Open in Private / Incognito\", isOn: $usePrivateMode)
+        Toggle("Open in Private / Incognito", isOn: $usePrivateMode)
             .font(.system(size: 12))
             .onChange(of: usePrivateMode) { _, _ in commitChanges() }
     }
 
     private func chooseSourceApp() {
         let panel = NSOpenPanel()
-        panel.directoryURL = URL(fileURLWithPath: \"/Applications\")
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.applicationBundle]
-        panel.title = \"Choose Source App\"
-        panel.prompt = \"Choose\"
+        panel.title = "Choose Source App"
+        panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url {
             sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
             commitChanges()
@@ -287,7 +289,7 @@ struct RuleDetailView: View {
 
         updated.name = pName.isEmpty ? normalizedHost : pName
         updated.hostPattern = normalizedHost
-        updated.pathPrefix = pPath.isEmpty ? nil : (pPath.hasPrefix(\"/\") ? pPath : \"/\(pPath)\")
+        updated.pathPrefix = pPath.isEmpty ? nil : (pPath.hasPrefix("/") ? pPath : "/\(pPath)")
         updated.browserBundleId = browser.bundleId
         updated.profile = browser.profile
         updated.sourceAppBundleId = sourceAppBundleId
@@ -311,6 +313,27 @@ struct RuleGroup: Identifiable {
     var isExpanded: Bool = true
 }
 
+// MARK: - Rules View Mode
+
+enum RulesViewMode: String, CaseIterable, Identifiable {
+    case flat = "List"
+    case grouped = "Grouped"
+    case compact = "Compact"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .flat:
+            return "list.bullet"
+        case .grouped:
+            return "square.grid.2x2"
+        case .compact:
+            return "list.dash"
+        }
+    }
+}
+
 extension SettingsView {
 
     /// Groups rules by target browser for collapsible sections
@@ -325,7 +348,7 @@ extension SettingsView {
             return RuleGroup(
                 id: bundleId,
                 name: name,
-                icon: \"globe\",
+                icon: "globe",
                 rules: rules.sorted { ($0.name) < ($1.name) }
             )
         }.sorted { $0.name < $1.name }
@@ -337,8 +360,8 @@ extension SettingsView {
         let disabled = browserManager.routingRules.filter { !$0.isEnabled }
         
         return [
-            RuleGroup(id: \"enabled\", name: \"Active Rules\", icon: \"checkmark.circle.fill\", rules: enabled),
-            RuleGroup(id: \"disabled\", name: \"Disabled Rules\", icon: \"circle.slash\", rules: disabled)
+            RuleGroup(id: "enabled", name: "Active Rules", icon: "checkmark.circle.fill", rules: enabled),
+            RuleGroup(id: "disabled", name: "Disabled Rules", icon: "circle.slash", rules: disabled)
         ]
     }
 
@@ -358,10 +381,10 @@ extension SettingsView {
             uniquingKeysWith: { first, _ in first }
         )
         filteredRules = browserManager.routingRules.filter { rule in
-            let targetBrowser = browserNames[rule.browserBundleId] ?? \"\"
+            let targetBrowser = browserNames[rule.browserBundleId] ?? ""
             return rule.name.localizedStandardContains(query)
                 || rule.hostPattern.localizedStandardContains(query)
-                || (rule.pathPrefix ?? \"\").localizedStandardContains(query)
+                || (rule.pathPrefix ?? "").localizedStandardContains(query)
                 || targetBrowser.localizedStandardContains(query)
         }
     }
@@ -373,7 +396,7 @@ extension SettingsView {
     var rulesSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             rulesHeader
-            
+
             if browserManager.configuredBrowsers.isEmpty {
                 rulesEmptyState(showBrowserWarning: true)
             } else if browserManager.routingRules.isEmpty {
@@ -381,8 +404,6 @@ extension SettingsView {
             } else {
                 rulesMasterDetailView
             }
-            
-            rulesFooter
         }
         .sheet(item: $ruleToEdit) { rule in
             EditRuleSheet(rule: rule, manager: browserManager, isPresented: Binding(
@@ -396,16 +417,16 @@ extension SettingsView {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(\"Rules\")
+                    Text("Rules")
                         .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    Text(\"Automatically route links by domain and optional path prefix.\")
+                    Text("Automatically route links by domain and optional path prefix.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 6) {
-                        rulesStatusBadge(title: \"\(browserManager.routingRules.count) Total\", color: .secondary)
+                        rulesStatusBadge(title: "\(browserManager.routingRules.count) Total", color: .secondary)
                         rulesStatusBadge(
-                            title: \"\(activeRoutingRulesCount) Active\",
+                            title: "\(activeRoutingRulesCount) Active",
                             color: activeRoutingRulesCount > 0 ? .green : .secondary
                         )
                     }
@@ -428,38 +449,38 @@ extension SettingsView {
                 HStack(spacing: 8) {
                     Menu {
                         Button(action: exportRules) {
-                            Label(\"Export Rules…\", systemImage: \"square.and.arrow.up\")
+                            Label("Export Rules…", systemImage: "square.and.arrow.up")
                         }
                         .disabled(browserManager.routingRules.isEmpty)
-                        .accessibilityIdentifier(\"settings.exportRulesButton\")
+                        .accessibilityIdentifier("settings.exportRulesButton")
 
                         Button(action: importRules) {
-                            Label(\"Import Rules…\", systemImage: \"square.and.arrow.down\")
+                            Label("Import Rules…", systemImage: "square.and.arrow.down")
                         }
-                        .accessibilityIdentifier(\"settings.importRulesButton\")
+                        .accessibilityIdentifier("settings.importRulesButton")
                     } label: {
-                        Image(systemName: \"ellipsis.circle\")
+                        Image(systemName: "ellipsis.circle")
                             .font(.system(size: 12, weight: .medium))
                     }
                     .menuStyle(.borderlessButton)
                     .frame(width: 28)
-                    .accessibilityIdentifier(\"settings.rulesMenuButton\")
+                    .accessibilityIdentifier("settings.rulesMenuButton")
 
                     Button(action: { showingAddRuleSheet = true }) {
-                        Label(\"Add Rule\", systemImage: \"plus\")
+                        Label("Add Rule", systemImage: "plus")
                             .font(.system(size: 12, weight: .medium))
                     }
                     .disabled(browserManager.configuredBrowsers.isEmpty)
-                    .accessibilityIdentifier(\"settings.addRuleButton\")
-                    .accessibilityLabel(\"Add a new routing rule\")
+                    .accessibilityIdentifier("settings.addRuleButton")
+                    .accessibilityLabel("Add a new routing rule")
                 }
             }
 
             if !browserManager.configuredBrowsers.isEmpty && !browserManager.routingRules.isEmpty {
                 sectionSearchField(
-                    placeholder: \"Filter rules by name, host, path, or browser\",
+                    placeholder: "Filter rules by name, host, path, or browser",
                     text: $ruleSearchText,
-                    accessibilityIdentifier: \"settings.rule.searchField\"
+                    accessibilityIdentifier: "settings.rule.searchField"
                 )
             }
         }
@@ -471,31 +492,31 @@ extension SettingsView {
     private func rulesEmptyState(showBrowserWarning: Bool) -> some View {
         VStack(spacing: 10) {
             if showBrowserWarning {
-                Image(systemName: \"exclamationmark.triangle\")
+                Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 28))
                     .foregroundStyle(.orange)
-                Text(\"Add at least one browser first\")
+                Text("Add at least one browser first")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
-                Text(\"Routing rules need a target browser. Configure browsers in the Browsers tab.\")
+                Text("Routing rules need a target browser. Configure browsers in the Browsers tab.")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             } else {
-                Image(systemName: \"line.3.horizontal.decrease.circle\")
+                Image(systemName: "line.3.horizontal.decrease.circle")
                     .font(.system(size: 28))
                     .foregroundStyle(.quaternary)
-                Text(\"No routing rules yet\")
+                Text("No routing rules yet")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
-                Text(\"Create a rule like *.github.com → Arc.\")
+                Text("Create a rule like *.github.com → Arc.")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
-                Button(\"Add Rule\") {
+                Button("Add Rule") {
                     showingAddRuleSheet = true
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .accessibilityIdentifier(\"settings.emptyRules.addRuleButton\")
+                .accessibilityIdentifier("settings.emptyRules.addRuleButton")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -503,17 +524,23 @@ extension SettingsView {
 
     private var rulesMasterDetailView: some View {
         // Use the selected view mode
-        switch rulesViewMode {
-        case .flat, .compact:
-            rulesListPanelWithDetail
-        case .grouped:
-            rulesGroupedView
+        Group {
+            switch rulesViewMode {
+            case .flat, .compact:
+                rulesListPanelWithDetail
+            case .grouped:
+                rulesGroupedView
+            }
         }
     }
 
     private var rulesListPanelWithDetail: some View {
         NavigationSplitView {
             rulesListPanel
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    rulesFooter
+                        .background(.bar)
+                }
         } detail: {
             if let rule = selectedRule {
                 RuleDetailView(
@@ -531,11 +558,13 @@ extension SettingsView {
                         browserManager.duplicateRoutingRule(id: rule.id)
                     }
                 )
+                .id(rule.id)
             } else {
                 rulesPlaceholderView
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: ruleSearchText) { updateFilteredRules() }
         .onChange(of: browserManager.routingRules) { updateFilteredRules() }
         .onAppear { updateFilteredRules() }
@@ -549,7 +578,7 @@ extension SettingsView {
                     if !group.rules.isEmpty {
                         CollapsibleRuleGroup(
                             group: group,
-                            isExpanded: expandedRuleGroups.contains(group.id) ?? true,
+                            isExpanded: expandedRuleGroups.contains(group.id),
                             configuredBrowsers: browserManager.configuredBrowsers,
                             onToggle: {
                                 if expandedRuleGroups.contains(group.id) {
@@ -589,7 +618,7 @@ extension SettingsView {
                         if !group.rules.isEmpty {
                             CollapsibleRuleGroup(
                                 group: group,
-                                isExpanded: expandedRuleGroups.contains(group.id) ?? true,
+                                isExpanded: expandedRuleGroups.contains(group.id),
                                 configuredBrowsers: browserManager.configuredBrowsers,
                                 onToggle: {
                                     if expandedRuleGroups.contains(group.id) {
@@ -641,14 +670,14 @@ extension SettingsView {
                 }
             }
         }
-        .listStyle(.inset(alternatesRowBackgrounds: true))
-        .accessibilityIdentifier(\"settings.rulesList\")
-        .frame(minWidth: 280)
+        .listStyle(.inset)
+        .accessibilityIdentifier("settings.rulesList")
+        .frame(minWidth: 260, maxWidth: 340)
     }
 
     private func ruleCompactRow(_ rule: BrowserRoutingRule) -> some View {
         let targetBrowserName: String = {
-            let identity = \"\(rule.browserBundleId)|\(rule.profile ?? \"\")\"
+            let identity = "\(rule.browserBundleId)|\(rule.profile ?? "")"
             return browserManager.configuredBrowsers.first(where: { $0.identity == identity })?.name ?? rule.browserBundleId
         }()
 
@@ -663,7 +692,7 @@ extension SettingsView {
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                     if rule.useRegex {
-                        Text(\"regex\")
+                        Text("regex")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.orange)
                             .padding(.horizontal, 3)
@@ -679,7 +708,7 @@ extension SettingsView {
 
             Spacer()
 
-            Image(systemName: \"arrow.right\")
+            Image(systemName: "arrow.right")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
 
@@ -692,34 +721,45 @@ extension SettingsView {
     }
 
     private var rulesPlaceholderView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: \"arrow.left.circle\")
-                .font(.system(size: 36))
-                .foregroundStyle(.quaternary)
-            Text(\"Select a rule to view details\")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 10) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.quaternary)
+                Text("Select a rule to view details")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("Click any rule in the list to edit it")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
             RuleTesterView(manager: browserManager)
-                .frame(maxWidth: 400)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var rulesFooter: some View {
-        Group {
-            HStack {
-                Image(systemName: \"info.circle\")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.quaternary)
-                Text(hasRuleSearchQuery
-                     ? \"Clear search to drag reorder rules. First enabled match opens directly in the selected browser.\"
-                     : \"Rules are evaluated top-to-bottom. First enabled match opens directly in the selected browser.\")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.quaternary)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+        HStack(spacing: 4) {
+            Image(systemName: hasRuleSearchQuery ? "magnifyingglass" : "arrow.up.arrow.down")
+                .font(.system(size: 9))
+                .foregroundStyle(.quaternary)
+            Text(hasRuleSearchQuery
+                 ? "Clear search to drag and reorder rules."
+                 : "Drag to reorder · First enabled match wins.")
+                .font(.system(size: 10))
+                .foregroundStyle(.quaternary)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Creates a `RuleRowView` with all closure callbacks bound to `browserManager`.
@@ -771,8 +811,8 @@ extension SettingsView {
 
     func exportRules() {
         let panel = NSSavePanel()
-        panel.title = \"Export Routing Rules\"
-        panel.nameFieldStringValue = \"ChowserRules.json\"
+        panel.title = "Export Routing Rules"
+        panel.nameFieldStringValue = "ChowserRules.json"
         panel.allowedContentTypes = [.json]
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -780,13 +820,13 @@ extension SettingsView {
         do {
             try browserManager.exportRules(to: url)
         } catch {
-            print(\"Export failed: \(error.localizedDescription)\")
+            print("Export failed: \(error.localizedDescription)")
         }
     }
 
     func importRules() {
         let panel = NSOpenPanel()
-        panel.title = \"Import Routing Rules\"
+        panel.title = "Import Routing Rules"
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
 
@@ -795,7 +835,7 @@ extension SettingsView {
         do {
             try browserManager.importRules(from: url)
         } catch {
-            print(\"Import failed: \(error.localizedDescription)\")
+            print("Import failed: \(error.localizedDescription)")
         }
     }
 
@@ -812,42 +852,42 @@ extension SettingsView {
 
 struct RuleTesterView: View {
     var manager: BrowserManager
-    @State private var testURLText = \"\"
+    @State private var testURLText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(\"Test a Link\")
+            Text("Test a Link")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
             
-            TextField(\"Paste a URL here...\", text: $testURLText)
+            TextField("Paste a URL here...", text: $testURLText)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12))
             
             if !testURLText.isEmpty {
                 let cleaned = testURLText.trimmingCharacters(in: .whitespacesAndNewlines)
                 // Add https schema if it's just a raw domain or path for easier testing
-                let urlString = cleaned.contains(\"://\") ? cleaned : \"https://\(cleaned)\"
+                let urlString = cleaned.contains("://") ? cleaned : "https://\(cleaned)"
                 
                 if let url = URL(string: urlString), url.host != nil {
                     if let route = manager.resolvedRoute(for: url) {
-                        let browserName = route.browser.name + (route.browser.profile != nil ? \" (\(route.browser.profile!))\" : \"\")
+                        let browserName = route.browser.name + (route.browser.profile != nil ? " (\(route.browser.profile!))" : "")
                         if let rule = route.rule {
-                            Text(\"Opens in **\(browserName)** (Matches rule: '\(rule.name)')\")
+                            Text("Opens in **\(browserName)** (Matches rule: '\(rule.name)')")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.green)
                         } else {
-                            Text(\"Opens in **\(browserName)** (Temporary Focus Mode)\")
+                            Text("Opens in **\(browserName)** (Temporary Focus Mode)")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.purple)
                         }
                     } else if !manager.configuredBrowsers.isEmpty {
-                        Text(\"No rules match. Choose from the browsers picker.\")
+                        Text("No rules match. Choose from the browsers picker.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Text(\"Waiting for a valid URL...\")
+                    Text("Waiting for a valid URL...")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -859,125 +899,4 @@ struct RuleTesterView: View {
     }
 }
 
-// MARK: - Collapsible Rule Group
 
-struct CollapsibleRuleGroup: View {
-    let group: RuleGroup
-    let isExpanded: Bool
-    let configuredBrowsers: [BrowserConfig]
-    let onToggle: () -> Void
-    let onUpdateRule: (BrowserRoutingRule) -> Void
-    let onEditRule: (BrowserRoutingRule) -> Void
-    let onDeleteRule: (BrowserRoutingRule) -> Void
-    let onDuplicateRule: (BrowserRoutingRule) -> Void
-    
-    @State private var isHovering = false
-    
-    private var enabledCount: Int {
-        group.rules.filter { $0.isEnabled }.count
-    }
-    
-    private var browserIcon: NSImage? {
-        if let browser = configuredBrowsers.first(where: { $0.bundleId == group.id }) {
-            return AppMetadataCache.shared.icon(for: browser.bundleId)
-        }
-        return nil
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Group header
-            Button(action: onToggle) {
-                HStack(spacing: 12) {
-                    // Expand/collapse indicator
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16)
-                    
-                    // Browser icon
-                    if let icon = browserIcon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: 24, height: 24)
-                    } else {
-                        Image(systemName: "globe")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, height: 24)
-                    }
-                    
-                    // Group name
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(group.name)
-                            .font(.system(size: 14, weight: .semibold))
-                        Text("\(group.rules.count) rule\(group.rules.count == 1 ? "" : "s")\(enabledCount > 0 ? " • \(enabledCount) active" : "")")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    // Progress indicator
-                    if !group.rules.isEmpty {
-                        let progress = Double(enabledCount) / Double(group.rules.count)
-                        HStack(spacing: 4) {
-                            ProgressView(value: progress)
-                                .progressViewStyle(.linear)
-                                .frame(width: 40)
-                            Text("\(Int(progress * 100))%")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                                .monospacedDigit()
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-            }
-            .buttonStyle(.plain)
-            .onHover { isHovering = $0 }
-            
-            // Expandable content
-            if isExpanded {
-                VStack(spacing: 8) {
-                    ForEach(group.rules) { rule in
-                        RuleRowView(
-                            rule: rule,
-                            configuredBrowsers: configuredBrowsers,
-                            hasSearchQuery: false,
-                            densityPreference: "default",
-                            onUpdate: onUpdateRule,
-                            onEdit: { onEditRule(rule) },
-                            onDelete: { onDeleteRule(rule) },
-                            onDuplicate: { onDuplicateRule(rule) },
-                            onMoveUp: {},
-                            onMoveDown: {},
-                            isValidHostPattern: { _ in true },
-                            canMoveUp: false,
-                            canMoveDown: false
-                        )
-                        .padding(.horizontal, 8)
-                    }
-                }
-                .padding(.top, 8)
-                .padding(.leading, 16)
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .windowBackgroundColor))
-                .shadow(color: .black.opacity(isHovering ? 0.08 : 0.04), radius: isHovering ? 6 : 3, y: isHovering ? 3 : 1)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(isHovering ? 0.1 : 0.05), lineWidth: 1)
-        )
-        .animation(.easeInOut(duration: 0.2), value: isExpanded)
-    }
-}

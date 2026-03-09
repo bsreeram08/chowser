@@ -48,16 +48,65 @@ struct BrowserConfigRow: View {
         self.canMoveDown = canMoveDown
     }
 
+    /// Quick action buttons that appear on hover
+    private var quickActionsView: some View {
+        HStack(spacing: 4) {
+            // Move up button
+            Button(action: onMoveUp) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 10))
+                    .foregroundStyle(canMoveUp ? .secondary : .quaternary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canMoveUp || hasSearchQuery)
+            .help("Move up")
+            
+            // Move down button
+            Button(action: onMoveDown) {
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 10))
+                    .foregroundStyle(canMoveDown ? .secondary : .quaternary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canMoveDown || hasSearchQuery)
+            .help("Move down")
+            
+            Divider()
+                .frame(height: 12)
+            
+            // Delete button
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red.opacity(isHoveringRow ? 1.0 : 0.5))
+            }
+            .buttonStyle(.plain)
+            .help("Remove browser")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(Color.secondary.opacity(0.1))
+        )
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             browserIconView
             nameAndBundleView
             Spacer()
             shortcutPickerView
+            
+            // Quick actions (visible on hover)
+            quickActionsView
+                .opacity(isHoveringRow ? 1.0 : 0.5)
+                .animation(.easeInOut(duration: 0.15), value: isHoveringRow)
+            
             editButtonView
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(isHoveringRow ? Color.secondary.opacity(0.08) : Color.clear)

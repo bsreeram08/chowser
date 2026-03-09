@@ -1,49 +1,38 @@
-# Chowser Agentic Setup
-
-This page provides an automated way to configure Chowser using an AI agent (Claude, ChatGPT, or Cursor).
-
-## Instructions
-
-1.  **Copy the prompt below.**
-2.  **Paste it into your AI agent.**
-3.  **The agent will scan your system, show you a preview, and import configuration.**
-
-```markdown
 I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac.
 It's a browser chooser app with a local MCP-style HTTP API server for configuration.
 
 Your goal is to configure my browsers and routing rules.
 
-## Step 1: Discover API Schema
+## Step 1: Discover API & Schema
 
-Start by calling `GET /status`. This endpoint provides:
-- App version and server health.
-- **Full API schema** for all endpoints, including required and optional JSON fields for `POST` requests.
-- Confirmation of the authentication header name.
+Call `GET /status`. This responds with:
+- `appName`, `version`, `serverHealth`.
+- `apiSchema`: A JSON object detailing all endpoints and their expected JSON payloads. **Always consult this schema before making POST requests.**
+- `authHeader`: The key to use in your headers (usually `X-Chowser-Token`).
 
 ## Step 2: Discover my browsers and profiles
 
-Scan my Mac for all installed browsers and their profiles:
+Scan my Mac for installed browsers and extract their profiles:
 
-- **Chromium-based** (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera):
-  Check `~/Library/Application Support/{BrowserName}/Local State` or `~/Library/Application Support/{BrowserName}/User Data/Local State`.
-  Parse the JSON → `profile.info_cache` → each key is a profile directory name (e.g. "Default", "Profile 1").
+- **Chromium-based** (Chrome, Brave, Edge, Vivaldi, Arc, **Dia**, Opera):
+  Check `~/Library/Application Support/{BrowserName}/User Data/Local State` or `~/Library/Application Support/{BrowserName}/Local State`.
+  *Note: Arc & Dia usually have a `User Data` subfolder.*
+  
+  Parse the JSON → `profile.info_cache` → Each key is a directory name (e.g., "Default", "Profile 1"). The inner object has the profile name.
 
 - **Firefox-based** (Firefox, Zen, LibreWolf, Waterfox):
   Check `~/Library/Application Support/{BrowserName}/profiles.ini`.
-  Parse the INI → each `[Profile*]` section → `Name=` is the displayed profile name.
+  Parse the INI → Each `[Profile*]` section → `Name=` is the display name, `Path=` is the directory.
 
-- **Safari**: No profiles, just add it as-is.
+- **Safari**: No profiles needed. Bundle ID: `com.apple.Safari`.
 
 ## Step 3: Configure via API
 
-Based on my needs: [EDIT THIS — e.g. "Work stuff in Chrome Work profile, personal browsing in Safari, dev docs in Firefox"]
-
 1. **Check existing**: Call `GET /browsers` and `GET /rules`.
-2. **Push Browsers**: Call `POST /browsers` for each profile.
-   - Example JSON: `{ "name": "Chrome - Work", "bundleId": "com.google.Chrome", "profile": "Profile 1", "shortcutKey": "1" }`
-3. **Push Rules**: Call `POST /rules` to set routing.
-   - Example JSON: `{ "name": "GitHub", "hostPattern": "*.github.com", "browserBundleId": "com.google.Chrome", "profile": "Profile 1" }`
+2. **Sync Browsers**: Call `POST /browsers` for each profile found.
+   - Use the `apiSchema` to determine the payload (usually `name`, `bundleId`, `profile`, `shortcutKey`).
+3. **Sync Rules**: Call `POST /rules` to set routing.
+   - Example request: Open `*.github.com` in `Chrome - Work`.
 
 ## Step 4: Confirmation
 
@@ -52,5 +41,4 @@ Show me a summary table of the detected browsers and intended rules. **Ask for m
 ---
 [CONTEXT FOR AI]
 API server: {{API_SERVER_URL}}
-Auth token: {{AUTH_TOKEN}} (Use in X-Chowser-Token header for POST/DELETE)
-```
+Auth token: {{AUTH_TOKEN}}

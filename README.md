@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://chowser.sreerams.in/icon.png" alt="Chowser" width="128" height="128" />
+</p>
+
 # Chowser 🧭
 
 A lightweight macOS browser chooser with **profiles support**, **smart routing**, and **rule portability**. Intercept links anywhere and open them in the right browser, every time.

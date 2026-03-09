@@ -19,7 +19,6 @@ import {
   Sparkles,
   Wand2,
   MousePointer2,
-  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -307,7 +306,7 @@ export const Home: React.FC = () => {
                   className={cn(
                     "w-3.5 h-3.5 opacity-40 text-white cursor-pointer hover:opacity-100 transition-opacity",
                     isRuleSimulatorOpen &&
-                      "text-primary opacity-100 animate-pulse",
+                    "text-primary opacity-100 animate-pulse",
                   )}
                   onClick={() => setIsRuleSimulatorOpen(!isRuleSimulatorOpen)}
                 />
@@ -548,11 +547,11 @@ export const Home: React.FC = () => {
                 Secure
               </Badge>
               <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
-                Smart Rules
+                Master-Detail Rules
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Define complex rules using exact or wildcard domain matching.
-                Always open the right app for the right task.
+                A powerful redesigned rules manager with browser-based grouping.
+                Easily organize and edit complex routing logic in a sleek master-detail layout.
               </p>
             </Card>
 
@@ -594,11 +593,11 @@ export const Home: React.FC = () => {
                 Automation
               </Badge>
               <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
-                Quick Rules
+                Instant Rules
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Hold Option (⌥) while viewing your Recent URLs to instantly
-                pre-fill and create a new permanent routing rule.
+                Create rules straight from the picker with one key (`R`).
+                Recent URLs can be converted into permanent rules instantly with pre-filled patterns.
               </p>
             </Card>
           </div>
@@ -646,8 +645,8 @@ export const Home: React.FC = () => {
                   <div className="group/code relative max-w-lg">
                     <pre className="bg-black/60 p-4 rounded-xl font-mono text-[13px] border border-white/10 text-white overflow-x-auto shadow-inner">
                       <code>
-                        curl -s https://chowser.sreerams.in/agentic-setup.md |
-                        pbcopy
+                        Run `curl -s https://chowser.sreerams.in/agentic-setup.md`
+                        to get instructions and follow them.
                       </code>
                     </pre>
                     <Button
@@ -655,65 +654,69 @@ export const Home: React.FC = () => {
                       variant="secondary"
                       onClick={() => {
                         navigator.clipboard.writeText(
-                          "curl -s https://chowser.sreerams.in/agentic-setup.md | pbcopy",
+                          "Run `curl -s https://chowser.sreerams.in/agentic-setup.md` to get the detailed Chowser configuration prompt, then follow it to help me set up my browsers.",
                         );
-                        toast.success("Copied to clipboard");
+                        toast.success("Mini-prompt copied to clipboard");
                       }}
                       className="absolute right-2 top-2 opacity-0 group-hover/code:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 text-white border-0"
                     >
                       <Copy className="w-3 h-3 mr-2" />
-                      Copy
+                      Copy Prompt
                     </Button>
                   </div>
                 </div>
-                {/* Terminal Animation Panel */}
+                {/* AI Agent Animation Panel (Redesigned) */}
                 <div className="hidden lg:flex w-80 bg-black/80 border-l border-white/5 relative items-center justify-center p-6 shrink-0 z-0">
-                  <div className="w-full h-36 bg-[#1a1b26]/90 border border-white/10 rounded-xl overflow-hidden shadow-2xl font-mono text-[11px] flex flex-col">
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-black/40 border-b border-white/5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-                      <span className="ml-2 text-white/30 font-sans text-[10px]">
-                        zsh
+                  <div className="w-full h-36 bg-purple-950/20 border border-purple-500/30 rounded-xl overflow-hidden shadow-[0_0_30px_-10px_rgba(168,85,247,0.4)] font-mono text-[11px] flex flex-col backdrop-blur-sm">
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 border-b border-purple-500/20">
+                      <Sparkles className="w-3 h-3 text-purple-400" />
+                      <span className="text-white/70 font-sans text-[10px] font-medium">
+                        Your AI Agent
                       </span>
                     </div>
                     <div className="p-3 space-y-2 text-white/80 flex-1 relative">
                       <div className="flex items-start gap-2">
-                        <span className="text-green-400 shrink-0">➜</span>
-                        <span className="text-blue-400 shrink-0">~</span>
+                        <div className="shrink-0 w-4 h-4 rounded bg-purple-500/20 flex items-center justify-center">
+                          <Bot className="w-3 h-3 text-purple-400" />
+                        </div>
                         <div className="relative flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center text-white/90">
+                          <div className="flex flex-col gap-1.5 text-white/90">
                             <span
-                              className="overflow-hidden whitespace-nowrap inline-block align-bottom"
+                              className="overflow-hidden whitespace-normal inline-block text-[10px] leading-relaxed"
                               style={{
-                                width: aiDemoStep >= 1 ? "100%" : "0%",
-                                transition:
-                                  aiDemoStep >= 1
-                                    ? "width 1s steps(40, end)"
-                                    : "none",
+                                opacity: aiDemoStep >= 1 ? 1 : 0,
+                                transition: "opacity 0.5s ease-in",
                               }}
                             >
-                              curl -s https://chowser... | pbcopy
+                              Run `curl -s https://chowser...`
                             </span>
-                            <span
+                            <div
                               className={cn(
-                                "inline-block w-1 h-3.5 bg-white/70 ml-0.5",
-                                aiDemoStep >= 2 ? "hidden" : "animate-pulse",
+                                "h-px bg-purple-500/20 transition-all duration-700",
+                                aiDemoStep >= 2 ? "w-full" : "w-0",
                               )}
                             />
+                            <span
+                              className="text-[9px] text-purple-300/60 italic"
+                              style={{
+                                opacity: aiDemoStep >= 2 ? 1 : 0,
+                                transition: "opacity 0.5s ease-in",
+                              }}
+                            >
+                              Fetching config...
+                            </span>
                           </div>
                         </div>
                       </div>
                       <div
                         className={cn(
-                          "text-emerald-400/90 flex items-center gap-1.5 absolute bottom-4 left-3 transition-all duration-300",
+                          "absolute bottom-3 right-3 transition-all duration-300",
                           aiDemoStep >= 2
                             ? "opacity-100 translate-y-0"
                             : "opacity-0 translate-y-2 pointer-events-none",
                         )}
                       >
-                        <CheckCircle2 className="w-3 h-3" /> Copied to
-                        clipboard.
+                        <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
                       </div>
                     </div>
                   </div>

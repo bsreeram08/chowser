@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
-import { Home } from "./pages/Home";
+import { AppIcon } from "./pages/AppIcon";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy";
+import { Home } from "./pages/Home";
 
 export function App() {
     useEffect(() => {
@@ -15,6 +16,7 @@ export function App() {
             <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/lab/designer" element={<AppIcon />} />
             </Routes>
         </BrowserRouter>
     );

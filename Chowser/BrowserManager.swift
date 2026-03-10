@@ -1021,6 +1021,7 @@ extension BrowserRoutingRule {
     /// via the single-instance socket — the existing process then handles --profile-directory.
     private static let singleInstanceBrowsers: Set<String> = [
         "company.thebrowser.dia",
+        "app.zen-browser.zen",
     ]
 
     private static func browserFamily(for bundleId: String) -> BrowserFamily {
@@ -1087,9 +1088,9 @@ extension BrowserRoutingRule {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             
-            let openArgs = isSingleInstance
-                ? ["-a", appURL.path, "--args"] + info.arguments
-                : ["-n", "-a", appURL.path, "--args"] + info.arguments
+            let openArgs = (isSingleInstance ? [] : ["-n"]) + 
+                          ["-a", appURL.path, url.absoluteString, "--args"] + 
+                          info.arguments.filter { $0 != url.absoluteString }
             
             process.arguments = openArgs
             do {
@@ -1124,9 +1125,6 @@ extension BrowserRoutingRule {
                 .replacingOccurrences(of: "{profile}", with: profile ?? "")
                 .replacingOccurrences(of: "{url}", with: url.absoluteString)
             var args = processed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            if !custom.contains("{url}") {
-                args.append(url.absoluteString)
-            }
             return (arguments: args, type: "custom")
         }
 
@@ -1136,9 +1134,9 @@ extension BrowserRoutingRule {
         if usePrivateMode && profile == nil {
             switch family {
             case .chromium:
-                return (arguments: ["--incognito", url.absoluteString], type: "chromium-private")
+                return (arguments: ["--incognito"], type: "chromium-private")
             case .firefox:
-                return (arguments: ["-private", url.absoluteString], type: "firefox-private")
+                return (arguments: ["-private"], type: "firefox-private")
             case .other:
                 return nil // Falls back to NSWorkspace; no private mode supported
             }
@@ -1150,13 +1148,13 @@ extension BrowserRoutingRule {
         switch family {
         case .chromium:
             let args = usePrivateMode
-                ? ["--incognito", "--profile-directory=\(profile)", url.absoluteString]
-                : ["--profile-directory=\(profile)", url.absoluteString]
+                ? ["--incognito", "--profile-directory=\(profile)"]
+                : ["--profile-directory=\(profile)"]
             return (arguments: args, type: "chromium")
         case .firefox:
             let args = usePrivateMode
-                ? ["-private", "-P", profile, url.absoluteString]
-                : ["-P", profile, url.absoluteString]
+                ? ["-private", "-P", profile]
+                : ["-P", profile]
             return (arguments: args, type: "firefox")
         case .other:
             return nil

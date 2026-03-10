@@ -1022,6 +1022,7 @@ extension BrowserRoutingRule {
     private static let singleInstanceBrowsers: Set<String> = [
         "company.thebrowser.dia",
         "app.zen-browser.zen",
+        "company.thebrowser.browser",
     ]
 
     private static func browserFamily(for bundleId: String) -> BrowserFamily {
@@ -1030,8 +1031,7 @@ extension BrowserRoutingRule {
            bundleId.localizedCaseInsensitiveContains("Edge") ||
            bundleId.localizedCaseInsensitiveContains("Vivaldi") ||
            bundleId.localizedCaseInsensitiveContains("Arc") ||
-           bundleId == "company.thebrowser.Browser" ||
-           bundleId == "company.thebrowser.dia" ||
+           bundleId.localizedCaseInsensitiveContains("company.thebrowser") ||
            bundleId.localizedCaseInsensitiveContains("Chromium") ||
            bundleId.localizedCaseInsensitiveContains("Opera") {
             return .chromium

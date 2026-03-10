@@ -12,7 +12,8 @@ struct BrowserLaunchTests {
             "com.brave.Browser",
             "com.microsoft.edgemac",
             "com.vivaldi.Vivaldi",
-            "company.thebrowser.Browser", // Arc
+            "company.thebrowser.Browser", // legacy/alternative name
+            "company.thebrowser.browser", // standard bundle id
             "org.chromium.Chromium",
             "com.operasoftware.Opera"
         ]

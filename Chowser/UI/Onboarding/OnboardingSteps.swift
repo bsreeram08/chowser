@@ -202,25 +202,12 @@ struct BrowserCircle: View {
 
 // MARK: - AI Setup Step
 
-// Known AI desktop app bundle IDs
-private let knownAIApps: [(bundleId: String, name: String, icon: String)] = [
-    ("com.anthropic.claudefordesktop", "Claude", "brain.head.profile"),
-    ("com.openai.chat", "ChatGPT", "message.fill"),
-    ("ai.perplexity.mac", "Perplexity", "sparkle"),
-    ("com.microsoft.Copilot", "Copilot", "wand.and.stars"),
-    ("com.google.Gemini", "Gemini", "sparkles"),
-    ("com.raycast.macos", "Raycast", "bolt.fill"),
-    ("com.quora.poe", "Poe", "bubble.left.and.bubble.right.fill"),
-    ("ai.mistral.Mistral", "Le Chat", "ellipsis.bubble.fill"),
-]
-
 private let agenticSetupURL = "https://chowser.sreerams.in/agentic-setup.md"
 
 struct AISetupStepView: View {
     let nextAction: () -> Void
 
     @State private var promptCopied = false
-    @State private var detectedAIApps: [(bundleId: String, name: String, icon: String)] = []
     @State private var fetchedTemplate: String? = nil
     @State private var isFetching = false
 
@@ -329,11 +316,11 @@ Your goal is to configure my browsers and routing rules.
                                     .foregroundStyle(.secondary)
 
                                 HStack(spacing: 8) {
-                                    ForEach(detectedAIApps, id: \.bundleId) { app in
+                                    ForEach(detectedAIApps) { app in
                                         Button(action: { copyPromptAndOpen(bundleId: app.bundleId) }) {
                                             HStack(spacing: 5) {
                                                 Image(systemName: app.icon)
-                                                    .font(.system(size: 11))
+                                                    .font(.system(size: 11) )
                                                 Text(app.name)
                                                     .font(.system(size: 12, weight: .medium))
                                             }
@@ -388,7 +375,6 @@ Your goal is to configure my browsers and routing rules.
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: server.isRunning)
         .onAppear {
-            detectAIApps()
             fetchSetupTemplate()
         }
     }
@@ -421,19 +407,6 @@ Your goal is to configure my browsers and routing rules.
         withAnimation { promptCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             withAnimation { promptCopied = false }
-        }
-    }
-
-    private func copyPromptAndOpen(bundleId: String) {
-        copyPrompt()
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
-        }
-    }
-
-    private func detectAIApps() {
-        detectedAIApps = knownAIApps.filter { app in
-            NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleId) != nil
         }
     }
 }

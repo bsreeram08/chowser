@@ -310,7 +310,7 @@ struct MCPServerSettingsRow: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            Text("The local API server lets AI assistants (Claude, ChatGPT, etc.) configure your browsers and rules.")
+            Text("The local API server lets AI assistants (Claude, personal agents, etc.) configure your browsers and rules.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

@@ -1124,7 +1124,7 @@ extension BrowserRoutingRule {
             let processed = custom
                 .replacingOccurrences(of: "{profile}", with: profile ?? "")
                 .replacingOccurrences(of: "{url}", with: url.absoluteString)
-            var args = processed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            let args = processed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
             return (arguments: args, type: "custom")
         }
 

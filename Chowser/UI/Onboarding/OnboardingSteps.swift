@@ -153,6 +153,13 @@ struct BrowsersStepView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                     .fixedSize(horizontal: false, vertical: true)
+                
+                Text("Note: Direct profile switching is unsupported for Arc and Dia.")
+                    .font(.system(size: 11, weight: .thin))
+                    .foregroundStyle(.secondary.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 4)
             }
             
             Spacer()
@@ -224,6 +231,8 @@ Your goal is to configure my browsers and routing rules.
 2. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari).
 3. **Configure**: Use `POST /browsers` to add profiles and `POST /rules` to set routing. Use the credentials below.
 4. **Confirm**: Show a summary and ask for confirmation before making changes.
+
+**Note**: Direct profile switching is unsupported for Arc and Dia browsers; do not attempt to configure specific profiles for these apps.
 """
         return """
         \(base)
@@ -308,32 +317,6 @@ Your goal is to configure my browsers and routing rules.
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
                         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
 
-                        // AI app buttons — each copies prompt and opens app
-                        if !detectedAIApps.isEmpty {
-                            VStack(spacing: 6) {
-                                Text("Copy prompt & open in:")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-
-                                HStack(spacing: 8) {
-                                    ForEach(detectedAIApps) { app in
-                                        Button(action: { copyPromptAndOpen(bundleId: app.bundleId) }) {
-                                            HStack(spacing: 5) {
-                                                Image(systemName: app.icon)
-                                                    .font(.system(size: 11) )
-                                                Text(app.name)
-                                                    .font(.system(size: 12, weight: .medium))
-                                            }
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(Color.primary.opacity(0.06))
-                                            .clipShape(Capsule())
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                        }
                     }
                     .padding(.horizontal, 40)
                     .transition(.opacity.combined(with: .move(edge: .top)))

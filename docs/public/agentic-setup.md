@@ -34,6 +34,8 @@ Scan my Mac for installed browsers and extract their profiles:
 3. **Sync Rules**: Call `POST /rules` to set routing.
    - Example request: Open `*.github.com` in `Chrome - Work`.
 
+**CRITICAL NOTE**: Direct profile switching is NOT supported for Arc and Dia. Do not attempt to configure or route to specific profiles for these browsers; always use the base application without a profile.
+
 ## Step 4: Confirmation
 
 Show me a summary table of the detected browsers and intended rules. **Ask for my confirmation** before making any `POST` or `DELETE` requests.

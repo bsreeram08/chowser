@@ -621,7 +621,7 @@ export const Home: React.FC = () => {
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
               Automate your browser profile discovery and rule generation. Paste
-              the prompt into Claude, ChatGPT, or Cursor to get started.
+              the prompt into your favorate AI Agent to get started.
             </p>
           </header>
 
@@ -736,8 +736,7 @@ export const Home: React.FC = () => {
                     Paste to AI Assistant
                   </h3>
                   <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-md">
-                    Open your AI assistant (e.g., Cursor Composer, Claude, or
-                    ChatGPT) and paste the content. The AI will then:
+                    Open your AI assistant and paste the content. The AI will then:
                   </p>
                   <ul className="space-y-3 text-sm text-muted-foreground list-disc list-inside ml-2">
                     <li>

@@ -295,7 +295,7 @@ struct BrowserManagerTests {
             browserBundleId: "company.thebrowser.Browser"
         )
 
-        let matchingURL = URL(string: "https://github.com/orgs/openai")!
+        let matchingURL = URL(string: "https://github.com/orgs/anyaiapp")!
         let nonMatchingURL = URL(string: "https://github.com/settings")!
 
         #expect(manager.resolvedBrowser(for: matchingURL)?.bundleId == "company.thebrowser.Browser")
@@ -348,7 +348,7 @@ struct BrowserManagerTests {
         #expect(manager.routingRules.count == 1)
         #expect(manager.routingRules[0].hostPattern == "*")
         #expect(manager.resolvedBrowser(for: URL(string: "https://github.com")!)?.bundleId == "com.google.Chrome")
-        #expect(manager.resolvedBrowser(for: URL(string: "https://openai.com/research")!)?.bundleId == "com.google.Chrome")
+        #expect(manager.resolvedBrowser(for: URL(string: "https://anyaiapp.com/research")!)?.bundleId == "com.google.Chrome")
     }
 
     @Test("Global wildcard rules can be scoped by source app")
@@ -448,7 +448,7 @@ struct BrowserManagerTests {
             browserBundleId: "com.apple.Safari"
         )
 
-        let url = URL(string: "https://github.com/openai")!
+        let url = URL(string: "https://github.com/anyaiapp")!
         let route = manager.resolvedRoute(for: url)
         #expect(route != nil)
         #expect(route?.rule?.name == "Test Rule")
@@ -467,14 +467,14 @@ struct BrowserManagerTests {
 
         manager.addRoutingRule(
             name: "GitHub",
-            hostPattern: "https://github.com/orgs/openai",
+            hostPattern: "https://github.com/orgs/anyaiapp",
             pathPrefix: nil,
             browserBundleId: "company.thebrowser.Browser"
         )
 
         #expect(manager.routingRules.count == 1)
         #expect(manager.routingRules[0].hostPattern == "github.com")
-        #expect(manager.resolvedBrowser(for: URL(string: "https://github.com/openai")!)?.bundleId == "company.thebrowser.Browser")
+        #expect(manager.resolvedBrowser(for: URL(string: "https://github.com/anyaiapp")!)?.bundleId == "company.thebrowser.Browser")
     }
 
     @Test("Duplicating a routing rule inserts a copy below the source")

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chowser — Pick a Browser</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: rgba(30, 30, 30, 0.92);
+        --surface: rgba(255, 255, 255, 0.08);
+        --surface-hover: rgba(255, 255, 255, 0.14);
+        --surface-active: rgba(255, 255, 255, 0.22);
+        --text: #f0f0f0;
+        --text-secondary: rgba(240, 240, 240, 0.55);
+        --accent: #0a84ff;
+        --radius: 12px;
+        --radius-sm: 8px;
+      }
+
+      html,
+      body {
+        height: 100%;
+        font-family: -apple-system, "SF Pro Display", BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background: var(--bg);
+        backdrop-filter: blur(32px) saturate(180%);
+        -webkit-backdrop-filter: blur(32px) saturate(180%);
+        color: var(--text);
+        overflow: hidden;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        padding: 20px 20px 16px;
+        gap: 12px;
+        -webkit-app-region: no-drag;
+      }
+
+      /* URL bar */
+      .url-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        min-height: 36px;
+      }
+
+      .url-icon {
+        font-size: 13px;
+        opacity: 0.6;
+        flex-shrink: 0;
+      }
+
+      .url-text {
+        font-size: 12.5px;
+        color: var(--text-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        font-family: "SF Mono", "Menlo", monospace;
+      }
+
+      /* Private mode toggle */
+      .private-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: background 0.15s;
+        flex-shrink: 0;
+      }
+
+      .private-toggle:hover {
+        background: var(--surface);
+      }
+
+      .private-toggle.active {
+        color: #bf5af2;
+      }
+
+      /* Browser grid */
+      .browsers-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        flex: 1;
+        align-items: center;
+      }
+
+      .browser-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 10px 10px;
+        background: var(--surface);
+        border: 1.5px solid transparent;
+        border-radius: var(--radius);
+        cursor: pointer;
+        width: 90px;
+        min-height: 88px;
+        transition: background 0.12s, border-color 0.12s, transform 0.08s;
+        position: relative;
+      }
+
+      .browser-btn:hover {
+        background: var(--surface-hover);
+        transform: translateY(-1px);
+      }
+
+      .browser-btn:active,
+      .browser-btn.selected {
+        background: var(--surface-active);
+        border-color: var(--accent);
+        transform: scale(0.97);
+      }
+
+      .browser-btn.private-mode {
+        border-color: rgba(191, 90, 242, 0.5);
+      }
+
+      .browser-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+
+      .browser-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .browser-name {
+        font-size: 11px;
+        color: var(--text);
+        text-align: center;
+        line-height: 1.2;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+
+      .browser-profile {
+        font-size: 10px;
+        color: var(--text-secondary);
+        text-align: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 80px;
+      }
+
+      /* Shortcut badge */
+      .shortcut-badge {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        padding: 1px 4px;
+        line-height: 1.4;
+      }
+
+      /* Footer */
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .footer-hint {
+        font-size: 11px;
+        color: var(--text-secondary);
+        display: flex;
+        gap: 12px;
+      }
+
+      .footer-hint kbd {
+        font-size: 10px;
+        font-family: "SF Mono", Menlo, monospace;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+
+      .add-rule-btn {
+        font-size: 11.5px;
+        color: var(--accent);
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 5px;
+        transition: background 0.1s;
+      }
+
+      .add-rule-btn:hover {
+        background: rgba(10, 132, 255, 0.12);
+      }
+
+      /* Loading state */
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+
+      /* Rule creation form */
+      .rule-form {
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 14px;
+      }
+
+      .rule-form.visible {
+        display: flex;
+      }
+
+      .rule-form input,
+      .rule-form select {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        color: var(--text);
+        font-size: 13px;
+        padding: 7px 10px;
+        outline: none;
+        width: 100%;
+      }
+
+      .rule-form input:focus,
+      .rule-form select:focus {
+        border-color: var(--accent);
+      }
+
+      .rule-form select option {
+        background: #2a2a2a;
+      }
+
+      .rule-form-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .btn {
+        font-size: 12.5px;
+        padding: 6px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: none;
+        transition: opacity 0.1s;
+      }
+
+      .btn:hover {
+        opacity: 0.85;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-ghost {
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex: 1;
+        color: var(--text-secondary);
+        font-size: 13px;
+      }
+
+      .empty-state-icon {
+        font-size: 36px;
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading">Loading…</div>
+    </div>
+    <script src="./index.js" type="module"></script>
+  </body>
+</html>

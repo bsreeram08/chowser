@@ -1,0 +1,17 @@
+{
+  "name": "chowser-electrobun",
+  "version": "0.1.0",
+  "description": "Smart browser router - intercept links and route them to the right browser. Built with Electrobun.",
+  "scripts": {
+    "build": "electrobun build",
+    "dev": "electrobun dev",
+    "dev:watch": "electrobun dev --watch",
+    "package": "electrobun package"
+  },
+  "dependencies": {
+    "electrobun": "^1.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

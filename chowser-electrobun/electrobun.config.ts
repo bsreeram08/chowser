@@ -1,0 +1,50 @@
+import type { ElectrobunConfig } from "electrobun";
+
+const config: ElectrobunConfig = {
+  app: {
+    name: "Chowser",
+    identifier: "in.sreerams.chowser-electrobun",
+    version: "0.1.0",
+    description:
+      "Smart browser router — intercept links and route them to the right browser",
+    // Register as a handler for http, https, and chowser:// deep links.
+    // After installing and running the app, go to System Settings → Desktop & Dock
+    // (or use the in-app "Set as Default Browser" button) to make Chowser the
+    // default handler for http and https.
+    urlSchemes: ["http", "https", "chowser"],
+  },
+  build: {
+    bun: {
+      entrypoint: "src/bun/index.ts",
+    },
+    views: {
+      picker: {
+        entrypoint: "src/views/picker/index.ts",
+      },
+      settings: {
+        entrypoint: "src/views/settings/index.ts",
+      },
+    },
+    // Copy HTML files into the views folders in the built bundle
+    copy: {
+      "src/views/picker/index.html": "views/picker/index.html",
+      "src/views/settings/index.html": "views/settings/index.html",
+    },
+    mac: {
+      // Path to the .iconset folder containing app icon PNGs
+      icons: "icon.iconset",
+      entitlements: {
+        // Required for Bun JIT to work with Hardened Runtime (needed for notarization)
+        "com.apple.security.cs.allow-jit": true,
+        "com.apple.security.cs.allow-unsigned-executable-memory": true,
+        "com.apple.security.cs.disable-library-validation": true,
+      },
+    },
+  },
+  runtime: {
+    // Keep the app alive even when all windows are closed — it lives in the menu bar
+    exitOnLastWindowClosed: false,
+  },
+};
+
+export default config;

@@ -1,0 +1,16 @@
+# Build outputs
+build/
+artifacts/
+
+# Dependencies (installed by npm/bun)
+node_modules/
+
+# TypeScript incremental builds
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

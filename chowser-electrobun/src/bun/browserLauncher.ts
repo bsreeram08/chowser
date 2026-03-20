@@ -98,8 +98,8 @@ export function launchBrowser(
   }
 
   if (appPath && extraArgs.length > 0) {
-    // Profile/flag-aware launch: `open -n -a "<App.app>" --args <url> [flags]`
-    const args = ["-n", "-a", appPath, "--args", url, ...extraArgs];
+    // Profile/flag-aware launch: `open -n -a "<App.app>" --args [flags] <url>`
+    const args = ["-n", "-a", appPath, "--args", ...extraArgs, url];
     const result = spawnSync("/usr/bin/open", args, { timeout: 5000 });
     if (result.status === 0) return;
     // Fall through to plain open on failure

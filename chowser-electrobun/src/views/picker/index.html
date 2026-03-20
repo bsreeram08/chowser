@@ -5,334 +5,316 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chowser — Pick a Browser</title>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
       :root {
-        --bg: rgba(30, 30, 30, 0.92);
-        --surface: rgba(255, 255, 255, 0.08);
-        --surface-hover: rgba(255, 255, 255, 0.14);
-        --surface-active: rgba(255, 255, 255, 0.22);
-        --text: #f0f0f0;
-        --text-secondary: rgba(240, 240, 240, 0.55);
-        --accent: #0a84ff;
-        --radius: 12px;
-        --radius-sm: 8px;
+        --accent: #007AFF;
+        --accent-rgb: 0, 122, 255;
+        --purple: #a855f7;
+        --purple-rgb: 168, 85, 247;
+        --text-primary: rgba(255,255,255,0.87);
+        --text-secondary: rgba(255,255,255,0.55);
+        --text-tertiary: rgba(255,255,255,0.35);
+        --separator: rgba(255,255,255,0.12);
+        --bg-elevated: rgba(255,255,255,0.05);
+        --bg-hover: rgba(255,255,255,0.06);
+        --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
       }
 
-      html,
-      body {
-        height: 100%;
-        font-family: -apple-system, "SF Pro Display", BlinkMacSystemFont,
-          "Segoe UI", sans-serif;
-        background: var(--bg);
-        backdrop-filter: blur(32px) saturate(180%);
-        -webkit-backdrop-filter: blur(32px) saturate(180%);
-        color: var(--text);
+      html, body {
+        width: 100%; height: 100%;
+        background: transparent;
         overflow: hidden;
         user-select: none;
-        -webkit-app-region: drag;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
 
-      .container {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        padding: 20px 20px 16px;
-        gap: 12px;
-        -webkit-app-region: no-drag;
+      #root {
+        width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center;
       }
 
-      /* URL bar */
-      .url-bar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--surface);
-        border-radius: var(--radius-sm);
-        padding: 8px 12px;
-        min-height: 36px;
-      }
-
-      .url-icon {
-        font-size: 13px;
-        opacity: 0.6;
-        flex-shrink: 0;
-      }
-
-      .url-text {
-        font-size: 12.5px;
-        color: var(--text-secondary);
+      /* ── Panel ── */
+      .panel {
+        min-width: 320px; max-width: 600px;
+        border-radius: 16px;
+        background: rgba(30,30,30,0.65);
+        backdrop-filter: blur(40px) saturate(180%);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+        border: 0.5px solid rgba(255,255,255,0.2);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        flex: 1;
-        font-family: "SF Mono", "Menlo", monospace;
+        transform-origin: center;
+        animation: panelAppear 200ms var(--spring) forwards;
+      }
+      .panel.private-mode {
+        background: rgba(38,13,64,0.85);
+        border-color: rgba(160,80,255,0.6);
+        box-shadow: 0 0 20px rgba(168,85,247,0.7);
+      }
+      @keyframes panelAppear {
+        from { opacity: 0; transform: scale(0.96); }
+        to   { opacity: 1; transform: scale(1.00); }
       }
 
-      /* Private mode toggle */
-      .private-toggle {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        color: var(--text-secondary);
-        cursor: pointer;
-        padding: 4px 8px;
-        border-radius: 6px;
-        transition: background 0.15s;
-        flex-shrink: 0;
-      }
-
-      .private-toggle:hover {
-        background: var(--surface);
-      }
-
-      .private-toggle.active {
-        color: #bf5af2;
-      }
-
-      /* Browser grid */
-      .browsers-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-        flex: 1;
-        align-items: center;
-      }
-
-      .browser-btn {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-        padding: 12px 10px 10px;
-        background: var(--surface);
-        border: 1.5px solid transparent;
-        border-radius: var(--radius);
-        cursor: pointer;
-        width: 90px;
-        min-height: 88px;
-        transition: background 0.12s, border-color 0.12s, transform 0.08s;
-        position: relative;
-      }
-
-      .browser-btn:hover {
-        background: var(--surface-hover);
-        transform: translateY(-1px);
-      }
-
-      .browser-btn:active,
-      .browser-btn.selected {
-        background: var(--surface-active);
-        border-color: var(--accent);
-        transform: scale(0.97);
-      }
-
-      .browser-btn.private-mode {
-        border-color: rgba(191, 90, 242, 0.5);
-      }
-
-      .browser-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 9px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 22px;
-        background: rgba(255, 255, 255, 0.1);
-        overflow: hidden;
-      }
-
-      .browser-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-      }
-
-      .browser-name {
-        font-size: 11px;
-        color: var(--text);
-        text-align: center;
-        line-height: 1.2;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-      }
-
-      .browser-profile {
-        font-size: 10px;
-        color: var(--text-secondary);
-        text-align: center;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 80px;
-      }
-
-      /* Shortcut badge */
-      .shortcut-badge {
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        font-size: 10px;
-        font-weight: 600;
-        color: var(--text-secondary);
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 4px;
-        padding: 1px 4px;
-        line-height: 1.4;
-      }
-
-      /* Footer */
-      .footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 4px;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-      }
-
-      .footer-hint {
-        font-size: 11px;
-        color: var(--text-secondary);
-        display: flex;
-        gap: 12px;
-      }
-
-      .footer-hint kbd {
-        font-size: 10px;
-        font-family: "SF Mono", Menlo, monospace;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 1px 5px;
-        border-radius: 3px;
-      }
-
-      .add-rule-btn {
-        font-size: 11.5px;
-        color: var(--accent);
-        cursor: pointer;
-        background: none;
-        border: none;
-        padding: 4px 8px;
-        border-radius: 5px;
-        transition: background 0.1s;
-      }
-
-      .add-rule-btn:hover {
-        background: rgba(10, 132, 255, 0.12);
-      }
-
-      /* Loading state */
-      .loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        color: var(--text-secondary);
-        font-size: 14px;
-      }
-
-      /* Rule creation form */
-      .rule-form {
-        display: none;
-        flex-direction: column;
-        gap: 10px;
-        background: var(--surface);
-        border-radius: var(--radius);
-        padding: 14px;
-      }
-
-      .rule-form.visible {
-        display: flex;
-      }
-
-      .rule-form input,
-      .rule-form select {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 6px;
-        color: var(--text);
-        font-size: 13px;
-        padding: 7px 10px;
-        outline: none;
-        width: 100%;
-      }
-
-      .rule-form input:focus,
-      .rule-form select:focus {
-        border-color: var(--accent);
-      }
-
-      .rule-form select option {
-        background: #2a2a2a;
-      }
-
-      .rule-form-actions {
-        display: flex;
-        gap: 8px;
-        justify-content: flex-end;
-      }
-
-      .btn {
-        font-size: 12.5px;
-        padding: 6px 14px;
-        border-radius: 6px;
-        cursor: pointer;
-        border: none;
-        transition: opacity 0.1s;
-      }
-
-      .btn:hover {
-        opacity: 0.85;
-      }
-
-      .btn-primary {
-        background: var(--accent);
-        color: white;
-      }
-
-      .btn-ghost {
-        background: var(--surface);
-        color: var(--text);
-      }
-
-      .empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        flex: 1;
-        color: var(--text-secondary);
-        font-size: 13px;
-      }
-
-      .empty-state-icon {
-        font-size: 36px;
-        opacity: 0.5;
-      }
-
-      /* Focus mode banner */
+      /* ── Focus banner ── */
       .focus-banner {
-        background: rgba(255, 159, 10, 0.15);
-        border: 1px solid rgba(255, 159, 10, 0.3);
-        border-radius: var(--radius-sm);
-        padding: 6px 12px;
-        font-size: 11.5px;
-        color: #ff9f0a;
-        text-align: center;
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; margin: 8px 8px 0;
+        background: rgba(var(--accent-rgb), 0.1);
+        border-radius: 8px;
       }
+      .focus-banner-text {
+        font-size: 11px; font-weight: 500; color: var(--text-secondary);
+      }
+
+      /* ── URL section ── */
+      .url-section {
+        display: flex; align-items: center; gap: 8px;
+        padding: 12px 16px;
+      }
+      .url-icon { font-size: 12px; color: var(--text-secondary); flex-shrink: 0; line-height: 1; }
+      .url-hostname {
+        font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+        color: var(--text-primary); flex: 1;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .url-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+      .url-action-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 700; line-height: 1;
+        color: var(--text-secondary);
+        background: rgba(255,255,255,0.08);
+        border: none; border-radius: 5px; padding: 4px 6px;
+        cursor: pointer; transition: background 0.12s;
+      }
+      .url-action-btn:hover { background: rgba(255,255,255,0.13); }
+      .url-action-btn.copied { color: #34c759; }
+      .url-action-btn.spin svg { animation: spin 0.7s linear infinite; }
+      .url-action-btn.error-state { color: #ff453a; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── Separator ── */
+      .sep { height: 0.5px; background: var(--separator); opacity: 0.5; }
+
+      /* ── Icons layout ── */
+      .browsers-icons {
+        display: flex; flex-wrap: wrap; gap: 4px;
+        padding: 16px; justify-content: center; align-items: flex-start;
+      }
+      .browser-icon-btn {
+        position: relative;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        width: 54px; padding: 8px 4px;
+        background: transparent;
+        border: 1px solid transparent; border-radius: 12px;
+        cursor: pointer;
+        opacity: 0;
+        animation: browserAppear 200ms var(--spring) forwards;
+        transition: background 0.12s var(--spring), border-color 0.12s, transform 0.15s var(--spring);
+      }
+      .browser-icon-btn:hover { background: rgba(255,255,255,0.06); transform: scale(1.05); }
+      .browser-icon-btn.selected {
+        background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.08);
+        transform: scale(1.02);
+      }
+      .panel.private-mode .browser-icon-btn.selected { border-color: rgba(var(--purple-rgb),0.5); }
+      @keyframes browserAppear {
+        from { opacity: 0; transform: scale(0.8); }
+        to   { opacity: 1; transform: scale(1.0); }
+      }
+      .browser-icon-wrap {
+        position: relative; width: 34px; height: 34px; flex-shrink: 0;
+      }
+      .browser-icon-wrap img {
+        width: 34px; height: 34px; border-radius: 8px; object-fit: contain;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+        display: block;
+      }
+      .suggested-badge {
+        position: absolute; top: -4px; left: -4px;
+        width: 14px; height: 14px; border-radius: 50%;
+        background: rgba(30,30,30,0.95);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 7px; color: var(--accent);
+      }
+      .shortcut-badge {
+        position: absolute; bottom: -4px; right: -4px;
+        font-size: 8px; font-weight: 700;
+        font-family: "SF Mono", "Menlo", ui-monospace, monospace;
+        color: var(--text-primary);
+        background: rgba(30,30,30,0.95);
+        border: 0.5px solid rgba(255,255,255,0.1);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        border-radius: 4px; padding: 1px 3px; line-height: 1.4;
+      }
+      .browser-icon-label {
+        font-size: 10px; color: var(--text-secondary);
+        text-align: center; line-height: 1.2;
+        max-width: 50px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .browser-icon-btn.selected .browser-icon-label {
+        font-weight: 600; color: var(--text-primary);
+      }
+
+      /* ── List layout ── */
+      .browsers-list { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+      .browser-list-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 10px; border-radius: 8px;
+        cursor: pointer; background: transparent;
+        border: none; color: var(--text-primary);
+        transition: background 0.1s; text-align: left; width: 100%;
+        font-family: inherit;
+      }
+      .browser-list-row:hover { background: rgba(255,255,255,0.05); }
+      .browser-list-row.selected { background: rgba(255,255,255,0.10); }
+      .panel.private-mode .browser-list-row.selected { background: rgba(var(--purple-rgb),0.2); }
+      .browser-list-img {
+        width: 28px; height: 28px; border-radius: 6px; object-fit: contain;
+        flex-shrink: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+      }
+      .browser-list-info { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+      .browser-list-name {
+        font-size: 13px; font-weight: 500; color: var(--text-primary);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .browser-list-row.selected .browser-list-name { font-weight: 600; }
+      .browser-list-profile {
+        font-size: 10px; color: var(--text-secondary);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .browser-list-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+      .list-suggested { font-size: 10px; font-weight: 700; color: var(--accent); }
+      .list-shortcut {
+        font-size: 10px; font-weight: 700;
+        font-family: "SF Mono", "Menlo", ui-monospace, monospace;
+        color: rgba(255,255,255,0.6);
+        background: rgba(255,255,255,0.08);
+        border-radius: 10px; padding: 1px 6px;
+      }
+
+      /* ── Empty state ── */
+      .empty-state {
+        display: flex; align-items: center; gap: 12px;
+        padding: 24px 20px;
+      }
+      .empty-icon { font-size: 32px; opacity: 0.8; flex-shrink: 0; }
+      .empty-texts { display: flex; flex-direction: column; gap: 2px; }
+      .empty-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+      .empty-sub   { font-size: 11px; color: var(--text-secondary); }
+
+      /* ── Suggestion banner ── */
+      .suggestion-banner {
+        display: flex; align-items: center; gap: 6px;
+        margin: 0 16px 8px; padding: 6px 12px;
+        background: rgba(var(--accent-rgb),0.08); border-radius: 8px;
+        cursor: pointer; border: none; color: inherit;
+        text-align: left; width: calc(100% - 32px);
+        font-family: inherit; transition: background 0.1s;
+      }
+      .suggestion-banner:hover { background: rgba(var(--accent-rgb),0.13); }
+      .suggestion-icon { font-size: 10px; color: var(--accent); }
+      .suggestion-text { font-size: 11px; font-weight: 500; color: var(--text-secondary); flex: 1; }
+      .suggestion-chevron { font-size: 8px; font-weight: 700; color: var(--text-tertiary); }
+
+      /* ── Keyboard hints ── */
+      .hints-row {
+        display: flex; align-items: center; gap: 6px;
+        padding: 10px 16px; flex-wrap: wrap;
+      }
+      .hint-spacer { flex: 1; }
+      .key-hint { display: flex; align-items: center; gap: 3px; }
+      .key-hint.disabled { opacity: 0.3; }
+      .key-chip {
+        font-size: 9px; font-weight: 700;
+        font-family: "SF Mono", "Menlo", ui-monospace, monospace;
+        padding: 2px 4px; border-radius: 4px; line-height: 1.3;
+        background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.60);
+      }
+      .key-chip.kc-accent { background: rgba(var(--accent-rgb),0.8); color: white; }
+      .key-chip.kc-active { background: rgba(var(--purple-rgb),0.2); color: var(--purple); }
+      .key-label { font-size: 9px; font-weight: 600; color: var(--text-secondary); }
+      .key-label.kl-accent { color: var(--accent); }
+      .key-label.kl-active { color: var(--purple); }
+
+      /* ── Configure rule view ── */
+      .rule-view { width: 360px; animation: panelAppear 150ms var(--spring) forwards; }
+      .rule-header {
+        display: flex; align-items: center; gap: 12px;
+        padding: 20px; background: rgba(255,255,255,0.02);
+      }
+      .rule-header-texts { flex: 1; }
+      .rule-header-title {
+        font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+        color: var(--text-primary); line-height: 1.2;
+      }
+      .rule-header-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+      .rule-close-btn {
+        background: none; border: none; cursor: pointer;
+        color: var(--text-tertiary); font-size: 16px; line-height: 1;
+        display: flex; align-items: center; justify-content: center;
+        padding: 2px; transition: color 0.1s; flex-shrink: 0;
+      }
+      .rule-close-btn:hover { color: var(--text-secondary); }
+      .rule-body { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+      .rule-field-label {
+        font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+        color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px;
+      }
+      .rule-name-input {
+        width: 100%; background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+        color: var(--text-primary); font-size: 13px; font-family: inherit;
+        padding: 10px; outline: none; transition: border-color 0.15s;
+      }
+      .rule-name-input:focus { border-color: var(--accent); }
+      .rule-name-input::placeholder { color: var(--text-tertiary); }
+      .rule-card {
+        padding: 16px; border-radius: 12px;
+        background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+      }
+      .rule-detail-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+      .rule-detail-key { font-size: 12px; color: var(--text-secondary); width: 64px; flex-shrink: 0; }
+      .rule-detail-val {
+        font-size: 12px; font-family: "SF Mono","Menlo",ui-monospace,monospace;
+        color: var(--text-secondary); flex: 1;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .rule-detail-row select {
+        flex: 1; background: transparent; border: none;
+        color: var(--text-primary); font-size: 12px; font-family: inherit;
+        outline: none; cursor: pointer;
+      }
+      .rule-detail-row select option { background: #1e1e1e; }
+      .rule-card-sep { height: 0.5px; background: var(--separator); opacity: 0.5; margin: 8px 0; }
+      .rule-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .rule-toggle-label { font-size: 11px; color: var(--text-primary); }
+      .rule-toggle-cb { cursor: pointer; }
+      .rule-footer {
+        display: flex; align-items: center; gap: 8px;
+        padding: 16px; background: rgba(255,255,255,0.01);
+      }
+      .rule-cancel-btn {
+        background: none; border: none; font-size: 12px; color: var(--text-secondary);
+        cursor: pointer; padding: 4px 8px; font-family: inherit; transition: color 0.1s;
+      }
+      .rule-cancel-btn:hover { color: var(--text-primary); }
+      .rule-spacer { flex: 1; }
+      .rule-save-btn {
+        font-size: 12px; font-weight: 700; font-family: inherit;
+        color: white; background: var(--accent);
+        border: none; border-radius: 20px; padding: 8px 16px;
+        cursor: pointer; transition: opacity 0.15s;
+      }
+      .rule-save-btn:disabled { background: rgba(255,255,255,0.3); cursor: not-allowed; opacity: 1; }
+    </style>
   </head>
   <body>
     <div id="root">
-      <div class="loading">Loading…</div>
+      <div style="color:rgba(255,255,255,0.4);font-size:13px;font-family:-apple-system,sans-serif;padding:20px">Loading…</div>
     </div>
     <script src="./index.js" type="module"></script>
   </body>

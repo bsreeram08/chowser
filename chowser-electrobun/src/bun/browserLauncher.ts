@@ -28,7 +28,7 @@ const CHROMIUM_APP_IDS = new Set([
 function privateFlag(appId: string): string {
   if (CHROMIUM_APP_IDS.has(appId)) return "--incognito";
   if (appId.startsWith("org.mozilla") || appId.startsWith("app.zen-browser"))
-    return "--private-window";
+    return "-private-window";
   if (appId === "com.apple.Safari") return ""; // Safari has no CLI flag
   return "--private";
 }

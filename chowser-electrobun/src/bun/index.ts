@@ -245,7 +245,8 @@ Electrobun.events.on("application-menu-clicked", (event) => {
   handleMenuAction(action);
 });
 
-function handleMenuAction(action: string) {
+function handleMenuAction(action: string | undefined) {
+  if (!action) return;
   switch (action) {
     case "open-picker":
       showPickerForManualOpen();

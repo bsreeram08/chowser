@@ -5,6 +5,7 @@
 export const APP_VERSION = 1;
 export const DOMAIN_SUGGESTION_THRESHOLD = 30;
 export const DOMAIN_MAX_ENTRIES = 100;
+export const RECENT_URLS_MAX = 100;
 export const SUPPORTED_SHORTCUTS = [
   "1",
   "2",
@@ -16,6 +17,17 @@ export const SUPPORTED_SHORTCUTS = [
   "8",
   "9",
 ] as const;
+
+/** Apps that handle URLs but are not browsers (media players, etc.) */
+export const DEFAULT_HIDDEN_APP_IDS: string[] = [
+  "com.colliderli.iina",
+  "org.videolan.vlc",
+  "io.mpv",
+  "com.apple.QuickTimePlayerX",
+  "net.mxvideoplayer.mac.MX-Video-Player-Pro",
+  "com.apple.TV",
+  "com.apple.Music",
+];
 
 // ---------------------------------------------------------------------------
 // Browser configuration
@@ -78,6 +90,34 @@ export interface DomainSuggestion {
 }
 
 // ---------------------------------------------------------------------------
+// Recent URLs
+// ---------------------------------------------------------------------------
+
+export interface RecentUrl {
+  url: string;
+  /** Browser appId that was used, or null if dismissed */
+  browserId: string | null;
+  timestamp: number;
+}
+
+// ---------------------------------------------------------------------------
+// Picker layout preference
+// ---------------------------------------------------------------------------
+
+export type PickerLayout = "icons" | "list";
+
+// ---------------------------------------------------------------------------
+// Focus mode — temporary browser override
+// ---------------------------------------------------------------------------
+
+export interface FocusMode {
+  /** Browser ID (BrowserConfig.id) to use during focus session */
+  browserId: string;
+  /** Unix timestamp (ms) when focus mode expires, or null for session-only */
+  expiresAt: number | null;
+}
+
+// ---------------------------------------------------------------------------
 // Persisted application state
 // ---------------------------------------------------------------------------
 
@@ -88,6 +128,10 @@ export interface PersistedState {
   routingRules: BrowserRoutingRule[];
   hiddenAppIds: string[];
   domainFrequency: DomainFrequency;
+  recentUrls: RecentUrl[];
+  pickerLayout: PickerLayout;
+  launchAtLogin: boolean;
+  focusMode: FocusMode | null;
 }
 
 export function createDefaultState(): PersistedState {
@@ -96,8 +140,12 @@ export function createDefaultState(): PersistedState {
     hasCompletedOnboarding: false,
     configuredBrowsers: defaultBrowsers(),
     routingRules: [],
-    hiddenAppIds: [],
+    hiddenAppIds: [...DEFAULT_HIDDEN_APP_IDS],
     domainFrequency: {},
+    recentUrls: [],
+    pickerLayout: "icons",
+    launchAtLogin: false,
+    focusMode: null,
   };
 }
 

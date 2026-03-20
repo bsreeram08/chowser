@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { Electroview, type ElectrobunRPCSchema } from "electrobun/view";
-import type { BrowserConfig } from "../../bun/models.ts";
+import type { BrowserConfig, FocusMode } from "../../bun/models.ts";
 
 // ---------------------------------------------------------------------------
 // RPC schema (must mirror src/bun/index.ts PickerSchema)
@@ -21,6 +21,7 @@ type PickerSchema = ElectrobunRPCSchema & {
           url: string;
           browsers: BrowserConfig[];
           suggestedRuleHostPattern: string;
+          focusMode: FocusMode | null;
         };
       };
       openInBrowser: {
@@ -68,6 +69,7 @@ type PickerData = Awaited<ReturnType<typeof pickerRpc.request.getPickerData>>;
 let pickerData: PickerData | null = null;
 let usePrivateMode = false;
 let showRuleForm = false;
+let selectedIndex = 0;
 
 // ---------------------------------------------------------------------------
 // Init
@@ -76,6 +78,7 @@ let showRuleForm = false;
 async function init() {
   try {
     pickerData = await pickerRpc.request.getPickerData();
+    selectedIndex = 0;
     render();
     setupKeyboardShortcuts();
   } catch (err) {
@@ -111,11 +114,28 @@ function browserEmoji(name: string): string {
 function render() {
   if (!pickerData) return;
 
-  const { url, browsers, suggestedRuleHostPattern } = pickerData;
+  const { url, browsers, suggestedRuleHostPattern, focusMode } = pickerData;
 
   const urlDisplay = url || "No URL";
+  let displayUrl = urlDisplay;
+  try {
+    const u = new URL(urlDisplay);
+    displayUrl = u.hostname + (u.pathname !== "/" ? u.pathname : "");
+  } catch {}
   const truncatedUrl =
-    urlDisplay.length > 80 ? urlDisplay.slice(0, 80) + "…" : urlDisplay;
+    displayUrl.length > 80 ? displayUrl.slice(0, 80) + "…" : displayUrl;
+
+  // Focus mode banner
+  const focusBanner = focusMode
+    ? `<div class="focus-banner">
+         🎯 Focus mode active — all URLs go to one browser
+       </div>`
+    : "";
+
+  // Private mode background highlight
+  const privateBg = usePrivateMode
+    ? "background:rgba(191,90,242,0.07);border-radius:12px;"
+    : "";
 
   const browsersHTML =
     browsers.length === 0
@@ -128,10 +148,11 @@ function render() {
           .map(
             (b, i) => `
           <button
-            class="browser-btn${usePrivateMode ? " private-mode" : ""}"
+            class="browser-btn${usePrivateMode ? " private-mode" : ""}${selectedIndex === i ? " selected" : ""}"
             data-browser-id="${esc(b.id)}"
+            data-index="${i}"
             tabindex="${i + 1}"
-            title="${esc(b.name)}${b.profile ? ` — ${esc(b.profile)}` : ""}"
+            title="${esc(b.name)}${b.profile ? ` — ${esc(b.profile)}` : ""}${b.shortcutKey ? ` [${esc(b.shortcutKey)}]` : ""}"
           >
             <span class="shortcut-badge">${esc(b.shortcutKey)}</span>
             <span class="browser-icon">${browserEmoji(b.name)}</span>
@@ -154,7 +175,8 @@ function render() {
     </div>`;
 
   document.getElementById("root")!.innerHTML = `
-    <div class="container">
+    <div class="container" style="${privateBg}">
+      ${focusBanner}
       <div class="url-bar">
         <span class="url-icon">🔗</span>
         <span class="url-text" title="${esc(urlDisplay)}">${esc(truncatedUrl)}</span>
@@ -171,7 +193,9 @@ function render() {
 
       <div class="footer">
         <div class="footer-hint">
-          <span><kbd>1</kbd>–<kbd>9</kbd> pick browser</span>
+          <span><kbd>1</kbd>–<kbd>9</kbd> pick</span>
+          <span><kbd>←→</kbd> navigate</span>
+          <span><kbd>↵</kbd> open</span>
           <span><kbd>P</kbd> private</span>
           <span><kbd>Esc</kbd> dismiss</span>
         </div>
@@ -192,7 +216,16 @@ function render() {
   document.querySelectorAll(".browser-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = (btn as HTMLElement).dataset["browserId"]!;
+      const idx = parseInt((btn as HTMLElement).dataset["index"] ?? "0", 10);
+      selectedIndex = idx;
       openInBrowser(id);
+    });
+    btn.addEventListener("mouseenter", () => {
+      selectedIndex = parseInt(
+        (btn as HTMLElement).dataset["index"] ?? "0",
+        10
+      );
+      updateSelectedVisual();
     });
   });
 
@@ -203,6 +236,13 @@ function render() {
     });
     document.getElementById("saveRule")!.addEventListener("click", saveRule);
   }
+}
+
+function updateSelectedVisual() {
+  document.querySelectorAll(".browser-btn").forEach((btn) => {
+    const idx = parseInt((btn as HTMLElement).dataset["index"] ?? "-1", 10);
+    btn.classList.toggle("selected", idx === selectedIndex);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -244,36 +284,87 @@ function saveRule() {
 // ---------------------------------------------------------------------------
 
 function setupKeyboardShortcuts() {
-  document.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (!pickerData) return;
+  // Remove any previous listener by re-creating (init is called on refresh)
+  document.addEventListener("keydown", handleKeyDown);
+}
 
-    // Dismiss
-    if (e.key === "Escape") {
-      pickerRpc.request.dismissPicker().catch(console.error);
-      return;
-    }
+function handleKeyDown(e: KeyboardEvent) {
+  if (!pickerData) return;
 
-    // Private mode toggle
-    if (e.key === "p" || e.key === "P") {
-      togglePrivate();
-      return;
-    }
+  // Ignore when typing in an input/select
+  const tag = (e.target as HTMLElement).tagName.toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
 
-    // Rule creation
-    if (e.key === "r" || e.key === "R") {
-      showRuleForm = !showRuleForm;
-      render();
-      return;
-    }
+  // Dismiss
+  if (e.key === "Escape") {
+    pickerRpc.request.dismissPicker().catch(console.error);
+    return;
+  }
 
-    // Number shortcuts 1–9
-    if (e.key >= "1" && e.key <= "9") {
-      const browser = pickerData.browsers.find(
-        (b) => b.shortcutKey === e.key
-      );
-      if (browser) openInBrowser(browser.id);
+  // Copy URL
+  if ((e.metaKey || e.ctrlKey) && e.key === "c") {
+    navigator.clipboard.writeText(pickerData.url).catch(() => {});
+    return;
+  }
+
+  // Private mode toggle
+  if (!e.metaKey && !e.ctrlKey && (e.key === "p" || e.key === "P")) {
+    e.preventDefault();
+    togglePrivate();
+    return;
+  }
+
+  // Rule creation toggle
+  if (!e.metaKey && !e.ctrlKey && (e.key === "r" || e.key === "R")) {
+    e.preventDefault();
+    showRuleForm = !showRuleForm;
+    render();
+    return;
+  }
+
+  const browsers = pickerData.browsers;
+  if (browsers.length === 0) return;
+
+  // Arrow key navigation
+  if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    e.preventDefault();
+    selectedIndex = (selectedIndex - 1 + browsers.length) % browsers.length;
+    updateSelectedVisual();
+    return;
+  }
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    e.preventDefault();
+    selectedIndex = (selectedIndex + 1) % browsers.length;
+    updateSelectedVisual();
+    return;
+  }
+
+  // Enter — open selected
+  if (e.key === "Enter" || e.key === "Return") {
+    e.preventDefault();
+    const browser = browsers[selectedIndex];
+    if (browser) openInBrowser(browser.id);
+    return;
+  }
+
+  // Number shortcuts 1–9
+  if (e.key >= "1" && e.key <= "9") {
+    const browser = browsers.find((b) => b.shortcutKey === e.key);
+    if (browser) openInBrowser(browser.id);
+    return;
+  }
+
+  // Type first letter to select browser
+  if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+    const lower = e.key.toLowerCase();
+    const idx = browsers.findIndex((b) =>
+      b.name.toLowerCase().startsWith(lower)
+    );
+    if (idx !== -1) {
+      selectedIndex = idx;
+      updateSelectedVisual();
     }
-  });
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -45,6 +45,7 @@ type SettingsSchema = ElectrobunRPCSchema & {
       addBrowser: { params: BrowserConfig; response: void };
       updateBrowser: { params: BrowserConfig; response: void };
       removeBrowser: { params: { id: string }; response: void };
+      reorderBrowsers: { params: { ids: string[] }; response: void };
       addRule: { params: BrowserRoutingRule; response: void };
       updateRule: { params: BrowserRoutingRule; response: void };
       duplicateRule: { params: { id: string }; response: void };
@@ -72,6 +73,7 @@ type SettingsSchema = ElectrobunRPCSchema & {
       clearRecentUrls: { params: undefined; response: void };
       openUrl: { params: { url: string; browserId?: string }; response: void };
       toggleMcpServer: { params: undefined; response: McpStatus };
+      setLaunchAtLogin: { params: { enabled: boolean }; response: void };
     };
     messages: Record<string, never>;
   };
@@ -100,10 +102,21 @@ interface AppState {
   mcpStatus: McpStatus;
 }
 
+// ---------------------------------------------------------------------------
+// App state
+// ---------------------------------------------------------------------------
+
 let appState: AppState | null = null;
 let activeTab: "browsers" | "rules" | "apps" | "general" = "browsers";
+let browsersView: "grid" | "list" = "grid";
+let browserSearch = "";
+let rulesSearch = "";
+let selectedRuleId: string | null = null;
+let ruleTestResult:
+  | { matched: boolean; ruleName: string; browserName: string }
+  | null
+  | undefined = undefined;
 let modal: HTMLElement | null = null;
-let ruleTestResult: { matched: boolean; ruleName: string; browserName: string } | null | undefined = undefined;
 
 // ---------------------------------------------------------------------------
 // Init

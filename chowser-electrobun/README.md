@@ -141,7 +141,7 @@ Configuration is persisted as JSON at:
 | Feature | Swift (native) | Tauri (Rust) | Electrobun (this) |
 |---|---|---|---|
 | Language | Swift + SwiftUI | Rust + JS | TypeScript (Bun) |
-| Platform | macOS only | Cross-platform | macOS · Win · Linux |
+| Platform | macOS only | Cross-platform | macOS only |
 | URL interception | Apple Events | Apple Events | `open-url` Electrobun event |
 | UI toolkit | SwiftUI | HTML/JS | HTML/CSS/JS |
 | Browser profiles | Full | Full | Full |

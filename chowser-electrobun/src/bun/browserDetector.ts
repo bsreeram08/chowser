@@ -276,29 +276,29 @@ function readFirefoxProfiles(profilesIniPath: string): BrowserProfile[] {
 
     let currentName: string | null = null;
     let currentPath: string | null = null;
-    let isRelative = true;
 
     for (const line of raw.split("\n")) {
       const trimmed = line.trim();
       if (trimmed.startsWith("[Profile")) {
         if (currentName && currentPath) {
-          profiles.push({ name: currentName, directory: currentPath });
+        // For Gecko browsers the launcher uses `-P <profile-name>`, not a path.
+        // BrowserConfig.profile reads from BrowserProfile.directory, so we store
+        // the profile name in both fields: `name` for display, `directory` as the
+        // value that gets stored in BrowserConfig.profile and passed to `-P`.
+        profiles.push({ name: currentName, directory: currentName });
         }
         currentName = null;
         currentPath = null;
-        isRelative = true;
         continue;
       }
       if (trimmed.startsWith("Name=")) {
         currentName = trimmed.slice(5);
       } else if (trimmed.startsWith("Path=")) {
         currentPath = trimmed.slice(5);
-      } else if (trimmed.startsWith("IsRelative=")) {
-        isRelative = trimmed.slice(11) === "1";
       }
     }
     if (currentName && currentPath) {
-      profiles.push({ name: currentName, directory: currentPath });
+      profiles.push({ name: currentName, directory: currentName });
     }
 
     return profiles;

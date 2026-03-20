@@ -263,7 +263,12 @@ function openInBrowser(browserId: string) {
 function saveRule() {
   if (!pickerData) return;
   const select = document.getElementById("ruleBrowser") as HTMLSelectElement;
-  const browserAppId = select.value;
+  // The dropdown stores browser config `id` (UUID) to uniquely identify
+  // entries that share the same bundle ID but have different profiles.
+  const selectedId = select.value;
+  const browser = pickerData.browsers.find((b) => b.id === selectedId);
+  if (!browser) return;
+  const browserAppId = browser.appId;
   const hostPattern = pickerData.suggestedRuleHostPattern;
   pickerRpc.request
     .createRule({

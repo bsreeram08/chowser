@@ -985,10 +985,12 @@ async function testRule() {
 
 function showAddRuleModal() {
   const browsers = appState?.browsers ?? [];
+  // Use browser config `id` as the option value so we can uniquely identify
+  // entries that share the same appId but have different profiles.
   const browserOptions = browsers
     .map(
       (b) =>
-        `<option value="${esc(b.appId)}">${esc(b.name)}${b.profile ? ` (${esc(b.profile)})` : ""}</option>`
+        `<option value="${esc(b.id)}">${esc(b.name)}${b.profile ? ` (${esc(b.profile)})` : ""}</option>`
     )
     .join("");
 
@@ -1009,10 +1011,17 @@ function showEditRuleModal(id: string) {
   const rule = appState?.rules.find((r) => r.id === id);
   if (!rule) return;
   const browsers = appState?.browsers ?? [];
+  // Use browser config `id` as the option value; select the entry whose
+  // appId AND profile both match the rule.
   const browserOptions = browsers
     .map(
       (b) =>
-        `<option value="${esc(b.appId)}"${b.appId === rule.browserAppId ? " selected" : ""}>${esc(b.name)}${b.profile ? ` (${esc(b.profile)})` : ""}</option>`
+        `<option value="${esc(b.id)}"${
+          b.appId === rule.browserAppId &&
+          (b.profile ?? "") === (rule.profile ?? "")
+            ? " selected"
+            : ""
+        }>${esc(b.name)}${b.profile ? ` (${esc(b.profile)})` : ""}</option>`
     )
     .join("");
 
@@ -1087,9 +1096,16 @@ function collectRuleForm(existingId: string | null): BrowserRoutingRule | null {
     (
       document.getElementById("rulePathPrefix") as HTMLInputElement
     ).value.trim() || undefined;
-  const browserAppId = (
+  // The select stores browser config IDs (UUIDs) so we can distinguish multiple
+  // entries with the same bundle ID (e.g. different Chrome profiles).
+  const selectedBrowserConfigId = (
     document.getElementById("ruleBrowserSelect") as HTMLSelectElement
   ).value;
+  const selectedBrowser = (appState?.browsers ?? []).find(
+    (b) => b.id === selectedBrowserConfigId
+  );
+  const browserAppId = selectedBrowser?.appId ?? selectedBrowserConfigId;
+  const profile = selectedBrowser?.profile;
   const sourceAppBundleId =
     (
       document.getElementById("ruleSourceApp") as HTMLInputElement
@@ -1116,7 +1132,7 @@ function collectRuleForm(existingId: string | null): BrowserRoutingRule | null {
     hostPattern,
     pathPrefix,
     browserAppId,
-    profile: existingRule?.profile,
+    profile,
     sourceAppBundleId,
     isEnabled: existingRule?.isEnabled ?? true,
     usePrivateMode,

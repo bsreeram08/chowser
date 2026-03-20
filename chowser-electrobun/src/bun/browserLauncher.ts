@@ -94,7 +94,7 @@ export function launchBrowser(
   }
 
   if (browser.customArguments) {
-    extraArgs.push(...browser.customArguments.split(/\s+/).filter(Boolean));
+    extraArgs.push(...parseCustomArguments(browser.customArguments));
   }
 
   if (appPath && extraArgs.length > 0) {
@@ -113,13 +113,25 @@ export function launchBrowser(
 /**
  * Launch a URL using a resolved route + a browser lookup table.
  * Returns true if a browser was found and launched.
+ *
+ * When the route specifies a profile, prefer a BrowserConfig that matches
+ * both appId AND profile; fall back to appId-only when no exact match exists.
  */
 export function launchByRoute(
   url: string,
   route: ResolvedRoute,
   browsers: BrowserConfig[]
 ): boolean {
-  const browser = browsers.find((b) => b.appId === route.browserAppId);
+  // Prefer exact appId+profile match so the right config (name, customArgs,
+  // shortcutKey) is used when multiple entries share the same bundle ID.
+  const browser =
+    (route.profile
+      ? browsers.find(
+          (b) =>
+            b.appId === route.browserAppId && b.profile === route.profile
+        )
+      : undefined) ?? browsers.find((b) => b.appId === route.browserAppId);
+
   if (!browser) return false;
 
   // Override profile from route if the browser itself doesn't specify one
@@ -137,7 +149,7 @@ export function launchByRoute(
  * On macOS we use the `defaultbrowser` CLI tool if available, or fall back to
  * `open x-apple.systempreferences:com.apple.preferences.generalIn`.
  */
-export function registerAsDefaultBrowser(appId: string): void {
+export function registerAsDefaultBrowser(_appId: string): void {
   // Attempt via lsregister or defaultbrowser helper (must be installed separately)
   const result = spawnSync(
     "/usr/bin/open",
@@ -149,4 +161,72 @@ export function registerAsDefaultBrowser(appId: string): void {
   if (result.status !== 0) {
     console.warn("[launcher] Could not open System Preferences to set default browser");
   }
+}
+
+// ---------------------------------------------------------------------------
+// Custom argument parser
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a custom-arguments string into an argv array.
+ * Supports single-quoted and double-quoted groups (preserving spaces within
+ * quotes) and backslash-escaped characters, matching POSIX shell tokenization.
+ *
+ * Examples:
+ *   '--flag="hello world"'  → ['--flag=hello world']
+ *   "--user 'John Doe'"     → ['--user', 'John Doe']
+ *   '--no-sandbox'          → ['--no-sandbox']
+ */
+function parseCustomArguments(args: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let i = 0;
+
+  while (i < args.length) {
+    const ch = args[i];
+
+    if (ch === "\\") {
+      // Backslash escape — include next char literally
+      if (i + 1 < args.length) current += args[++i];
+    } else if (ch === "'") {
+      // Single-quoted block — no escape processing inside.
+      // i++ moves past the opening quote; the inner loop consumes characters
+      // until the closing quote (leaving i pointing AT it); the outer i++ below
+      // then advances past the closing quote.
+      i++;
+      while (i < args.length && args[i] !== "'") {
+        current += args[i++];
+      }
+      // i now points at the closing "'" (or past end if unclosed).
+      // The outer i++ at the bottom of this loop advances past it.
+    } else if (ch === '"') {
+      // Double-quoted block — backslash escapes still apply.
+      // Same opening/closing quote advancement logic as single quotes above.
+      i++;
+      while (i < args.length && args[i] !== '"') {
+        if (args[i] === "\\" && i + 1 < args.length) {
+          current += args[++i];
+        } else {
+          current += args[i];
+        }
+        i++;
+      }
+      // i now points at the closing '"' (or past end if unclosed).
+      // The outer i++ at the bottom of this loop advances past it.
+    } else if (ch === " " || ch === "\t") {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = "";
+      }
+    } else {
+      current += ch;
+    }
+
+    // Advance past the current character (or past the closing quote for
+    // quoted blocks, because i was left pointing at it above).
+    i++;
+  }
+
+  if (current.length > 0) tokens.push(current);
+  return tokens;
 }

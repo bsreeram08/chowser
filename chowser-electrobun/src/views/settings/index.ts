@@ -56,7 +56,10 @@ const settingsRpc = Electroview.defineRPC<SettingsSchema>({
   handlers: {},
 });
 
-const electroview = new Electroview({ rpc: settingsRpc });
+// Create the Electroview instance which wires up the WebSocket RPC transport.
+// We use settingsRpc directly for typed calls rather than going through
+// the optional `electroview.rpc` property.
+new Electroview({ rpc: settingsRpc });
 
 interface AppState {
   browsers: BrowserConfig[];
@@ -76,7 +79,7 @@ let modal: HTMLElement | null = null;
 
 async function init() {
   try {
-    appState = await electroview.rpc.request.getState();
+    appState = await settingsRpc.request.getState();
     render();
   } catch (err) {
     document.getElementById("root")!.innerHTML = `
@@ -334,7 +337,7 @@ function setupEventListeners() {
   document
     .getElementById("dismissOnboarding")
     ?.addEventListener("click", () => {
-      electroview.rpc.request.completeOnboarding().then(() => {
+      settingsRpc.request.completeOnboarding().then(() => {
         if (appState) appState.hasCompletedOnboarding = true;
         render();
       });
@@ -396,12 +399,12 @@ function setupEventListeners() {
 // ---------------------------------------------------------------------------
 
 async function removeBrowser(id: string) {
-  await electroview.rpc.request.removeBrowser({ id });
+  await settingsRpc.request.removeBrowser({ id });
   await refreshState();
 }
 
 async function detectBrowsers() {
-  const installed = await electroview.rpc.request.detectBrowsers();
+  const installed = await settingsRpc.request.detectBrowsers();
   if (appState) {
     appState.installedBrowsers = installed;
   }
@@ -519,7 +522,7 @@ function showAddBrowserModal() {
         profile,
       };
 
-      await electroview.rpc.request.addBrowser(newBrowser);
+      await settingsRpc.request.addBrowser(newBrowser);
       closeModal();
       await refreshState();
     });
@@ -564,7 +567,7 @@ function showDetectedBrowsersModal(installed: InstalledBrowser[]) {
 // ---------------------------------------------------------------------------
 
 async function removeRule(id: string) {
-  await electroview.rpc.request.removeRule({ id });
+  await settingsRpc.request.removeRule({ id });
   await refreshState();
 }
 
@@ -573,7 +576,7 @@ async function toggleRule(id: string, enabled: boolean) {
   const updated = appState.rules.map((r) =>
     r.id === id ? { ...r, isEnabled: enabled } : r
   );
-  await electroview.rpc.request.saveRules({ rules: updated });
+  await settingsRpc.request.saveRules({ rules: updated });
   await refreshState();
 }
 
@@ -672,7 +675,7 @@ function showAddRuleModal() {
         useRegex,
       };
 
-      await electroview.rpc.request.addRule(newRule);
+      await settingsRpc.request.addRule(newRule);
       closeModal();
       await refreshState();
     });
@@ -683,7 +686,7 @@ function showAddRuleModal() {
 // ---------------------------------------------------------------------------
 
 async function exportConfig() {
-  const json = await electroview.rpc.request.exportConfig();
+  const json = await settingsRpc.request.exportConfig();
 
   // Show it in a modal for copying
   showModal(`
@@ -717,7 +720,7 @@ function showImportModal() {
       const json = (
         document.getElementById("importJson") as HTMLTextAreaElement
       ).value;
-      const result = await electroview.rpc.request.importConfig({ json });
+      const result = await settingsRpc.request.importConfig({ json });
       const msgEl = document.getElementById("importMessage")!;
       msgEl.style.color = result.success ? "#30d158" : "#ff453a";
       msgEl.textContent = result.message;
@@ -771,7 +774,7 @@ function closeModal() {
 // ---------------------------------------------------------------------------
 
 async function refreshState() {
-  appState = await electroview.rpc.request.getState();
+  appState = await settingsRpc.request.getState();
   render();
 }
 

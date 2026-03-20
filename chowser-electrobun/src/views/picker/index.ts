@@ -59,10 +59,13 @@ const pickerRpc = Electroview.defineRPC<PickerSchema>({
   },
 });
 
-const electroview = new Electroview({ rpc: pickerRpc });
-let pickerData: Awaited<
-  ReturnType<(typeof electroview.rpc.request)["getPickerData"]>
-> | null = null;
+// Create the Electroview instance which sets up the WebSocket RPC transport.
+// We keep a reference to pickerRpc for direct typed calls rather than going
+// through the optional `electroview.rpc` property.
+new Electroview({ rpc: pickerRpc });
+
+type PickerData = Awaited<ReturnType<typeof pickerRpc.request.getPickerData>>;
+let pickerData: PickerData | null = null;
 let usePrivateMode = false;
 let showRuleForm = false;
 
@@ -72,7 +75,7 @@ let showRuleForm = false;
 
 async function init() {
   try {
-    pickerData = await electroview.rpc.request.getPickerData();
+    pickerData = await pickerRpc.request.getPickerData();
     render();
     setupKeyboardShortcuts();
   } catch (err) {
@@ -212,7 +215,7 @@ function togglePrivate() {
 }
 
 function openInBrowser(browserId: string) {
-  electroview.rpc.request
+  pickerRpc.request
     .openInBrowser({ browserId, usePrivateMode })
     .catch(console.error);
 }
@@ -222,7 +225,7 @@ function saveRule() {
   const select = document.getElementById("ruleBrowser") as HTMLSelectElement;
   const browserAppId = select.value;
   const hostPattern = pickerData.suggestedRuleHostPattern;
-  electroview.rpc.request
+  pickerRpc.request
     .createRule({
       name: `Open ${hostPattern} in configured browser`,
       hostPattern,
@@ -246,7 +249,7 @@ function setupKeyboardShortcuts() {
 
     // Dismiss
     if (e.key === "Escape") {
-      electroview.rpc.request.dismissPicker().catch(console.error);
+      pickerRpc.request.dismissPicker().catch(console.error);
       return;
     }
 

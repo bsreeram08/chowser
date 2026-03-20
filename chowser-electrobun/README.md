@@ -46,6 +46,13 @@ chowser-electrobun/
 - **[Bun](https://bun.sh)** runtime (`curl -fsSL https://bun.sh/install | bash`)
 - **Node.js** (for `npx electrobun` CLI)
 
+> **Note on `@types/three` devDependency**: Electrobun ships its library as
+> TypeScript source files (`.ts`) rather than pre-compiled declarations (`.d.ts`).
+> TypeScript therefore processes Electrobun's source transitively and needs
+> `@types/three` (a Three.js transitive dependency of Electrobun) to avoid a
+> "Could not find a declaration file" error. This package is *only* used for type
+> checking — it has no effect on the built app.
+
 ## Getting Started
 
 ```bash

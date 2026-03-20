@@ -228,6 +228,7 @@ function showPicker(url: string, sourceApp?: string) {
 
   const rpc = BrowserView.defineRPC<PickerSchema>({
     handlers: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       requests: {
         getPickerData: () => {
           const s = getState();
@@ -241,7 +242,11 @@ function showPicker(url: string, sourceApp?: string) {
             suggestedRuleHostPattern: suggestedHostPattern,
           };
         },
-        openInBrowser: ({ browserId, usePrivateMode }) => {
+        openInBrowser: (params: unknown) => {
+          const { browserId, usePrivateMode } = params as {
+            browserId: string;
+            usePrivateMode: boolean;
+          };
           const s = getState();
           const browser = s.configuredBrowsers.find((b) => b.id === browserId);
           if (!browser || !pendingPickerUrl) return;
@@ -258,7 +263,14 @@ function showPicker(url: string, sourceApp?: string) {
           pickerRPC = null;
           pendingPickerUrl = null;
         },
-        createRule: ({ name, hostPattern, browserAppId, usePrivateMode }) => {
+        createRule: (params: unknown) => {
+          const { name, hostPattern, browserAppId, usePrivateMode } =
+            params as {
+              name: string;
+              hostPattern: string;
+              browserAppId: string;
+              usePrivateMode: boolean;
+            };
           const s = getState();
           const newRule: BrowserRoutingRule = {
             id: crypto.randomUUID(),
@@ -271,7 +283,7 @@ function showPicker(url: string, sourceApp?: string) {
           };
           patchState({ routingRules: [...s.routingRules, newRule] });
         },
-      },
+      } as unknown as Parameters<typeof BrowserView.defineRPC<PickerSchema>>[0]["handlers"]["requests"],
     },
   });
 
@@ -371,36 +383,43 @@ function openSettings() {
             hiddenAppIds: s.hiddenAppIds,
           };
         },
-        saveBrowsers: ({ browsers }) => {
+        saveBrowsers: (params: unknown) => {
+          const { browsers } = params as { browsers: BrowserConfig[] };
           patchState({ configuredBrowsers: browsers });
         },
-        saveRules: ({ rules }) => {
+        saveRules: (params: unknown) => {
+          const { rules } = params as { rules: BrowserRoutingRule[] };
           patchState({ routingRules: rules });
         },
-        addBrowser: (browser) => {
+        addBrowser: (params: unknown) => {
+          const browser = params as BrowserConfig;
           const s = getState();
           if (s.configuredBrowsers.some((b) => b.id === browser.id)) return;
           patchState({
             configuredBrowsers: [...s.configuredBrowsers, browser],
           });
         },
-        removeBrowser: ({ id }) => {
+        removeBrowser: (params: unknown) => {
+          const { id } = params as { id: string };
           const s = getState();
           patchState({
             configuredBrowsers: s.configuredBrowsers.filter((b) => b.id !== id),
           });
         },
-        addRule: (rule) => {
+        addRule: (params: unknown) => {
+          const rule = params as BrowserRoutingRule;
           const s = getState();
           patchState({ routingRules: [...s.routingRules, rule] });
         },
-        removeRule: ({ id }) => {
+        removeRule: (params: unknown) => {
+          const { id } = params as { id: string };
           const s = getState();
           patchState({
             routingRules: s.routingRules.filter((r) => r.id !== id),
           });
         },
-        reorderRules: ({ ids }) => {
+        reorderRules: (params: unknown) => {
+          const { ids } = params as { ids: string[] };
           const s = getState();
           const ruleMap = new Map(s.routingRules.map((r) => [r.id, r]));
           const reordered = ids
@@ -420,7 +439,8 @@ function openSettings() {
             2
           );
         },
-        importConfig: ({ json }) => {
+        importConfig: (params: unknown) => {
+          const { json } = params as { json: string };
           try {
             const parsed = JSON.parse(json) as {
               browsers?: BrowserConfig[];
@@ -461,7 +481,7 @@ function openSettings() {
             };
           }
         },
-      },
+      } as unknown as Parameters<typeof BrowserView.defineRPC<SettingsSchema>>[0]["handlers"]["requests"],
     },
   });
 

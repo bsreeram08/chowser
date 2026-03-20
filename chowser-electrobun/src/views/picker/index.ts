@@ -166,7 +166,7 @@ function render() {
     <div class="rule-form${showRuleForm ? " visible" : ""}" id="ruleForm">
       <div style="font-size:12.5px;font-weight:600;color:var(--text)">Always open <em>${esc(suggestedRuleHostPattern)}</em> in…</div>
       <select id="ruleBrowser">
-        ${browsers.map((b) => `<option value="${esc(b.appId)}">${esc(b.name)}${b.profile ? ` (${esc(b.profile)})` : ""}</option>`).join("")}
+        ${browsers.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}${b.profile ? ` (${esc(b.profile)})` : ""}</option>`).join("")}
       </select>
       <div class="rule-form-actions">
         <button class="btn btn-ghost" id="cancelRule">Cancel</button>

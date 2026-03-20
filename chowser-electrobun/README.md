@@ -6,10 +6,12 @@ Chowser intercepts every link you click and routes it to the right browser — a
 
 ## Features
 
+> Current parity: core picker/settings/routing flows are implemented. See **Known limitations / parity gaps** below for runtime-constrained behavior.
+
 - 🔗 **URL interception** — registers as a handler for `http://` and `https://` links
-- 🎯 **Smart routing rules** — match by host pattern, path prefix, and source app
+- 🎯 **Smart routing rules** — match by host pattern, path prefix, and source app (when metadata is available)
 - 🖱️ **Browser picker** — keyboard-driven modal (shortcuts `1`–`9`, `P` for private, `R` for quick rule)
-- 🗂️ **Browser profiles** — full support for Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles
+- 🗂️ **Browser profiles** — support for Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles
 - 🕵️ **Private/incognito mode** — per-rule or on-demand toggle
 - ⚙️ **Settings window** — manage browsers, rules, import/export JSON config
 - 📊 **Auto-rule suggestions** — suggests a rule after 30 clicks on the same domain
@@ -135,6 +137,24 @@ Required sizes: `icon_16x16.png`, `icon_16x16@2x.png`, `icon_32x32.png`, `icon_3
 
 Configuration is persisted as JSON at:
 `~/Library/Application Support/in.sreerams.chowser-electrobun/state.json`
+
+## Known limitations / parity gaps
+
+- **Shift-to-force-picker is unavailable** in the intercepted URL path because the current Electrobun `open-url` payload does not expose modifier flags.
+- **Launch at login currently persists preference only**; true OS login-item registration remains pending until Electrobun exposes a login-item API.
+- **Source-app routing depends on runtime metadata** (`sourceAppBundleId`) being provided by the interception event.
+
+## Regression checklist
+
+```bash
+bunx tsc --noEmit
+bun run build
+```
+
+Manual smoke (quick):
+- Picker opens on intercepted URL and can open selected browser (`1`–`9`, `Enter`, `P`, `R`).
+- Settings CRUD works for browsers/rules; reorder and import/export persist after relaunch.
+- Routing applies first-match rules for host/path/source-app and falls back to picker when no rule matches.
 
 ## Differences from the Swift / Tauri versions
 

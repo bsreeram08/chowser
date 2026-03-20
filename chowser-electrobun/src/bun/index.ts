@@ -21,6 +21,8 @@ import Electrobun, {
   type ElectrobunRPCSchema,
 } from "electrobun/bun";
 import type { MenuItemConfig } from "electrobun/bun";
+import { execFileSync } from "node:child_process";
+import { dirname, basename } from "node:path";
 
 import {
   loadState,
@@ -58,6 +60,28 @@ const state = loadState();
 console.log(
   `[chowser] booted. ${state.configuredBrowsers.length} browsers, ${state.routingRules.length} rules.`
 );
+
+// ---------------------------------------------------------------------------
+// Cached browser detection — avoids slow filesystem I/O on every getState()
+// ---------------------------------------------------------------------------
+
+let _cachedInstalledBrowsers: InstalledBrowser[] | null = null;
+
+function getCachedInstalledBrowsers(): InstalledBrowser[] {
+  if (_cachedInstalledBrowsers === null) {
+    _cachedInstalledBrowsers = detectInstalledBrowsers();
+  }
+  return _cachedInstalledBrowsers;
+}
+
+// Eagerly detect on boot (non-blocking path; result is cached for getState)
+try {
+  _cachedInstalledBrowsers = detectInstalledBrowsers();
+  console.log(`[chowser] detected ${_cachedInstalledBrowsers.length} installed browsers.`);
+} catch (err) {
+  console.warn("[chowser] browser detection failed:", err);
+  _cachedInstalledBrowsers = [];
+}
 
 // ---------------------------------------------------------------------------
 // Focus Mode timer — auto-expire when expiresAt is reached
@@ -121,6 +145,62 @@ function buildFocusModeMenu(): MenuItemConfig[] {
       action: "clear-focus-mode",
     },
   ];
+}
+
+function openDefaultBrowserSettings(): void {
+  // macOS Ventura+ (13+): Desktop & Dock extension
+  // macOS Monterey (12): com.apple.preferences.generalIn
+  const urls = [
+    "x-apple.systempreferences:com.apple.Desktop-Settings.extension",
+    "x-apple.systempreferences:com.apple.preferences.generalIn",
+  ];
+  for (const url of urls) {
+    try {
+      if (Utils.openExternal(url)) return;
+    } catch {}
+  }
+  try {
+    Utils.openPath("/System/Applications/System Settings.app");
+  } catch {
+    console.warn("[chowser] Could not open System Settings");
+  }
+}
+
+function appBundleInfo(): { appName: string; appPath: string } | null {
+  const marker = ".app/Contents/MacOS/";
+  const execPath = process.execPath;
+  const markerIndex = execPath.indexOf(marker);
+  if (markerIndex <= 0) return null;
+  const appPath = execPath.slice(0, markerIndex + 4);
+  const appName = basename(appPath, ".app");
+  if (!appName || !appPath) return null;
+  return { appName, appPath };
+}
+
+function setLaunchAtLoginMac(enabled: boolean): void {
+  if (process.platform !== "darwin") return;
+  const info = appBundleInfo();
+  if (!info) {
+    console.warn("[chowser] Cannot set launch-at-login: not running as a bundled app (dev mode?)");
+    // Still persist the preference so the setting is remembered
+    return;
+  }
+  try {
+    const script = `
+tell application "System Events"
+  if exists login item "${info.appName}" then
+    delete login item "${info.appName}"
+  end if
+  ${enabled ? `make login item at end with properties {name:"${info.appName}", path:"${info.appPath}", hidden:false}` : ""}
+end tell
+`;
+    execFileSync("/usr/bin/osascript", ["-e", script], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    console.log(`[chowser] launch-at-login ${enabled ? "enabled" : "disabled"}`);
+  } catch (err) {
+    console.error("[chowser] Failed to set launch-at-login via osascript:", err);
+  }
 }
 
 function buildClipboardMenu(): MenuItemConfig[] {
@@ -230,8 +310,9 @@ function updateTrayMenu() {
   tray.setMenu(items);
 }
 
-tray.on("tray-clicked", (_event: unknown) => {
-  // Left-click opens picker; right-click shows menu (handled natively)
+tray.on("tray-clicked", (event: unknown) => {
+  const action = (event as { data?: { action?: string } }).data?.action;
+  if (action) handleMenuAction(action);
 });
 
 // Handle tray menu actions
@@ -255,9 +336,7 @@ function handleMenuAction(action: string | undefined) {
       openSettings();
       break;
     case "set-default-browser":
-      Utils.openExternal(
-        "x-apple.systempreferences:com.apple.preferences.generalIn"
-      );
+      openDefaultBrowserSettings();
       break;
     case "quit":
       flushState();
@@ -304,9 +383,11 @@ function handleMenuAction(action: string | undefined) {
 // ---------------------------------------------------------------------------
 
 Electrobun.events.on("open-url", (event) => {
-  const { url } = (event as { data: { url: string } }).data;
+  const { url, sourceAppBundleId } = (event as {
+    data: { url: string; sourceAppBundleId?: string };
+  }).data;
   console.log(`[chowser] intercepted URL: ${url}`);
-  handleIncomingURL(url);
+  handleIncomingURL(url, sourceAppBundleId);
 });
 
 function handleIncomingURL(rawUrl: string, sourceApp?: string) {
@@ -506,7 +587,8 @@ function showPicker(url: string, sourceApp?: string) {
 
   pickerWindow = new BrowserWindow({
     title: "Chowser — Pick a Browser",
-    frame: { x: 0, y: 0, width: 560, height: 340 },
+    frame: { x: 0, y: 0, width: 500, height: 300 },
+    styleMask: { Resizable: false },
     url: "views://picker/index.html",
     titleBarStyle: "hiddenInset",
     transparent: false,
@@ -564,6 +646,7 @@ type SettingsSchema = ElectrobunRPCSchema & {
       addBrowser: { params: BrowserConfig; response: void };
       updateBrowser: { params: BrowserConfig; response: void };
       removeBrowser: { params: { id: string }; response: void };
+      reorderBrowsers: { params: { ids: string[] }; response: void };
       addRule: { params: BrowserRoutingRule; response: void };
       updateRule: { params: BrowserRoutingRule; response: void };
       duplicateRule: { params: { id: string }; response: void };
@@ -591,6 +674,8 @@ type SettingsSchema = ElectrobunRPCSchema & {
       clearRecentUrls: { params: undefined; response: void };
       openUrl: { params: { url: string; browserId?: string }; response: void };
       toggleMcpServer: { params: undefined; response: McpStatus };
+      setLaunchAtLogin: { params: { enabled: boolean }; response: void };
+      openDefaultBrowserSettings: { params: undefined; response: void };
     };
     messages: Record<string, never>;
   };
@@ -614,7 +699,7 @@ function openSettings() {
           return {
             browsers: s.configuredBrowsers,
             rules: s.routingRules,
-            installedBrowsers: detectInstalledBrowsers(),
+            installedBrowsers: getCachedInstalledBrowsers(),
             hasCompletedOnboarding: s.hasCompletedOnboarding,
             hiddenAppIds: s.hiddenAppIds,
             recentUrls: s.recentUrls,
@@ -655,6 +740,17 @@ function openSettings() {
           patchState({
             configuredBrowsers: s.configuredBrowsers.filter((b) => b.id !== id),
           });
+        },
+        reorderBrowsers: (params: unknown) => {
+          const { ids } = params as { ids: string[] };
+          const s = getState();
+          const browserMap = new Map(s.configuredBrowsers.map((b) => [b.id, b]));
+          const ordered = ids
+            .map((id) => browserMap.get(id))
+            .filter((b): b is BrowserConfig => b !== undefined);
+          const idSet = new Set(ids);
+          const trailing = s.configuredBrowsers.filter((b) => !idSet.has(b.id));
+          patchState({ configuredBrowsers: [...ordered, ...trailing] });
         },
         addRule: (params: unknown) => {
           const rule = params as BrowserRoutingRule;
@@ -701,7 +797,10 @@ function openSettings() {
             .filter((r): r is BrowserRoutingRule => r !== undefined);
           patchState({ routingRules: reordered });
         },
-        detectBrowsers: () => detectInstalledBrowsers(),
+        detectBrowsers: () => {
+          _cachedInstalledBrowsers = detectInstalledBrowsers();
+          return _cachedInstalledBrowsers;
+        },
         completeOnboarding: () => {
           patchState({ hasCompletedOnboarding: true });
         },
@@ -848,6 +947,15 @@ function openSettings() {
           }
           updateTrayMenu();
           return getMcpStatus();
+        },
+        setLaunchAtLogin: (params: unknown) => {
+          const { enabled } = params as { enabled: boolean };
+          // setLaunchAtLoginMac handles errors internally (won't throw)
+          setLaunchAtLoginMac(enabled);
+          patchState({ launchAtLogin: enabled });
+        },
+        openDefaultBrowserSettings: () => {
+          openDefaultBrowserSettings();
         },
       } as unknown as Parameters<typeof BrowserView.defineRPC<SettingsSchema>>[0]["handlers"]["requests"],
     },

@@ -58,6 +58,7 @@ const pickerRpc = Electroview.defineRPC<PickerSchema>({
       },
     },
   },
+  maxRequestTime: 30000,
 });
 
 // Create the Electroview instance which sets up the WebSocket RPC transport.
@@ -405,7 +406,7 @@ function render() {
   if (showRuleForm) {
     const host = suggestedRuleHostPattern || (url ? (() => { try { return new URL(url).hostname; } catch { return url; } })() : "");
     root.innerHTML =
-      `<div class="panel${priv}">` +
+      `<div class="panel panel-rule${priv}">` +
       renderRuleView(host, browsers) +
       `</div>`;
     attachRuleFormListeners();
@@ -422,8 +423,9 @@ function render() {
       ? renderSuggestionBanner(suggestedRuleHostPattern, browsers)
       : "";
 
+  const panelLayoutClass = pickerLayout === "list" ? " panel-list" : " panel-icons";
   root.innerHTML =
-    `<div class="panel${priv}">` +
+    `<div class="panel${panelLayoutClass}${priv}">` +
     renderFocusBanner(focusMode) +
     (url ? renderUrlSection(url) + `<div class="sep"></div>` : "") +
     browsersSection +

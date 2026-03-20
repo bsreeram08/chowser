@@ -6,7 +6,9 @@
     "build": "electrobun build",
     "dev": "electrobun dev",
     "dev:watch": "electrobun dev --watch",
-    "package": "electrobun package"
+    "package": "electrobun package",
+    "devc": "electrobun dev",
+    "test": "bun test src/bun/"
   },
   "dependencies": {
     "electrobun": "^1.16.0"

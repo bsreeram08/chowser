@@ -74,6 +74,7 @@ type SettingsSchema = ElectrobunRPCSchema & {
       openUrl: { params: { url: string; browserId?: string }; response: void };
       toggleMcpServer: { params: undefined; response: McpStatus };
       setLaunchAtLogin: { params: { enabled: boolean }; response: void };
+      openDefaultBrowserSettings: { params: undefined; response: void };
     };
     messages: Record<string, never>;
   };
@@ -85,6 +86,7 @@ type SettingsSchema = ElectrobunRPCSchema & {
 
 const settingsRpc = Electroview.defineRPC<SettingsSchema>({
   handlers: {},
+  maxRequestTime: 30000,
 });
 
 new Electroview({ rpc: settingsRpc });
@@ -117,6 +119,7 @@ let ruleTestResult:
   | null
   | undefined = undefined;
 let modal: HTMLElement | null = null;
+let delegatedActionHandlersInitialized = false;
 
 // ---------------------------------------------------------------------------
 // Init
@@ -142,21 +145,32 @@ function render() {
   if (!appState) return;
 
   const { browsers, rules, hasCompletedOnboarding } = appState;
+  const enabledRules = rules.filter((r) => r.isEnabled).length;
+  const hiddenApps = appState.hiddenAppIds.length;
 
   document.getElementById("root")!.innerHTML = `
     <div class="layout">
       <nav class="sidebar">
+        <div class="sidebar-section-header">Configuration</div>
         <div class="sidebar-item${activeTab === "browsers" ? " active" : ""}" data-tab="browsers">
-          <span class="sidebar-icon">🌐</span> Browsers
+          <span class="sidebar-icon-wrap blue">🌐</span>
+          <span class="sidebar-item-label">Browsers</span>
+          ${browsers.length > 0 ? `<span class="sidebar-badge">${browsers.length}</span>` : ""}
         </div>
         <div class="sidebar-item${activeTab === "rules" ? " active" : ""}" data-tab="rules">
-          <span class="sidebar-icon">📋</span> Rules
+          <span class="sidebar-icon-wrap orange">📋</span>
+          <span class="sidebar-item-label">Rules</span>
+          ${enabledRules > 0 ? `<span class="sidebar-badge">${enabledRules}</span>` : ""}
         </div>
+        <div class="sidebar-section-header">System</div>
         <div class="sidebar-item${activeTab === "apps" ? " active" : ""}" data-tab="apps">
-          <span class="sidebar-icon">🙈</span> Hidden Apps
+          <span class="sidebar-icon-wrap purple">🙈</span>
+          <span class="sidebar-item-label">Apps</span>
+          ${hiddenApps > 0 ? `<span class="sidebar-badge">${hiddenApps}</span>` : ""}
         </div>
         <div class="sidebar-item${activeTab === "general" ? " active" : ""}" data-tab="general">
-          <span class="sidebar-icon">⚙️</span> General
+          <span class="sidebar-icon-wrap green">⚙️</span>
+          <span class="sidebar-item-label">General</span>
         </div>
       </nav>
 
@@ -231,8 +245,9 @@ function renderBrowsersTab(
          </div>`
       : browsers
           .map(
-            (b) =>
+            (b, i) =>
               `<div class="list-item" data-browser-id="${esc(b.id)}">
+                <span class="rule-priority">${i + 1}</span>
                 <div class="list-item-icon">${browserEmoji(b.name)}</div>
                 <div class="list-item-body">
                   <div class="list-item-title">${esc(b.name)}</div>
@@ -244,6 +259,8 @@ function renderBrowsersTab(
                 </div>
                 <div class="list-item-actions">
                   <button class="btn btn-ghost btn-sm edit-browser-btn" data-browser-id="${esc(b.id)}">Edit</button>
+                  ${i > 0 ? `<button class="btn btn-ghost btn-sm move-browser-up-btn" data-browser-id="${esc(b.id)}" title="Move up">↑</button>` : ""}
+                  ${i < browsers.length - 1 ? `<button class="btn btn-ghost btn-sm move-browser-down-btn" data-browser-id="${esc(b.id)}" title="Move down">↓</button>` : ""}
                   <button class="btn btn-danger btn-sm remove-browser-btn" data-browser-id="${esc(b.id)}">Remove</button>
                 </div>
               </div>`
@@ -261,7 +278,7 @@ function renderBrowsersTab(
     </div>
     <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">
       Shortcut keys (1–9) let you quickly pick a browser from the picker.
-      Drag to reorder (coming soon).
+      Reorder uses ↑/↓ buttons and is persisted.
     </p>
     <div class="card">${browsersHTML}</div>`;
 }
@@ -387,7 +404,7 @@ function renderAppsTab(hiddenAppIds: string[]): string {
 function renderGeneralTab(): string {
   if (!appState) return "";
 
-  const { pickerLayout, focusMode, mcpStatus, browsers } = appState;
+  const { pickerLayout, focusMode, mcpStatus, browsers, launchAtLogin } = appState;
 
   const focusModeSection = () => {
     if (focusMode) {
@@ -446,6 +463,20 @@ function renderGeneralTab(): string {
           <div class="list-item-subtitle">Opens macOS System Settings → Desktop &amp; Dock</div>
         </div>
         <button class="btn btn-primary" id="setDefaultBrowserBtn">Open Settings</button>
+      </div>
+    </div>
+
+    <h3>Startup</h3>
+    <div class="card">
+      <div class="list-item">
+        <div class="list-item-body">
+          <div class="list-item-title">Launch Chowser at login</div>
+          <div class="list-item-subtitle">Starts the app automatically after sign-in</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="launchAtLoginToggle" ${launchAtLogin ? "checked" : ""} />
+          <span class="toggle-track"></span>
+        </label>
       </div>
     </div>
 
@@ -529,131 +560,140 @@ function renderGeneralTab(): string {
 // ---------------------------------------------------------------------------
 
 function setupEventListeners() {
-  // Tab switching
-  document.querySelectorAll(".sidebar-item[data-tab]").forEach((el) => {
-    el.addEventListener("click", () => {
-      activeTab = (el as HTMLElement).dataset["tab"] as typeof activeTab;
+  // One-time global delegated event setup — survives all rerenders
+  if (!delegatedActionHandlersInitialized) {
+    delegatedActionHandlersInitialized = true;
+    setupGlobalDelegatedHandlers();
+  }
+}
+
+function setupGlobalDelegatedHandlers() {
+  // ---------------------------------------------------------------------------
+  // CLICK — handles every button/action in the entire settings UI via delegation
+  // ---------------------------------------------------------------------------
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+
+    // Helper: find closest element matching selector from click target
+    const match = (sel: string) => target.closest<HTMLElement>(sel);
+
+    // ── Tab switching ──
+    const tabItem = match(".sidebar-item[data-tab]");
+    if (tabItem) {
+      activeTab = tabItem.dataset["tab"] as typeof activeTab;
       ruleTestResult = undefined;
       render();
-    });
-  });
+      return;
+    }
 
-  // Onboarding
-  document
-    .getElementById("openDefaultBrowserSettings")
-    ?.addEventListener("click", openSystemPreferences);
-  document
-    .getElementById("dismissOnboarding")
-    ?.addEventListener("click", () => {
+    // ── Onboarding ──
+    if (match("#openDefaultBrowserSettings")) { openSystemPreferences(); return; }
+    if (match("#dismissOnboarding")) {
       settingsRpc.request.completeOnboarding().then(() => {
         if (appState) appState.hasCompletedOnboarding = true;
         render();
       });
-    });
+      return;
+    }
 
-  // Browsers tab
-  document
-    .getElementById("addBrowserBtn")
-    ?.addEventListener("click", showAddBrowserModal);
-  document
-    .getElementById("detectBrowsersBtn")
-    ?.addEventListener("click", detectBrowsers);
-  document.querySelectorAll(".edit-browser-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["browserId"]!;
-      showEditBrowserModal(id);
-    });
-  });
-  document.querySelectorAll(".remove-browser-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["browserId"]!;
-      removeBrowser(id);
-    });
+    // ── Browsers tab ──
+    if (match("#addBrowserBtn")) { showAddBrowserModal(); return; }
+    if (match("#detectBrowsersBtn")) { void detectBrowsers(); return; }
+    const editBrowserEl = match(".edit-browser-btn");
+    if (editBrowserEl) { const id = editBrowserEl.dataset["browserId"]; if (id) showEditBrowserModal(id); return; }
+    const removeBrowserEl = match(".remove-browser-btn");
+    if (removeBrowserEl) { const id = removeBrowserEl.dataset["browserId"]; if (id) void removeBrowser(id); return; }
+    const moveUpEl = match(".move-browser-up-btn");
+    if (moveUpEl) { const id = moveUpEl.dataset["browserId"]; if (id) void reorderBrowser(id, -1); return; }
+    const moveDownEl = match(".move-browser-down-btn");
+    if (moveDownEl) { const id = moveDownEl.dataset["browserId"]; if (id) void reorderBrowser(id, 1); return; }
+
+    // ── Rules tab ──
+    if (match("#addRuleBtn")) { showAddRuleModal(); return; }
+    if (match("#ruleTestBtn")) { void testRule(); return; }
+    const editRuleEl = match(".edit-rule-btn");
+    if (editRuleEl) { const id = editRuleEl.dataset["ruleId"]; if (id) showEditRuleModal(id); return; }
+    const dupRuleEl = match(".duplicate-rule-btn");
+    if (dupRuleEl) { const id = dupRuleEl.dataset["ruleId"]; if (id) void duplicateRule(id); return; }
+    const removeRuleEl = match(".remove-rule-btn");
+    if (removeRuleEl) { const id = removeRuleEl.dataset["ruleId"]; if (id) void removeRule(id); return; }
+    const toggleRuleEl = match(".toggle-rule-btn");
+    if (toggleRuleEl) {
+      const id = toggleRuleEl.dataset["ruleId"];
+      if (id) { const enabled = toggleRuleEl.dataset["enabled"] === "true"; void toggleRule(id, !enabled); }
+      return;
+    }
+
+    // ── Hidden Apps tab ──
+    if (match("#addHiddenAppBtn")) { void addHiddenApp(); return; }
+    if (match("#resetHiddenAppsBtn")) { void resetHiddenApps(); return; }
+    const removeAppEl = match(".remove-hidden-app-btn");
+    if (removeAppEl) { const id = removeAppEl.dataset["appId"]; if (id) void removeHiddenApp(id); return; }
+
+    // ── General tab ──
+    if (match("#setDefaultBrowserBtn")) { openSystemPreferences(); return; }
+    if (match("#exportBtn")) { void exportConfig(); return; }
+    if (match("#importBtn")) { showImportModal(); return; }
+    if (match("#layoutIconsBtn")) { void setPickerLayout("icons"); return; }
+    if (match("#layoutListBtn")) { void setPickerLayout("list"); return; }
+    if (match("#setFocusModeBtn")) { void setFocusMode(); return; }
+    if (match("#clearFocusModeBtn")) { void clearFocusMode(); return; }
+    if (match("#toggleMcpBtn")) { void toggleMcpServer(); return; }
+    if (match("#resetDefaultsBtn")) { void resetToDefaults(); return; }
+    if (match("#copyExportBtn")) {
+      const btn = document.getElementById("copyExportBtn");
+      const ta = document.getElementById("exportJson") as HTMLTextAreaElement | null;
+      if (btn && ta) {
+        navigator.clipboard.writeText(ta.value).catch(() => {});
+        btn.textContent = "Copied ✓";
+      }
+      return;
+    }
+    if (match("#confirmImport")) {
+      const json = (document.getElementById("importJson") as HTMLTextAreaElement | null)?.value ?? "";
+      settingsRpc.request.importConfig({ json }).then(async (result) => {
+        const msgEl = document.getElementById("importMessage");
+        if (msgEl) {
+          msgEl.style.color = result.success ? "#30d158" : "#ff453a";
+          msgEl.textContent = result.message;
+        }
+        if (result.success) {
+          await refreshState();
+          setTimeout(closeModal, 1000);
+        }
+      });
+      return;
+    }
+
+    // ── Modal close ──
+    const cancelBtn = match("#cancelModal");
+    if (cancelBtn) { closeModal(); return; }
+    const overlayClick = match(".modal-overlay");
+    if (overlayClick && target === overlayClick) { closeModal(); return; }
   });
 
-  // Rules tab
-  document
-    .getElementById("addRuleBtn")
-    ?.addEventListener("click", showAddRuleModal);
-  document.querySelectorAll(".edit-rule-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["ruleId"]!;
-      showEditRuleModal(id);
-    });
-  });
-  document.querySelectorAll(".duplicate-rule-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["ruleId"]!;
-      duplicateRule(id);
-    });
-  });
-  document.querySelectorAll(".remove-rule-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["ruleId"]!;
-      removeRule(id);
-    });
-  });
-  document.querySelectorAll(".toggle-rule-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["ruleId"]!;
-      const enabled = (btn as HTMLElement).dataset["enabled"] === "true";
-      toggleRule(id, !enabled);
-    });
-  });
-  document.getElementById("ruleTestBtn")?.addEventListener("click", testRule);
-  document
-    .getElementById("ruleTestInput")
-    ?.addEventListener("keydown", (e: Event) => {
-      if ((e as KeyboardEvent).key === "Enter") testRule();
-    });
+  // ---------------------------------------------------------------------------
+  // CHANGE — handles toggles, selects that use 'change' event
+  // ---------------------------------------------------------------------------
+  document.addEventListener("change", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
 
-  // Hidden Apps tab
-  document
-    .getElementById("addHiddenAppBtn")
-    ?.addEventListener("click", addHiddenApp);
-  document
-    .getElementById("newHiddenAppInput")
-    ?.addEventListener("keydown", (e: Event) => {
-      if ((e as KeyboardEvent).key === "Enter") addHiddenApp();
-    });
-  document.querySelectorAll(".remove-hidden-app-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset["appId"]!;
-      removeHiddenApp(id);
-    });
+    if (target.id === "launchAtLoginToggle") { void setLaunchAtLogin(); return; }
   });
-  document
-    .getElementById("resetHiddenAppsBtn")
-    ?.addEventListener("click", resetHiddenApps);
 
-  // General tab
-  document
-    .getElementById("setDefaultBrowserBtn")
-    ?.addEventListener("click", openSystemPreferences);
-  document
-    .getElementById("exportBtn")
-    ?.addEventListener("click", exportConfig);
-  document
-    .getElementById("importBtn")
-    ?.addEventListener("click", showImportModal);
-  document
-    .getElementById("layoutIconsBtn")
-    ?.addEventListener("click", () => setPickerLayout("icons"));
-  document
-    .getElementById("layoutListBtn")
-    ?.addEventListener("click", () => setPickerLayout("list"));
-  document
-    .getElementById("setFocusModeBtn")
-    ?.addEventListener("click", setFocusMode);
-  document
-    .getElementById("clearFocusModeBtn")
-    ?.addEventListener("click", clearFocusMode);
-  document
-    .getElementById("toggleMcpBtn")
-    ?.addEventListener("click", toggleMcpServer);
-  document
-    .getElementById("resetDefaultsBtn")
-    ?.addEventListener("click", resetToDefaults);
+  // ---------------------------------------------------------------------------
+  // KEYDOWN — handles Enter key in input fields
+  // ---------------------------------------------------------------------------
+  document.addEventListener("keydown", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const key = (event as KeyboardEvent).key;
+
+    if (key === "Enter" && target.id === "ruleTestInput") { void testRule(); return; }
+    if (key === "Enter" && target.id === "newHiddenAppInput") { void addHiddenApp(); return; }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -661,8 +701,6 @@ function setupEventListeners() {
 // ---------------------------------------------------------------------------
 
 async function removeBrowser(id: string) {
-  if (!confirm("Remove this browser? Rules using it will no longer match."))
-    return;
   await settingsRpc.request.removeBrowser({ id });
   await refreshState();
 }
@@ -671,6 +709,20 @@ async function detectBrowsers() {
   const installed = await settingsRpc.request.detectBrowsers();
   if (appState) appState.installedBrowsers = installed;
   showDetectedBrowsersModal(installed);
+}
+
+async function reorderBrowser(id: string, delta: -1 | 1) {
+  if (!appState) return;
+  const list = [...appState.browsers];
+  const from = list.findIndex((b) => b.id === id);
+  if (from < 0) return;
+  const to = from + delta;
+  if (to < 0 || to >= list.length) return;
+  const [moved] = list.splice(from, 1);
+  if (!moved) return;
+  list.splice(to, 0, moved);
+  await settingsRpc.request.reorderBrowsers({ ids: list.map((b) => b.id) });
+  await refreshState();
 }
 
 function showAddBrowserModal() {
@@ -959,40 +1011,10 @@ async function testRule() {
   const panel = document.getElementById("tab-rules");
   if (panel && appState) {
     panel.innerHTML = renderRulesTab(appState.rules, appState.browsers);
-    // Re-attach rule tab event listeners
-    document
-      .getElementById("addRuleBtn")
-      ?.addEventListener("click", showAddRuleModal);
-    document.querySelectorAll(".edit-rule-btn").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        showEditRuleModal((btn as HTMLElement).dataset["ruleId"]!)
-      );
-    });
-    document.querySelectorAll(".duplicate-rule-btn").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        duplicateRule((btn as HTMLElement).dataset["ruleId"]!)
-      );
-    });
-    document.querySelectorAll(".remove-rule-btn").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        removeRule((btn as HTMLElement).dataset["ruleId"]!)
-      );
-    });
-    document.querySelectorAll(".toggle-rule-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = (btn as HTMLElement).dataset["ruleId"]!;
-        const enabled = (btn as HTMLElement).dataset["enabled"] === "true";
-        toggleRule(id, !enabled);
-      });
-    });
-    document.getElementById("ruleTestBtn")?.addEventListener("click", testRule);
-    document
-      .getElementById("ruleTestInput")
-      ?.addEventListener("keydown", (e: Event) => {
-        if ((e as KeyboardEvent).key === "Enter") testRule();
-      });
+    // Restore the test URL input value after re-render
     const ti = document.getElementById("ruleTestInput") as HTMLInputElement;
     if (ti) ti.value = url;
+    // No need to re-attach listeners — the global delegated handler covers all buttons
   }
 }
 
@@ -1204,6 +1226,13 @@ async function setPickerLayout(layout: PickerLayout) {
   render();
 }
 
+async function setLaunchAtLogin() {
+  const input = document.getElementById("launchAtLoginToggle") as HTMLInputElement | null;
+  if (!input) return;
+  await settingsRpc.request.setLaunchAtLogin({ enabled: input.checked });
+  if (appState) appState.launchAtLogin = input.checked;
+}
+
 async function setFocusMode() {
   const browserId = (
     document.getElementById("focusBrowserSelect") as HTMLSelectElement
@@ -1251,12 +1280,7 @@ async function exportConfig() {
     </div>
   `);
   const ta = document.getElementById("exportJson") as HTMLTextAreaElement;
-  ta.select();
-  document.getElementById("copyExportBtn")?.addEventListener("click", () => {
-    navigator.clipboard.writeText(json).catch(() => {});
-    const btn = document.getElementById("copyExportBtn")!;
-    btn.textContent = "Copied ✓";
-  });
+  if (ta) ta.select();
 }
 
 function showImportModal() {
@@ -1270,27 +1294,12 @@ function showImportModal() {
       <button class="btn btn-primary" id="confirmImport">Import</button>
     </div>
   `);
-
-  document
-    .getElementById("confirmImport")!
-    .addEventListener("click", async () => {
-      const json = (
-        document.getElementById("importJson") as HTMLTextAreaElement
-      ).value;
-      const result = await settingsRpc.request.importConfig({ json });
-      const msgEl = document.getElementById("importMessage")!;
-      msgEl.style.color = result.success ? "#30d158" : "#ff453a";
-      msgEl.textContent = result.message;
-      if (result.success) {
-        await refreshState();
-        setTimeout(closeModal, 1000);
-      }
-    });
 }
 
 function openSystemPreferences() {
-  window.location.href =
-    "x-apple.systempreferences:com.apple.preferences.generalIn";
+  settingsRpc.request.openDefaultBrowserSettings().catch(() => {
+    alert("Could not open System Settings. Please open it manually.");
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1321,8 +1330,12 @@ function closeModal() {
 // ---------------------------------------------------------------------------
 
 async function refreshState() {
-  appState = await settingsRpc.request.getState();
-  render();
+  try {
+    appState = await settingsRpc.request.getState();
+    render();
+  } catch (err) {
+    console.error("[settings] Failed to refresh state:", err);
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -35,7 +35,11 @@ export function resolveRoute(
   for (const rule of rules) {
     if (!rule.isEnabled) continue;
     if (!matchesHost(host, rule.hostPattern, rule.useRegex)) continue;
-    if (rule.pathPrefix && !pathname.startsWith(rule.pathPrefix)) continue;
+    if (
+      rule.pathPrefix &&
+      !pathname.toLowerCase().startsWith(rule.pathPrefix.toLowerCase())
+    )
+      continue;
     if (
       rule.sourceAppBundleId &&
       rule.sourceAppBundleId !== sourceAppBundleId
@@ -66,7 +70,7 @@ function matchesHost(
 
   if (useRegex) {
     try {
-      return new RegExp(pattern, "i").test(host);
+      return new RegExp(`^(?:${pattern})$`, "i").test(host);
     } catch {
       return false;
     }

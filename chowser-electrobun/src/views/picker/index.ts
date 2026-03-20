@@ -119,14 +119,30 @@ function truncateMiddle(s: string, maxLen: number): string {
   return s.slice(0, front) + "\u2026" + s.slice(-back);
 }
 
-function appIdToDomain(appId: string): string {
-  const parts = appId.split(".");
-  if (parts.length >= 2) return `${parts[1]}.${parts[0]}`;
-  return appId;
-}
+const BROWSER_ICON_DOMAINS: Record<string, string> = {
+  "com.apple.Safari": "apple.com",
+  "com.apple.SafariTechnologyPreview": "apple.com",
+  "com.google.Chrome": "google.com/chrome",
+  "com.google.Chrome.canary": "google.com/chrome",
+  "com.google.Chrome.beta": "google.com/chrome",
+  "com.google.Chrome.dev": "google.com/chrome",
+  "org.mozilla.firefox": "mozilla.org",
+  "org.mozilla.firefoxdeveloperedition": "mozilla.org",
+  "com.brave.Browser": "brave.com",
+  "com.microsoft.edgemac": "microsoft.com/edge",
+  "company.thebrowser.Browser": "arc.net",
+  "com.operasoftware.Opera": "opera.com",
+  "com.vivaldi.Vivaldi": "vivaldi.com",
+  "app.zen-browser.zen": "zen-browser.app",
+  "io.gitlab.librewolf-community": "librewolf.net",
+};
 
 function browserIconUrl(appId: string): string {
-  const domain = appIdToDomain(appId);
+  const domain = BROWSER_ICON_DOMAINS[appId] ?? (() => {
+    const parts = appId.split(".");
+    if (parts.length >= 2) return `${parts[1]}.${parts[0]}`;
+    return appId;
+  })();
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
 }
 
@@ -225,6 +241,15 @@ function renderUrlSection(url: string): string {
     `</div>` +
     `</div>`
   );
+}
+
+function appIdToDomain(appId: string): string {
+  if (BROWSER_ICON_DOMAINS[appId]) {
+    return BROWSER_ICON_DOMAINS[appId]!.split("/")[0]!;
+  }
+  const parts = appId.split(".");
+  if (parts.length >= 2) return `${parts[1]}.${parts[0]}`;
+  return appId;
 }
 
 function isSuggestedBrowser(b: BrowserConfig, pattern: string): boolean {

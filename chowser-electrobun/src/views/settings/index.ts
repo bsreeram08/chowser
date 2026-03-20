@@ -178,16 +178,24 @@ function render() {
         ${!hasCompletedOnboarding ? onboardingBannerHTML() : ""}
 
         <div class="tab-panel${activeTab === "browsers" ? " active" : ""}" id="tab-browsers">
+          <div style="overflow-y:auto;flex:1;padding-bottom:20px">
           ${renderBrowsersTab(browsers, appState.installedBrowsers)}
+          </div>
         </div>
         <div class="tab-panel${activeTab === "rules" ? " active" : ""}" id="tab-rules">
+          <div style="overflow-y:auto;flex:1;padding-bottom:20px">
           ${renderRulesTab(rules, browsers)}
+          </div>
         </div>
         <div class="tab-panel${activeTab === "apps" ? " active" : ""}" id="tab-apps">
+          <div style="overflow-y:auto;flex:1;padding-bottom:20px">
           ${renderAppsTab(appState.hiddenAppIds)}
+          </div>
         </div>
         <div class="tab-panel${activeTab === "general" ? " active" : ""}" id="tab-general">
+          <div style="overflow-y:auto;flex:1;padding-bottom:20px">
           ${renderGeneralTab()}
+          </div>
         </div>
       </main>
     </div>`;
@@ -453,7 +461,12 @@ function renderGeneralTab(): string {
   };
 
   return `
-    <h2>General</h2>
+    <div class="section-header">
+      <h2>General</h2>
+    </div>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">
+      App behavior and system integration.
+    </p>
 
     <h3 style="margin-top:0">Default Browser</h3>
     <div class="card">

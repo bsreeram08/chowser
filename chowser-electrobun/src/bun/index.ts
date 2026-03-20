@@ -586,12 +586,19 @@ function showPicker(url: string, sourceApp?: string) {
   pickerRPC = rpc;
 
   pickerWindow = new BrowserWindow({
-    title: "Chowser — Pick a Browser",
-    frame: { x: 0, y: 0, width: 500, height: 300 },
-    styleMask: { Resizable: false },
+    title: "Chowser",
+    frame: { x: 400, y: 250, width: 520, height: 360 },
+    styleMask: {
+      Borderless: true,
+      Titled: false,
+      Closable: false,
+      Miniaturizable: false,
+      Resizable: false,
+      FullSizeContentView: true,
+    },
     url: "views://picker/index.html",
-    titleBarStyle: "hiddenInset",
-    transparent: false,
+    titleBarStyle: "hidden",
+    transparent: true,
     passthrough: false,
     rpc,
     navigationRules: "deny-all",

@@ -150,14 +150,37 @@ export function createDefaultState(): PersistedState {
 }
 
 function defaultBrowsers(): BrowserConfig[] {
-  return [
-    {
-      id: crypto.randomUUID(),
-      name: "Safari",
-      appId: "com.apple.Safari",
-      shortcutKey: "1",
-    },
-  ];
+  // Seed with the platform's most common built-in browser so users have
+  // something visible on first launch on every OS.
+  switch (process.platform) {
+    case "win32":
+      return [
+        {
+          id: crypto.randomUUID(),
+          name: "Microsoft Edge",
+          appId: "com.microsoft.edgemac",
+          shortcutKey: "1",
+        },
+      ];
+    case "linux":
+      return [
+        {
+          id: crypto.randomUUID(),
+          name: "Firefox",
+          appId: "org.mozilla.firefox",
+          shortcutKey: "1",
+        },
+      ];
+    default: // darwin
+      return [
+        {
+          id: crypto.randomUUID(),
+          name: "Safari",
+          appId: "com.apple.Safari",
+          shortcutKey: "1",
+        },
+      ];
+  }
 }
 
 // ---------------------------------------------------------------------------

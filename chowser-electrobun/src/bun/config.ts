@@ -11,12 +11,30 @@ import {
   APP_VERSION,
 } from "./models.ts";
 
-const CONFIG_DIR = join(
-  homedir(),
-  "Library",
-  "Application Support",
-  "in.sreerams.chowser-electrobun"
-);
+/**
+ * Return the platform-appropriate user-data directory.
+ *
+ * • macOS   → ~/Library/Application Support/in.sreerams.chowser-electrobun
+ * • Windows → %APPDATA%\in.sreerams.chowser-electrobun
+ * • Linux   → $XDG_CONFIG_HOME/in.sreerams.chowser-electrobun
+ *             (falls back to ~/.config/in.sreerams.chowser-electrobun)
+ */
+function resolveConfigDir(): string {
+  const appFolder = "in.sreerams.chowser-electrobun";
+  switch (process.platform) {
+    case "win32":
+      return join(process.env["APPDATA"] ?? homedir(), appFolder);
+    case "linux":
+      return join(
+        process.env["XDG_CONFIG_HOME"] ?? join(homedir(), ".config"),
+        appFolder
+      );
+    default: // darwin
+      return join(homedir(), "Library", "Application Support", appFolder);
+  }
+}
+
+const CONFIG_DIR = resolveConfigDir();
 const CONFIG_FILE = join(CONFIG_DIR, "state.json");
 
 let _state: PersistedState | null = null;

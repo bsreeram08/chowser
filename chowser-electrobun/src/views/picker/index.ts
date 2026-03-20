@@ -283,9 +283,14 @@ function saveRule() {
 // Keyboard shortcuts
 // ---------------------------------------------------------------------------
 
+let keyboardShortcutsInitialized = false;
+
 function setupKeyboardShortcuts() {
-  // Remove any previous listener by re-creating (init is called on refresh)
+  if (keyboardShortcutsInitialized) {
+    return;
+  }
   document.addEventListener("keydown", handleKeyDown);
+  keyboardShortcutsInitialized = true;
 }
 
 function handleKeyDown(e: KeyboardEvent) {

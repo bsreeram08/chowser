@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Native macOS build ──
+  macos-build:
+    name: macOS Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          xcodebuild -project Chowser.xcodeproj -scheme Chowser \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=- \
+            -quiet build
+
+      - name: Unit tests
+        run: |
+          xcodebuild test -project Chowser.xcodeproj -scheme Chowser \
+            -destination 'platform=macOS' -only-testing:ChowserTests \
+            -quiet 2>&1 | tail -20
+
+  # ── Electrobun build + test ──
+  electrobun:
+    name: Electrobun
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: chowser-electrobun
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Tests
+        run: bun test src/bun/
+
+      - name: Build
+        run: bun run build

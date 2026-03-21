@@ -1,0 +1,216 @@
+name: Release — macOS (Native)
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCHEME: Chowser
+  PROJECT: Chowser.xcodeproj
+
+jobs:
+  build:
+    name: Build macOS DMG
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Install signing certificate ──
+      - name: Install signing certificate
+        if: env.APPLE_CERTIFICATE_P12 != ''
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_FILE=$(mktemp /tmp/cert.XXXXXX.p12)
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_FILE"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_FILE" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          rm "$CERT_FILE"
+
+      # ── Parse version from tag ──
+      - name: Parse version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *"-beta"* ]] || [[ "$TAG" == *"-rc"* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Stamp version into Xcode project ──
+      - name: Stamp version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD=$(date +%Y%m%d%H%M)
+          sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = ${VERSION}/" \
+            "$PROJECT/project.pbxproj"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = ${BUILD}/" \
+            "$PROJECT/project.pbxproj"
+          echo "Stamped version $VERSION (build $BUILD)"
+
+      # ── Build archive ──
+      - name: Build archive
+        run: |
+          SIGN_ARGS=()
+          if [ -n "${{ secrets.APPLE_CERTIFICATE_P12 }}" ]; then
+            SIGN_ARGS=(
+              CODE_SIGN_IDENTITY="Developer ID Application"
+              DEVELOPMENT_TEAM="TH2VPAUX6Y"
+            )
+          else
+            SIGN_ARGS=(
+              CODE_SIGNING_ALLOWED=NO
+              CODE_SIGNING_REQUIRED=NO
+              CODE_SIGN_IDENTITY=-
+            )
+          fi
+
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath release/Chowser.xcarchive \
+            "${SIGN_ARGS[@]}" \
+            -quiet
+
+      # ── Export app ──
+      - name: Export app
+        run: |
+          mkdir -p release
+          cp -R release/Chowser.xcarchive/Products/Applications/Chowser.app release/Chowser.app
+
+      # ── Notarize (if secrets are available) ──
+      - name: Notarize
+        if: env.APPLE_ID != '' && env.APPLE_ID_PASSWORD != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent release/Chowser.app release/Chowser-notarize.zip
+          xcrun notarytool submit release/Chowser-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "${APPLE_TEAM_ID:-TH2VPAUX6Y}" \
+            --password "$APPLE_ID_PASSWORD" \
+            --wait
+          xcrun stapler staple release/Chowser.app
+          rm -f release/Chowser-notarize.zip
+
+      # ── Create DMG ──
+      - name: Create DMG
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG_PATH="release/Chowser-${VERSION}.dmg"
+
+          # Generate background
+          swift scripts/generate-dmg-background.swift release/background.png
+
+          # Create staging dir
+          mkdir -p release/dmg_staging/.background
+          cp -R release/Chowser.app release/dmg_staging/
+          ln -s /Applications release/dmg_staging/Applications
+          cp release/background.png release/dmg_staging/.background/background.png
+
+          # Create read-write DMG
+          hdiutil create \
+            -volname "Chowser ${VERSION}" \
+            -srcfolder release/dmg_staging \
+            -ov -format UDRW -fs HFS+ \
+            release/rw_temp.dmg
+          rm -rf release/dmg_staging
+
+          # Mount, style, and convert
+          MOUNT_OUTPUT=$(hdiutil attach -readwrite -noverify release/rw_temp.dmg)
+          DEVICE=$(echo "$MOUNT_OUTPUT" | grep '/dev/' | head -1 | awk '{print $1}')
+          MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | sed 's/.*\/Volumes/\/Volumes/')
+
+          osascript <<EOF
+          tell application "Finder"
+            tell disk "Chowser ${VERSION}"
+              open
+              set current view of container window to icon view
+              set the bounds of container window to {200, 120, 860, 520}
+              set viewOptions to the icon view options of container window
+              set arrangement of viewOptions to not arranged
+              set icon size of viewOptions to 100
+              set label position of viewOptions to bottom
+              set background picture of viewOptions to file ".background:background.png"
+              set position of item "Chowser.app" of container window to {165, 190}
+              set position of item "Applications" of container window to {495, 190}
+              close
+              open
+              update without registering applications
+              delay 1
+              close
+            end tell
+          end tell
+          EOF
+
+          if [ -f "release/Chowser.app/Contents/Resources/AppIcon.icns" ]; then
+            cp "release/Chowser.app/Contents/Resources/AppIcon.icns" "$MOUNT_POINT/.VolumeIcon.icns"
+            SetFile -c icnC "$MOUNT_POINT/.VolumeIcon.icns" 2>/dev/null || true
+            SetFile -a C "$MOUNT_POINT" 2>/dev/null || true
+          fi
+
+          sync
+          hdiutil detach "$DEVICE" -quiet
+          hdiutil convert release/rw_temp.dmg -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH"
+          rm -f release/rw_temp.dmg release/background.png
+
+          echo "dmg_path=$DMG_PATH" >> "$GITHUB_ENV"
+          echo "DMG created: $(du -h "$DMG_PATH" | cut -f1)"
+
+      # ── Notarize DMG ──
+      - name: Notarize DMG
+        if: env.APPLE_ID != '' && env.APPLE_ID_PASSWORD != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "$dmg_path" \
+            --apple-id "$APPLE_ID" \
+            --team-id "${APPLE_TEAM_ID:-TH2VPAUX6Y}" \
+            --password "$APPLE_ID_PASSWORD" \
+            --wait
+          xcrun stapler staple "$dmg_path"
+
+      # ── Upload artifact ──
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chowser-macOS-${{ steps.version.outputs.version }}
+          path: release/Chowser-*.dmg
+
+      # ── Create GitHub Release ──
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Chowser v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          generate_release_notes: true
+          files: release/Chowser-*.dmg

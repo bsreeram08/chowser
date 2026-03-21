@@ -1,0 +1,156 @@
+name: Release — Electrobun
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-electrobun-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: chowser-electrobun
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Run tests
+        run: bun test src/bun/
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos-arm64
+          - os: macos-13
+            target: macos-x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # ── Parse version from tag ──
+      - name: Parse version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *"-beta"* ]] || [[ "$TAG" == *"-rc"* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Stamp version ──
+      - name: Stamp version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i '' "s/version: \"[^\"]*\"/version: \"${VERSION}\"/" electrobun.config.ts
+          echo "Stamped version: $VERSION"
+
+      # ── Build ──
+      - name: Build
+        run: bun run build
+
+      # ── Locate the built .app ──
+      - name: Locate app bundle
+        id: app
+        run: |
+          APP_DIR=$(find build -name "*.app" -type d | head -1)
+          if [ -z "$APP_DIR" ]; then
+            echo "No .app bundle found in build/"
+            ls -R build/
+            exit 1
+          fi
+          APP_NAME=$(basename "$APP_DIR" .app)
+          echo "app_dir=$APP_DIR" >> "$GITHUB_OUTPUT"
+          echo "app_name=$APP_NAME" >> "$GITHUB_OUTPUT"
+          echo "Found: $APP_DIR"
+
+      # ── Create ZIP archive ──
+      - name: Create ZIP
+        id: zip
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          ZIP_NAME="Chowser-Electrobun-${VERSION}-${TARGET}.zip"
+          ditto -c -k --keepParent "${{ steps.app.outputs.app_dir }}" "release/${ZIP_NAME}"
+          mkdir -p release
+          echo "zip_path=release/${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Created: release/${ZIP_NAME} ($(du -h "release/${ZIP_NAME}" | cut -f1))"
+
+      # ── Upload artifact ──
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.zip_name }}
+          path: chowser-electrobun/${{ steps.zip.outputs.zip_path }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *"-beta"* ]] || [[ "$TAG" == *"-rc"* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: Chowser-Electrobun-*
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      # Attach to the same release created by release-macos (or create if it doesn't exist)
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Chowser v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          generate_release_notes: true
+          files: artifacts/**/*.zip

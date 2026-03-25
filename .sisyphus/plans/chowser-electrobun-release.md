@@ -946,7 +946,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(ui): add core Svelte components for picker and settings`
   - Files: `src/views/*/components/*.svelte`
 
-- [ ] 16. Implement Picker icons layout mode
+- [x] 16. Implement Picker icons layout mode
 
   **What to do**:
   - Create src/views/picker/layouts/IconsLayout.svelte
@@ -991,7 +991,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 17. Implement Picker list layout mode
+- [x] 17. Implement Picker list layout mode
 
   **What to do**:
   - Create src/views/picker/layouts/ListLayout.svelte
@@ -1092,7 +1092,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 19. Implement quick rule creation from picker
+- [x] 19. Implement quick rule creation from picker
 
   **What to do**:
   - Create src/views/picker/components/QuickRuleSheet.svelte

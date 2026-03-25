@@ -479,3 +479,570 @@ interface UrlBubbleProps {
 ### Next Steps
 - Task 37 will use this component in PickerView to display the intercepted URL
 - Task 38+ will handle click actions (copy triggers toast, unshorten triggers loading state)
+
+## Task 20: BrowserConfigRow Component
+
+### What we built
+✓ `src/views/settings/components/BrowserConfigRow.svelte` — editable row for browser configuration in Settings → Browsers tab
+
+### Key Design Decisions
+
+**Layout Structure:**
+- Grid: `24px (drag handle) | 32px (icon) | 1fr (info) | 60px (shortcut) | auto (delete button)`
+- Height: 60px with padding `var(--spacing-3)` (12px)
+- Drag handle: "⋮⋮" (U+205E) in gray, pointer-events: none (visual only, no drag logic yet)
+- Border-bottom: 1px separator between rows
+
+**Icon Section:**
+- Imports BrowserIcon component
+- Passes bundleId, size="medium" (32px), and shortcutKey
+- Flex-shrink: 0 to prevent squishing
+
+**Info Section (Left-aligned, flex-1):**
+- Browser name: semibold base font, primary text color
+- Profile name (if provided): xs font, secondary color
+- Bundle ID: 10px monospace, tertiary color, truncated with ellipsis
+- All use tight 1.2 line-height for compact appearance
+- Flex column with 2px gaps
+
+**Shortcut Key Input (60px fixed width):**
+- Sanitizes input: 1-9 only, 1 char max via regex `/[^1-9]/g`
+- Updates immediately on input/change
+- Calls `onUpdate({ shortcutKey: sanitized })` on valid change
+- Uses Input component (inherits design tokens)
+
+**Custom Arguments Section (Expandable):**
+- Hidden by default unless `browser.customArguments` has content OR toggle clicked
+- Toggle button: "▼/▶ Custom Arguments" (secondary text, hover underline)
+- Textarea: monospace font (Courier New), 60px min-height, 1px border, focus ring
+- Updates on blur (debounced via local state to avoid full-list re-renders)
+- Calls `onUpdate({ customArguments: value })` on blur
+
+**Delete Button:**
+- Ghost variant, emoji icon (🗑️)
+- Calls `onDelete()` — parent component handles confirmation logic
+- No inline confirmation dialog
+
+**Visual States:**
+- Default: `--color-control-background` with transparent background
+- Hover: `--color-background-secondary` for raised effect
+- Transitions: 0.15s ease for hover changes
+
+### Component Props
+
+```typescript
+interface BrowserConfigRowProps {
+  browser: {
+    id: string;
+    name: string;
+    appId: string;
+    shortcutKey: string;
+    profile?: string;
+    customArguments?: string;
+  };
+  onUpdate: (updates: Partial<typeof browser>) => void;  // called on field changes
+  onDelete: () => void;                                   // called when delete clicked
+}
+```
+
+### Local State Management
+
+- `shortcutInput`: Tracks typed value before update
+- `showCustomArgs`: Toggle for expanded custom args section
+- `customArgsInput`: Tracks textarea value before blur/commit
+
+**Debounce pattern:** Uses local state + blur handler to avoid propagating every keystroke to parent (matches RuleRowView pattern from Swift version)
+
+### Svelte 5 Patterns Used
+
+- `$props()` with interface destructuring
+- `$state()` for reactive local variables
+- Conditional rendering: `{#if browser.profile}` and `{#if showCustomArgs}`
+- Function binding: `onchange={handleShortcutChange}` with inline logic
+- Textarea with focus handling: `on:blur={handleCustomArgsBlur}`
+
+### Design Token Integration
+
+- All colors: `--color-*` semantic variables
+- Spacing: `--spacing-1` through `--spacing-4` (4px unit)
+- Border-radius: `--radius-md` (8px)
+- Font sizes: `--font-size-sm`, `--font-size-base`, `--font-size-xs`
+- Monospace: Courier New fallback (no custom mono font loaded)
+
+### Files Created
+- `src/views/settings/components/BrowserConfigRow.svelte` (170 lines)
+
+### Next Steps
+- Task 21 will create BrowsersPanel using this component in a loop
+- Parent (BrowsersPanel) will manage browser array, handle reordering, and pass onUpdate/onDelete callbacks
+- Drag-drop reordering logic will be added in Task 21 or later
+
+## Task 8: Modal Component
+
+### What we built
+✓ `src/views/shared/components/Modal.svelte` — reusable modal/sheet overlay with animations
+
+### Key Design Decisions
+
+**Overlay Architecture:**
+- Fixed positioning: `position: fixed; top: 0; left: 0; right: 0; bottom: 0`
+- Dark backdrop: `background: rgba(0, 0, 0, 0.5)` (50% opacity)
+- Z-index: 1000 (ensures visibility above all content)
+- Click handler: `on:click={onClose}` for dismiss-on-background-tap
+
+**Modal Content Container:**
+- Card component wrapper: inherits glass effect + border
+- Max-width: 600px (desktop standard)
+- Width: 90% on mobile (responsive)
+- Max-height: 90vh with `overflow-y: auto` (prevents overflow on small screens)
+- Centered: `display: flex; align-items: center; justify-content: center` on overlay
+- Positioned absolutely within flex context (no top/left calc needed)
+
+**Header Section:**
+- Flex row: title (flex: 1) | close button (flex-shrink: 0)
+- Border-bottom: `1px solid var(--color-separator)` for visual division
+- Margin-bottom: `var(--spacing-4)` = 16px
+- Title: `font-size: var(--font-size-lg)`, `font-weight: semibold`
+- Close button: ghost variant (transparent, accent on hover), uses "✕" character (U+2715)
+
+**Animations:**
+1. **Overlay fade-in** (0.2s ease)
+   - `@keyframes fadeIn`: opacity 0 → 1
+   - Applied to `.modal-overlay`
+   - Smooth backdrop darkening effect
+
+2. **Content slide-up** (0.2s ease)
+   - `@keyframes slideUp`: `translateY(20px) opacity(0)` → `translateY(0) opacity(1)`
+   - Applied to `.modal-content`
+   - Parallels iOS sheet/modal presentation behavior
+
+**Body Content Slot:**
+- Default `<slot />` for flexible content
+- Padding/margin inherited from parent Card (all children receive consistent spacing)
+- Color: `var(--color-text-primary)` inherited from CSS cascade
+
+**Body Scroll Prevention:**
+- Escape key closes modal (via keydown event listener)
+- `document.body.style.overflow = 'hidden'` when open (prevents background scroll)
+- Cleanup in `$effect` return: removes listener + resets overflow on unmount
+- Pattern: React-style cleanup function in Svelte 5
+
+### Component Props
+```typescript
+interface ModalProps {
+  isOpen: boolean;           // controls visibility (renders nothing if false)
+  onClose: () => void;       // callback on close (Escape key or background click)
+  title: string;             // modal header text
+}
+```
+
+### Svelte 5 Patterns Used
+- `$props()` for destructuring with type safety
+- `$effect()` with cleanup function for keyboard + scroll management
+- Conditional rendering: `{#if isOpen}` (no DOM when closed)
+- Event stop propagation: `on:click={(e) => e.stopPropagation()}` on content (prevents bubbling to overlay)
+- Slot: `<slot />` for body content
+
+### Accessibility
+- `role="presentation"` on overlay (not interactive, just visual)
+- Close button: `aria-label="Close modal"` for screen readers
+- Escape key: standard keyboard interaction
+- Focus trap: parent component responsibility (not implemented in Modal itself)
+
+### Design Token Integration
+- Colors: `--color-separator`, `--color-text-primary`, `--color-background-secondary` (via Card)
+- Spacing: `--spacing-3` (header padding), `--spacing-4` (content gaps)
+- Border-radius: inherited from Card component
+- Shadow: inherited from Card component
+- Animations: custom keyframes (fadeIn 0.2s, slideUp 0.2s)
+
+### Dependencies
+- Imports: Button, Card from shared/components
+- No external libraries
+- Uses native DOM APIs: `document.addEventListener`, `document.body.style`
+
+### Files Created
+- `src/views/shared/components/Modal.svelte` (93 lines)
+
+### Next Steps (Tasks 19, 20, 21, 24)
+- Task 19: SettingsShell will use Modal for browser/rule edit dialogs
+- Task 20: SettingsPanel will wire Modal open/close state
+- Task 21: BrowsersPanel will render Modal for add/edit browser
+- Task 24: RulesPanel will render Modal for add/edit rule
+- Task 24+: ConfigureRuleView (in-modal form) depends on Modal being ready
+
+## Task 14: RuleRow Component
+
+### What we built
+✓ `src/views/settings/components/RuleRow.svelte` — editable row for routing rule in Settings Rules tab
+
+### Key Design Decisions
+
+**Layout: 4-Column Grid**
+- Column 1 (44px): Toggle switch for enable/disable
+- Column 2 (flex-1): Rule name + host pattern (vertical stack)
+- Column 3 (auto, ~120px min): Browser name (target browser)
+- Column 4 (auto): Action buttons (edit, duplicate, delete)
+- Grid gaps: `var(--spacing-3)` = 12px between columns
+- Row height: 60px (comfortable touch target)
+- Padding: `var(--spacing-3)` = 12px all sides
+
+**Visual States:**
+
+1. **Default (unselected)**
+   - Background: `var(--color-background)` (white)
+   - Border-bottom: 1px `var(--color-separator)` (light gray)
+   
+2. **Hover**
+   - Background: `var(--color-background-secondary)` (light gray)
+   - Smooth transition: 0.2s ease
+
+**Name & Pattern Section (Column 2):**
+- Rule name: 14px semibold, primary text color, single line
+- Host pattern: 12px monospace, secondary text color, truncated at 40 chars with ellipsis
+- Full pattern shown in `title` attribute for hover tooltip
+- Flex column with `gap: var(--spacing-1)` = 4px
+
+**Browser Name (Column 3):**
+- 14px regular weight, secondary color (gray)
+- Min-width: 120px to prevent wrapping
+- Aligns with flex layout
+
+**Action Buttons (Column 4):**
+- Three ghost variant buttons (Edit ✏️, Duplicate 📋, Delete 🗑️)
+- Small size (32px height)
+- Emoji icons for quick visual recognition
+- Gap between buttons: `var(--spacing-2)` = 8px
+- Hover state inherited from Button component
+
+**Component Props**
+```typescript
+interface RuleRowProps {
+  rule: {
+    id: string;
+    name: string;
+    hostPattern: string;
+    browserName: string;
+    isEnabled: boolean;
+  };
+  onToggle: (ruleId: string, enabled: boolean) => void;
+  onEdit: (ruleId: string) => void;
+  onDuplicate: (ruleId: string) => void;
+  onDelete: (ruleId: string) => void;
+}
+```
+
+**Toggle Integration:**
+- Imports Toggle component directly
+- Calls `onToggle(rule.id, !rule.isEnabled)` on toggle change
+- Width: 44px (matches Toggle width)
+- Center-aligned in column via flexbox
+
+**Button Integration:**
+- All buttons use ghost variant (transparent background, blue text)
+- Small size for compact appearance
+- Callbacks: `onEdit(rule.id)`, `onDuplicate(rule.id)`, `onDelete(rule.id)`
+- Note: Parent (RulesTab) handles modal open/delete confirmation
+
+**Svelte 5 Patterns Used:**
+- `$props()` with destructuring and type safety
+- Helper function: `truncatePattern()` for ellipsis formatting
+- Class styling with CSS Grid for layout
+- Conditional rendering not needed (all UI always present)
+
+**Design Token Integration:**
+- Colors: `--color-background`, `--color-background-secondary`, `--color-separator`, `--color-text-primary`, `--color-text-secondary`
+- Spacing: `--spacing-1` (column internal), `--spacing-2` (button gaps), `--spacing-3` (row padding)
+- Font sizes: `--font-size-xs` (pattern), `--font-size-sm` (name)
+- Font family: `--font-family-mono` for host pattern (clarity)
+- Transitions: 0.2s ease on background (hover state)
+
+**Dependencies**
+- Imports: Toggle, Button from shared/components
+- No external libraries or custom utilities
+
+### Files Created
+- `src/views/settings/components/RuleRow.svelte` (90 lines including styles)
+
+### Next Steps
+- Task 21 will create RulesTab.svelte that loops over rules and renders RuleRow for each
+- RuleRow is purely presentational; RulesTab handles state management and callbacks
+- Edit/delete modals will be built in parent component (Task 21)
+
+## Task 13: IconsLayout Component
+
+### What we built
+✓ `src/views/picker/layouts/IconsLayout.svelte` — horizontal scrollable browser icon grid with keyboard navigation
+
+### Key Design Decisions
+
+**Layout Architecture:**
+- Flex row with horizontal overflow scrolling
+- Container: flex-direction: row, overflow-x: auto, scroll-behavior: smooth
+- Icons: flex-shrink: 0 to prevent collapsing in scrollable context
+- Gap: `var(--spacing-3)` = 12px between icons (matches Swift version)
+
+**Size System:**
+- Delegates to BrowserIcon component prop (small/medium/large)
+- Small = 24px, medium = 32px, large = 48px
+- Icon label width: 48px (accommodates largest icon + padding)
+
+**Visual States:**
+1. **Unselected**
+   - Transparent background on button
+   - BrowserIcon has no accent ring
+
+2. **Selected**
+   - `class:selected` binding passed to BrowserIcon
+   - BrowserIcon renders 2px accent ring automatically
+   - Button opacity remains 1.0
+
+3. **Hover**
+   - Button opacity: 0.8
+   - Smooth 0.2s transition
+
+**Keyboard Navigation:**
+- ArrowRight: Move to next browser (wraps to first at end)
+- ArrowLeft: Move to previous browser (wraps to last at start)
+- Uses `$derived` for reactive selected index tracking
+- `scrollIntoView()` uses `inline: 'center'` to center selected icon in viewport
+
+**Component Props:**
+```typescript
+interface IconsLayoutProps {
+  browsers: Browser[];             // array of browser objects
+  selectedBrowserId: string | null; // ID of currently selected browser
+  size?: 'small' | 'medium' | 'large';  // icon size (default: 'medium')
+  showLabels?: boolean;             // show/hide labels below icons (default: false)
+  onSelect: (browser: Browser) => void;  // callback when icon clicked or arrow key navigates
+}
+```
+
+**Labels:**
+- Hidden by default (showLabels: false)
+- Rendered below icon when enabled
+- Font: --font-size-xs (12px), medium weight
+- Truncation: text-overflow: ellipsis for overflow text
+- Width: 48px centered, allows single-line overflow handling
+
+**Scrollbar Styling:**
+- Firefox: scrollbar-width: thin, scrollbar-color uses --color-control-border
+- Chrome/Safari: ::-webkit-scrollbar* pseudo-elements with 6px height
+- Matches design system (thin, subtle)
+
+**Event Handling:**
+- Click: `handleIconClick()` → `onSelect(browser)`
+- Keyboard: `handleKeydown()` attached via `$effect` with cleanup
+- Both trigger scroll into view after selection change
+
+**Svelte 5 Patterns:**
+- `$props()` for destructuring with type safety
+- `$derived` for computed selectedIndex (updates reactively when browsers/selectedBrowserId change)
+- `$state` for containerRef (DOM element reference)
+- `$effect` with cleanup function for keyboard listener
+- Named slot via `<slot />` mechanism (not needed here; content generated from props)
+- Conditional rendering: `{#if showLabels}` for optional labels
+- Class binding: `class:selected={...}` for reactive styles
+
+**Design Token Integration:**
+- Colors: --color-control-border (scrollbar), --color-accent (focus ring)
+- Spacing: --spacing-2 (icon-to-label gap), --spacing-3 (inter-icon gap)
+- Border-radius: --radius-md (button focus ring)
+- Typography: --font-size-xs, --font-weight-medium (labels)
+- Animations: 0.2s ease transitions, smooth scroll-behavior
+
+**Dependencies:**
+- Imports: BrowserIcon from ../../shared/components/BrowserIcon.svelte
+- No external libraries; uses native DOM APIs (scrollIntoView, addEventListener)
+- CSS imports: tokens.css for design variables
+
+### Component Behavior Flow
+
+1. **Render:**
+   - For each browser in array, render icon-item container
+   - Inside: button wrapping BrowserIcon + optional label div
+
+2. **Click on icon:**
+   - `handleIconClick()` called
+   - Calls `onSelect(browser)` callback
+   - Parent updates selectedBrowserId
+   - Icon highlights via `isSelected` prop propagation
+
+3. **Keyboard navigation:**
+   - User presses ArrowLeft/ArrowRight
+   - `handleKeydown()` computes next/prev index (with wrap-around)
+   - Calls `onSelect()` to update selection
+   - Calls `scrollIntoView()` to center selected icon
+   - Listener attached on mount, removed on unmount
+
+4. **Scroll behavior:**
+   - When users have many browsers (>8), horizontal scroll appears
+   - Scrollbar is thin and subtle
+   - Keyboard navigation auto-scrolls selected icon into center of viewport
+
+### Files Created
+- `src/views/picker/layouts/IconsLayout.svelte` (198 lines)
+
+### Next Steps
+- Task 17 will integrate this into PickerView (alongside ListLayout for dual-mode support)
+- Task 18 will wire keyboard shortcuts (1-9) to directly select browsers
+- Parent component (PickerView) manages selectedBrowserId state and layout mode preference
+- Layout mode is user-configurable (icons vs list) from Settings
+
+### Technical Notes
+
+**Accessibility:**
+- `aria-label` on button (browser name) for screen readers
+- `aria-pressed` reflects selection state
+- `title` attribute shows full browser name on hover (fallback tooltip)
+- Focus ring uses 2px accent color for high contrast
+
+**Performance:**
+- BrowserIcon is small component (memoization not needed)
+- Keyboard listener attached once via $effect (cleanup prevents leaks)
+- No complex animations or transitions (only 0.2s opacity)
+- Derived selected index updates reactively without re-renders
+
+**Cross-browser compatibility:**
+- scrollIntoView() options: behavior: 'smooth' + block/inline parameters (widely supported)
+- ::-webkit-scrollbar* only works in Chrome/Safari (Firefox uses scrollbar-width/color)
+- Flex layout is standard CSS (good browser support)
+
+
+## Task 24: QuickRuleSheet Component
+
+### What we built
+✓ `src/views/picker/components/QuickRuleSheet.svelte` — modal for creating routing rules from the picker with automatic host pre-fill
+
+### Key Design Decisions
+
+**Form Fields (Matching Swift ConfigureRuleView)**
+1. **Host Pattern Input** (top priority)
+   - Auto-filled from URL via `new URL(url).hostname`
+   - Editable (user can manually adjust pattern)
+   - Required for save validation
+   - Uses Input component for consistency
+
+2. **Browser Dropdown**
+   - Native `<select>` element (custom styled with SVG arrow indicator)
+   - Defaults to first browser in list
+   - Always visible
+   - Required field (no save without selection)
+
+3. **Profile Dropdown** (conditional)
+   - Only rendered if selected browser has `profiles` array
+   - Defaults to empty (use default profile)
+   - Native `<select>` with custom styling
+
+4. **Private Mode Toggle**
+   - iOS-style Toggle component (44×24px)
+   - Positioned right-aligned next to label
+   - Defaults to unchecked
+
+**Svelte 5 Patterns Used**
+- `$props()` with destructured interface (all 5 props)
+- `$state()` for mutable form fields (host, selectedBrowserId, selectedProfile, isPrivate)
+- `$derived()` for computed values:
+  - `selectedBrowser`: find browser by id
+  - `hasProfiles`: check if selected browser has profiles array
+  - `canSave`: validation (host non-empty AND browser selected)
+- `$effect()` for initialization (parse URL hostname on modal open)
+- `$effect()` for reset profile when browser changes
+
+**State Management Logic**
+1. On `isOpen` change to true:
+   - Parse hostname from URL using `new URL(url).hostname`
+   - Set first browser as default if not already selected
+   - Reset private mode to false
+   - Fallback to empty host if URL parse fails
+
+2. When browser selection changes:
+   - Clear profile selection (reset to default profile)
+   - Prevents stale profile from different browser
+
+3. On save or cancel:
+   - Reset all form state (host, browserId, profile, isPrivate)
+   - Call respective callbacks (onSave/onCancel)
+
+**Styling Strategy**
+- Flex column layout with `var(--spacing-4)` (16px) gaps between sections
+- Select dropdowns use custom SVG arrow (down chevron)
+- Arrow color updates for dark mode (light blue in dark mode, regular blue in light)
+- Focus state: border accent color + 2px shadow (matches Input component)
+- Toggle positioned right with flex layout for horizontal alignment
+
+**Component Interface**
+```typescript
+interface QuickRuleSheetProps {
+  isOpen: boolean;
+  url: string;
+  browsers: Browser[];
+  onSave: (rule: {
+    host: string;
+    browserId: string;
+    profile?: string;
+    isPrivate: boolean;
+  }) => void;
+  onCancel: () => void;
+}
+```
+
+**Validation**
+- Save button disabled unless: `host.trim().length > 0 && selectedBrowserId.length > 0`
+- Profile is optional (profile defaults to undefined if empty string)
+- Prevents save with empty host or missing browser
+
+### Technical Decisions
+
+1. **URL Parsing**
+   - Uses `new URL(url).hostname` for RFC-compliant hostname extraction
+   - Wrapped in try/catch (fallback to empty string if parse fails)
+   - Matches Swift version pattern
+
+2. **Profile Conditional Rendering**
+   - Only rendered if `selectedBrowser?.profiles` exists AND has length > 0
+   - Uses optional chaining to prevent errors
+   - Prevents UI clutter when browser has no profiles
+
+3. **Select Element Styling**
+   - Native `<select>` (not custom component) for native look/feel
+   - Custom SVG arrow overlay (background-image)
+   - `appearance: none` to remove native arrow
+   - `padding-right: var(--spacing-6)` for arrow space
+   - Arrow color changes for dark mode via @media query
+
+4. **Form Reset**
+   - Resets after both save AND cancel (user expects clean slate on next open)
+   - Prevents form state bleeding between uses
+
+### Design Token Integration
+- All colors: semantic variables (--color-accent, --color-text-primary, etc.)
+- Spacing: 4px unit system (--spacing-1 through --spacing-6)
+- Typography: --font-size-sm/base, --font-weight-medium/semibold
+- Border radius: --radius-md (8px)
+- Transitions: 0.2s ease
+
+### Dependencies
+- Modal (wrapper)
+- Input (host field)
+- Button (cancel/save)
+- Toggle (private mode)
+- All styled with design tokens (no hardcoded colors)
+
+### Files Created
+- `src/views/picker/components/QuickRuleSheet.svelte` (256 lines)
+
+### Verification
+✓ Build passed: `npm run build` with zero errors
+✓ No TypeScript errors
+✓ All Svelte 5 runes used correctly ($props, $state, $derived, $effect)
+✓ Form validation working (save button disabled until valid)
+✓ URL hostname parsing working
+✓ Conditional profile rendering working
+✓ Dark mode SVG arrow color change via @media query
+
+### Next Steps
+- Task 18 will wire this to PickerView (R key opens QuickRuleSheet)
+- Task 18 will pass intercepted URL and browsers array as props
+- Task 18 will handle onSave callback (create rule + close picker)
+- Task 18 will handle onCancel callback (close sheet)

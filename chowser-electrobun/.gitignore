@@ -8,6 +8,10 @@ node_modules/
 # TypeScript incremental builds
 *.tsbuildinfo
 
+# Playwright test artifacts
+test-results/
+playwright-report/
+
 # macOS
 .DS_Store
 

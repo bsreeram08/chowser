@@ -4,6 +4,9 @@
 
 import { spawnSync } from "node:child_process";
 import type { BrowserConfig, ResolvedRoute } from "./models.ts";
+import { resolveExecutablePath } from "./browserDetector.ts";
+
+const PLATFORM = process.platform;
 
 // ---------------------------------------------------------------------------
 // Chromium-family bundle IDs that support --profile-directory
@@ -59,18 +62,85 @@ function resolveAppPath(appId: string): string | null {
 // ---------------------------------------------------------------------------
 
 /**
+ * Launch a URL in the given browser on Windows or Linux using Bun.spawn().
+ * The process is detached so Chowser does not wait for the browser to exit.
+ *
+ * Argument structure:
+ *   Chromium: <exe> [--profile-directory=<dir>] [--incognito] [customArgs] <url>
+ *   Firefox:  <exe> [-P <profile>] [-private-window] [customArgs] <url>
+ *   Other:    <exe> [customArgs] <url>
+ */
+function launchBrowserNative(
+  url: string,
+  browser: BrowserConfig,
+  usePrivateMode: boolean
+): void {
+  const appId = browser.appId;
+  const exePath = resolveExecutablePath(appId);
+
+  if (!exePath) {
+    console.warn(`[launcher] Could not resolve executable for ${appId}`);
+    return;
+  }
+
+  const args: string[] = [];
+
+  if (browser.profile) {
+    if (CHROMIUM_APP_IDS.has(appId)) {
+      args.push(`--profile-directory=${browser.profile}`);
+    } else if (
+      appId.startsWith("org.mozilla") ||
+      appId.startsWith("app.zen-browser") ||
+      appId.startsWith("io.gitlab.librewolf")
+    ) {
+      args.push("-P", browser.profile);
+    }
+  }
+
+  if (usePrivateMode) {
+    const flag = privateFlag(appId);
+    if (flag) args.push(flag);
+  }
+
+  if (browser.customArguments) {
+    args.push(...parseCustomArguments(browser.customArguments));
+  }
+
+  args.push(url);
+
+  // Spawn detached — Chowser must not block waiting for the browser to exit.
+  // `unref()` releases the child from the parent process.
+  try {
+    const proc = Bun.spawn([exePath, ...args], {
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    proc.unref();
+  } catch (err) {
+    console.error(`[launcher] Failed to spawn ${exePath}:`, err);
+  }
+}
+
+/**
  * Open `url` in the browser described by `browser` (or `route`).
  *
  * Strategy:
- *   • Chromium with profile → `open -n -a "App.app" --args --profile-directory=<dir> <url>`
- *   • Firefox with profile  → `open -n -a "App.app" --args -P <profile> <url>`
- *   • Everything else       → `open -a <bundleId> <url>` (via LSOpenURLsWithRole)
+ *   macOS:
+ *     • Chromium with profile → `open -n -a "App.app" --args --profile-directory=<dir> <url>`
+ *     • Firefox with profile  → `open -n -a "App.app" --args -P <profile> <url>`
+ *     • Everything else       → `open -b <bundleId> <url>`
+ *   Windows / Linux:
+ *     • Spawn exe directly via Bun.spawn() (detached) with profile + private flags
  */
 export function launchBrowser(
   url: string,
   browser: BrowserConfig,
   usePrivateMode = false
 ): void {
+  if (PLATFORM === "win32" || PLATFORM === "linux") {
+    launchBrowserNative(url, browser, usePrivateMode);
+    return;
+  }
+
   const appId = browser.appId;
   const appPath = resolveAppPath(appId);
 

@@ -35,6 +35,14 @@ const config: ElectrobunConfig = {
         "com.apple.security.cs.disable-library-validation": true,
       },
     },
+    win: {
+      // Icon for Windows installer (ICO format recommended)
+      icon: "icon.iconset/icon_256x256.png",
+    },
+    linux: {
+      // Icon for Linux application
+      icon: "icon.iconset/icon_256x256.png",
+    },
   },
   runtime: {
     // Keep the app alive even when all windows are closed — it lives in the menu bar

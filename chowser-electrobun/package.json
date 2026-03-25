@@ -5,17 +5,23 @@
   "description": "Smart browser router - intercept links and route them to the right browser. Built with Electrobun.",
   "scripts": {
     "build": "vite build && electrobun build",
+    "build:windows": "vite build && electrobun build --platform windows",
+    "build:linux": "vite build && electrobun build --platform linux",
     "dev": "concurrently \"vite\" \"electrobun dev\"",
     "dev:watch": "concurrently \"vite\" \"electrobun dev --watch\"",
     "package": "vite build && electrobun package",
+    "package:windows": "vite build && electrobun package --platform windows",
+    "package:linux": "vite build && electrobun package --platform linux",
     "devc": "concurrently \"vite\" \"electrobun dev\"",
-    "test": "bun test src/bun/"
+    "test": "bun test src/bun/",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "electrobun": "^1.15.1",
     "svelte": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "@types/three": "^0.183.1",
     "concurrently": "^8.2.0",

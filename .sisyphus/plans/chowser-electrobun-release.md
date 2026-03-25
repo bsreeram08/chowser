@@ -685,7 +685,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 10. Build BrowserListItem component
+- [x] 10. Build BrowserListItem component
 
   **What to do**:
   - Create src/views/shared/components/BrowserListItem.svelte
@@ -726,7 +726,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 11. Build URL bubble component with copy/unshorten actions
+- [x] 11. Build URL bubble component with copy/unshorten actions
 
   **What to do**:
   - Create src/views/picker/components/UrlBubble.svelte
@@ -771,7 +771,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 12. Build Settings shell with sidebar navigation
+- [x] 12. Build Settings shell with sidebar navigation
 
   **What to do**:
   - Create src/views/settings/components/SettingsShell.svelte

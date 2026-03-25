@@ -1,0 +1,41 @@
+TASK 5: Add Windows/Linux build targets to electrobun.config.ts
+
+COMPLETION VERIFICATION:
+
+✓ electrobun.config.ts has build.windows section
+  - Renamed to 'win' (Electrobun's actual property name)
+  - Configured with icon path: icon.iconset/icon_256x256.png
+  
+✓ electrobun.config.ts has build.linux section
+  - Configured with icon path: icon.iconset/icon_256x256.png
+  
+✓ package.json has build:windows script
+  - Command: vite build && electrobun build --platform windows
+  
+✓ package.json has build:linux script
+  - Command: vite build && electrobun build --platform linux
+  
+✓ package.json has package:windows script
+  - Command: vite build && electrobun package --platform windows
+  
+✓ package.json has package:linux script
+  - Command: vite build && electrobun package --platform linux
+  
+✓ Config validates without errors
+  - TypeScript compilation: PASS
+  - npm run build:windows --dry-run: PASS
+  - npm run build:linux --dry-run: PASS
+  - electrobun.config.ts type checking: PASS
+
+BUILD COMMAND VERIFICATION:
+$ npm run build:windows -- --dry-run
+✓ built in 201ms
+Using config file: electrobun.config.ts
+
+$ npm run build:linux -- --dry-run
+✓ built in 197ms
+Using config file: electrobun.config.ts
+
+MACOS CONFIG PRESERVED:
+✓ build.mac section remains intact with all entitlements
+✓ Existing npm build/package scripts unchanged

@@ -1,0 +1,49 @@
+# Task 6: Platform Detection Utilities - Evidence
+
+## Created File
+✓ src/bun/platform.ts
+
+## Exported Functions (6 total)
+
+### OS Detection Functions
+1. isWindows(): boolean
+   - Returns: process.platform === "win32"
+   - Test: isWindows() on Windows → true, other platforms → false
+
+2. isLinux(): boolean
+   - Returns: process.platform === "linux"
+   - Test: isLinux() on Linux → true, other platforms → false
+
+3. isMacOS(): boolean
+   - Returns: process.platform === "darwin"
+   - Test: isMacOS() on macOS → true, other platforms → false
+
+### Platform-specific Path Functions
+4. getPlatformConfigPath(): string
+   - macOS:   ~/Library/Application Support/in.sreerams.chowser-electrobun
+   - Windows: %APPDATA%\in.sreerams.chowser-electrobun
+   - Linux:   $XDG_CONFIG_HOME/in.sreerams.chowser-electrobun
+             (fallback: ~/.config/in.sreerams.chowser-electrobun)
+
+5. getPlatformStartupPath(): string
+   - macOS:   ~/Library/LaunchAgents
+   - Windows: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+   - Linux:   ~/.config/autostart
+
+6. getDefaultBrowserRegistryPath(): string | null
+   - Windows: HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice
+   - Other:   null
+
+## Implementation Details
+- All functions use process.platform for OS detection
+- Paths respect environment variables (APPDATA, XDG_CONFIG_HOME)
+- Fallbacks to sensible defaults (homedir())
+- Windows registry paths returned as strings for reference/documentation
+- Consistent with existing patterns in config.ts and browserDetector.ts
+
+## Verification
+✓ TypeScript compilation: No errors
+✓ All 6 functions exported correctly
+✓ Function signatures match required API
+✓ Paths match platform conventions
+✓ Code follows existing project patterns

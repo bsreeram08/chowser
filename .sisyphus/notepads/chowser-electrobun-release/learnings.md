@@ -256,3 +256,226 @@ Next task (Task 16) will:
 ### Blockers for Task 16
 - Task 16 depends on this component being complete and rendering correctly
 - Icon fetching mechanism will be built in a separate icon service
+
+## Task 10: BrowserListItem Component
+
+### What we built
+✓ `src/views/shared/components/BrowserListItem.svelte` — list row with browser icon, name, profile, and shortcut
+
+### Key Design Decisions
+
+**Layout Structure:**
+- Flex row: icon (24px, flex-shrink: 0) | name+profile (flex: 1) | shortcut (right-aligned)
+- Height: 44px (iOS touch target minimum)
+- Padding: `var(--spacing-3)` = 12px on all sides
+- Gap between elements: `var(--spacing-3)` = 12px
+
+**Visual States:**
+
+1. **Default (unselected)**
+   - Background: transparent
+   - Text: `var(--color-text-primary)`
+   
+2. **Hover (unselected)**
+   - Background: `var(--color-control-background)` (light gray)
+   - Smooth 0.15s transition
+   
+3. **Selected**
+   - Background: `var(--color-accent)` (blue)
+   - Text: white
+   - Profile name: white with 0.8 opacity
+   - Shortcut badge: white with 0.2 opacity overlay
+   - Higher visual weight via higher contrast
+
+**Component Props:**
+
+```typescript
+interface BrowserListItemProps {
+  browserName: string;           // required, e.g. "Chrome"
+  profileName?: string;          // optional, e.g. "Work"
+  shortcutKey?: string;          // optional, e.g. "1"
+  bundleId: string;              // passed to BrowserIcon
+  isSelected?: boolean;          // default: false
+  onclick?: () => void;          // click handler
+}
+```
+
+**Info Section (Middle):**
+- Flex column with 2px gap
+- Browser name: semibold, normal font size
+- Profile name (if provided): smaller (--font-size-xs), 0.8 opacity
+- Both use tight line-height (1.2) for compact appearance
+
+**Shortcut Display (Right):**
+- 28px min-width center-aligned
+- Smaller font (--font-size-xs), bold weight
+- Light background: `rgba(0,0,0,0.1)` normally, `rgba(255,255,255,0.2)` when selected
+- Opacity: 0.6 normally, 1.0 when selected
+- Subtle rounded corners: `var(--radius-sm)`
+
+**Icon Integration:**
+- Imports BrowserIcon from `./BrowserIcon.svelte`
+- Passes `bundleId`, `shortcutKey`, `isSelected` directly
+- Uses `size="small"` (24px) for list context
+- Icon wrapped in flex container to prevent shrinking
+
+### Styling Patterns
+
+- **Button element:** Type="button" with `text-align: left` for semantic HTML
+- **Accessibility:** `aria-pressed={isSelected}` for screen readers
+- **Transitions:** 0.15s ease for hover background changes (faster than components for responsiveness)
+- **Color inheritance:** Selected state colors cascade to children (profile-name, shortcut-display)
+- **No hardcoded colors:** All use CSS variables for dark mode support
+
+### Svelte 5 Patterns Used
+
+- `$props<Interface>()` with all props destructured
+- Conditional rendering: `{#if profileName}` and `{#if shortcutKey}`
+- Class binding: `class:selected={isSelected}`
+- Direct onclick handler: `on:click={onclick}`
+
+### Files Created
+- `src/views/shared/components/BrowserListItem.svelte` (96 lines including styles)
+
+### Next Steps
+- Task 11 will use this component in BrowserListView (loops over browsers)
+- Task 17 (PickerView) will render BrowserList and wire onclick to select browsers
+- Design considerations for reordering/drag-drop to be determined in Task 11
+
+## Task 19: SettingsShell Component
+
+### What we built
+✓ `src/views/settings/components/SettingsShell.svelte` — sidebar navigation with content area for settings tabs
+
+### Key Design Decisions
+
+**Layout Architecture:**
+- Grid-based: `display: grid; grid-template-columns: 200px 1fr;`
+- Sidebar (left): Fixed 200px width, flex column with gap
+- Content (right): flex-1 (fills remaining space), overflow-y auto
+
+**Sidebar Items:**
+- 4 tabs: Browsers, Rules, General, Hidden Apps
+- Each item: 40px height, padding: `var(--spacing-3)` (12px)
+- Consistent spacing between items via `gap: var(--spacing-1)` (4px)
+
+**Visual States:**
+1. **Inactive state**
+   - Background: transparent
+   - Hover: `var(--color-control-background)` (raised effect)
+   - Text: `var(--color-text)` (standard contrast)
+   
+2. **Active state**
+   - Background: `var(--color-accent)` (blue)
+   - Text: white (inverted)
+   - No hover change needed (already highlighted)
+
+**Component Props:**
+```typescript
+interface Props {
+  activeTab: string;           // e.g. "Browsers"
+  onTabChange: (tab: string) => void;  // callback on tab click
+  children: Snippet;          // Svelte 5 snippet for content area
+}
+```
+
+**Svelte 5 Patterns Used:**
+- `$props()` for destructuring with type safety
+- Named export `interface Props` matching destructured params
+- Snippet type: `children: Snippet` for slot-equivalent in Svelte 5
+- `{@render children()}` to invoke snippet in content div
+- Array iteration: `{#each tabs as tab}` for sidebar buttons
+
+**Integration Points:**
+- Sidebar border-right: `var(--color-border)` for visual separation
+- Uses design tokens for all colors, spacing, radius
+- Content padding: `var(--spacing-4)` = 16px
+- Smooth transitions: `all 150ms ease` for hover effects
+
+### Files Created
+- `src/views/settings/components/SettingsShell.svelte` (72 lines)
+
+### Next Steps (Task 20+)
+- Task 20: SettingsPanel wrapper (holds SettingsShell + tab panels)
+- Tasks 21-24: Individual tab panels (BrowsersPanel, RulesPanel, GeneralPanel, HiddenAppsPanel)
+- Each panel will pass content via children snippet
+
+## Task 36: UrlBubble Component
+
+### What we built
+✓ `src/views/picker/components/UrlBubble.svelte` — URL display with copy and unshorten actions
+
+### Key Design Decisions
+
+**Layout: Horizontal flex with sections**
+- Left section: Link icon + truncated URL text
+- Right section: Action buttons (unshorten, copy)
+- Gap between sections: `var(--spacing-4)` = 16px
+- Background: `var(--color-background-secondary)` (light gray in light mode, dark gray in dark mode)
+- Border-radius: `var(--radius-lg)` = 12px
+- Padding: `var(--spacing-3)` = 12px all sides
+
+**URL Truncation Algorithm**
+- If URL ≤ 60 chars: display as-is
+- If URL > 60 chars: show first 30 + ellipsis + last 20 chars
+- Rationale: Preserves domain (usually in first 30) and TLD (usually in last 20)
+- Example: `https://very-long-domain.co.uk/path/to/page` → `https://very-long-domain.co.u…/path/to/page`
+- Full URL shown in `title` attribute for hover tooltips
+
+**Action Buttons**
+1. **Unshorten button** (conditional, hidden when `isUnshortening=true`)
+   - Uses ghost variant with Icon component
+   - Text hint: "(H)" in 12px secondary color after icon
+   - Calls `onUnshorten?.()` callback
+   
+2. **Loading spinner** (conditional, shown when `isUnshortening=true`)
+   - 14px × 14px rotating spinner
+   - Uses 2px border with accent top color
+   - Animation: `spin 0.8s linear infinite`
+   - Centered in 32px wrapper (matches button size)
+
+3. **Copy button** (always visible)
+   - Uses ghost variant
+   - Calls `navigator.clipboard.writeText(url)` directly
+   - Triggers `onCopy?.()` callback on success
+   - Icon: clipboard SVG
+
+**Component Props**
+```typescript
+interface UrlBubbleProps {
+  url: string;               // full URL to display
+  isUnshortening?: boolean;  // shows spinner when true
+  onCopy?: () => void;       // callback after clipboard write
+  onUnshorten?: () => void;  // callback when unshorten clicked
+}
+```
+
+**Svelte 5 Patterns**
+- `$props()` rune with destructuring and defaults
+- `$derived` for computed truncation: `const displayUrl = truncateUrl(url)`
+- Conditional rendering: `{#if isUnshortening}...{:else}...{/if}`
+- Async function: `async function handleCopy()` with try/catch
+
+**Icon Strategy**
+- Link icon (top-left): 16px, secondary color — uses path data directly
+- Copy icon: 14px (inside button)
+- Unshorten icon: 14px with path data (arrows indicating expansion)
+- All icons wrapped in Icon component (size + color control)
+
+**Design Token Integration**
+- Colors: `--color-background-secondary`, `--color-text-primary`, `--color-text-secondary`, `--color-accent`
+- Spacing: `--spacing-2` (8px gap between icon/text), `--spacing-3` (12px padding), `--spacing-4` (16px content gap)
+- Border-radius: `--radius-lg` (12px)
+- Animation keyframe: `@keyframes spin` for 360° rotation
+
+**Dependencies**
+- Imports: Button, Icon from shared/components
+- No external libraries; uses native `navigator.clipboard` API
+- Error handling: console.error() on clipboard failure (silent fallback)
+
+### Files Created
+- `src/views/picker/components/UrlBubble.svelte` (120 lines)
+
+### Next Steps
+- Task 37 will use this component in PickerView to display the intercepted URL
+- Task 38+ will handle click actions (copy triggers toast, unshorten triggers loading state)

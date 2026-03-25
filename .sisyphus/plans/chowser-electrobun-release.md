@@ -593,7 +593,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(test): add Playwright E2E testing setup`
   - Files: `playwright.config.ts`, `tests/e2e/*.spec.ts`
 
-- [ ] 8. Build Picker shell component with glass effect background
+- [x] 8. Build Picker shell component with glass effect background
 
   **What to do**:
   - Create src/views/picker/components/PickerShell.svelte
@@ -641,7 +641,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 9. Build BrowserIcon component with size variants
+- [x] 9. Build BrowserIcon component with size variants
 
   **What to do**:
   - Create src/views/shared/components/BrowserIcon.svelte

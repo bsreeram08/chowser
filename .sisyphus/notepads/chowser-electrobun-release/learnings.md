@@ -158,3 +158,101 @@
 ### Blockers for Wave 2
 - Tasks 8-15 (all component views) now have these 5 shared components as dependencies
 - No index.ts barrel export yet (will be created in Task 7)
+
+## Task 4: PickerShell Component
+
+**Pattern: 3-Section Layout with Conditional Dividers**
+- Top section (url-section): Shows URL bubble; div rendered conditionally via `{#if $$slots.url}`
+- Middle section (content-section): Default slot for browser list
+- Bottom section (action-section): Shows keyboard hints; rendered conditionally
+- Dividers only rendered when slots exist (reduces DOM bloat)
+
+**Design Tokens Usage**
+- Width: `400px` (macOS picker standard)
+- Padding: `var(--spacing-4)` = 16px (from Card component)
+- Divider color: `var(--color-separator)` with 50% opacity
+- Section spacing: `var(--spacing-3)` = 12px top/bottom
+
+**Glass Effect Strategy**
+- Delegated entirely to Card component (`backdrop-filter: blur(20px)`)
+- PickerShell only handles layout and slot composition
+- Avoids duplication of backdrop-filter CSS
+
+**Svelte 5 Rune Usage**
+- `$props` destructuring with default: `let { width = 400 } = $props<PickerShellProps>();`
+- Slot detection: `$$slots.url` and `$$slots.actions` to conditionally render dividers
+- Named slots: `<slot name="url" />`, `<slot />` (default), `<slot name="actions" />`
+
+**Component Hierarchy**
+- PickerShell imports Card (shared/components/Card.svelte)
+- Card applies glass effect background and border-radius
+- PickerShell applies flex layout and section organization
+- Dividers use design tokens for consistency
+
+**Next Steps**
+- Task 5 will create URLBubble component (slot name="url")
+- Task 6 will create BrowserList component (default slot)
+- Task 7 will create ActionBar component (slot name="actions")
+
+## Task 9: BrowserIcon Component
+
+### What we built
+✓ `src/views/shared/components/BrowserIcon.svelte` — displays browser icon with optional shortcut badge and selection ring
+
+### Key Design Decisions
+
+**Size System:**
+- 3 discrete sizes via `data-size` attribute: small=24px, medium=32px, large=48px
+- Uses `sizeMap` object for reliable pixel mapping
+- All sizes use same `border-radius: 4px` for consistency
+
+**Visual States:**
+1. **Placeholder icon** (until real icons fetched)
+   - Gradient background: `linear-gradient(135deg, var(--color-accent) → var(--color-accent-pressed))`
+   - Extracts browser initial from bundle ID (last component after final dot)
+   - White text, centered, bold font
+   
+2. **Shortcut badge** (optional)
+   - 16px circle positioned at bottom-right corner (`bottom: -4px; right: -4px`)
+   - Accent background with white text
+   - Includes shadow for depth: `0 1px 3px var(--color-shadow-light)`
+   - Font: 10px bold, centered
+
+3. **Selected state**
+   - 2px solid accent color ring
+   - 4px border-radius (matches icon corners)
+   - Applied via `.selected` class
+
+**Interactive:**
+- Hover: `opacity: 0.8` on entire wrapper
+- Smooth transitions: `0.2s ease` on all state changes
+
+### Component Props
+
+```typescript
+interface BrowserIconProps {
+  bundleId: string;          // required, e.g. "com.google.Chrome"
+  size?: 'small' | 'medium' | 'large';  // default: 'medium'
+  shortcutKey?: string;      // optional, e.g. "1" or "⌘1"
+  isSelected?: boolean;      // default: false
+}
+```
+
+### Pattern Notes
+
+- **Svelte 5 syntax:** `let { prop } = $props<Interface>()`
+- **Reactive compute:** `const iconSize = sizeMap[size]` derived from props
+- **No click handlers** — component is presentational only (parent controls selection)
+- **Grid-friendly:** Works as flex child with `display: inline-flex`
+
+### TODO: Real Icon Fetching
+
+Next task (Task 16) will:
+- Replace gradient placeholder with actual app icon from bundleId
+- Use NSWorkspace API (via IPC) or pre-cached icon data
+- Handle missing icons with fallback gradient
+- This component stays size-agnostic
+
+### Blockers for Task 16
+- Task 16 depends on this component being complete and rendering correctly
+- Icon fetching mechanism will be built in a separate icon service

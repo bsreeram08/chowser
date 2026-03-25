@@ -266,7 +266,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(electrobun): add Svelte 5 with Vite build setup`
   - Files: `package.json`, `vite.config.ts`, `src/views/*/App.svelte`
 
-- [ ] 2. Create design system tokens (colors, typography, spacing)
+- [x] 2. Create design system tokens (colors, typography, spacing)
 
   **What to do**:
   - Create src/views/shared/tokens.css with CSS custom properties
@@ -319,7 +319,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Task 1)
 
-- [ ] 3. Create shared Svelte components (Button, Input, Toggle, Card)
+- [x] 3. Create shared Svelte components (Button, Input, Toggle, Card)
 
   **What to do**:
   - Create src/views/shared/components/ directory

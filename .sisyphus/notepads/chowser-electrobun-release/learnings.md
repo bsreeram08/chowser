@@ -42,3 +42,119 @@
 - Import this in picker/settings HTML via `<link rel="stylesheet" href="../shared/tokens.css">`
 - Use `var(--color-background)` in component CSS instead of hardcoded colors
 - Test with `prefers-color-scheme: dark` in System Preferences to verify dark mode
+
+## Task 6: Platform Detection Utilities
+
+### Pattern Established
+✓ Platform detection utilities created in `src/bun/platform.ts`
+✓ Exports 6 functions: isWindows(), isLinux(), isMacOS(), getPlatformConfigPath(), getPlatformStartupPath(), getDefaultBrowserRegistryPath()
+
+### Cross-Platform Path Conventions
+- **macOS**: Uses ~/Library/Application Support, ~/Library/LaunchAgents
+- **Windows**: Uses %APPDATA%, HKEY_CURRENT_USER registry paths
+- **Linux**: Uses $XDG_CONFIG_HOME (with ~/.config fallback), ~/.config/autostart
+
+### Code Pattern
+- Use `process.platform` directly (cached as const PLATFORM)
+- Switch on PLATFORM with "win32" | "linux" | default (darwin)
+- Use node:os.homedir() and node:path.join() for cross-platform path safety
+- Environment variable fallbacks: APPDATA, XDG_CONFIG_HOME
+
+### Future Usage
+- Other modules should import from `platform.ts` instead of duplicating platform checks
+- Refactor `config.ts` resolveConfigDir() to use getPlatformConfigPath()
+
+## Task 4: Cross-Platform Browser Launcher
+
+### Pattern Established
+✓ `launchBrowserNative()` added to `src/bun/browserLauncher.ts` for Windows and Linux
+✓ `launchBrowser()` dispatches on `process.platform` — macOS keeps `/usr/bin/open`, others use `Bun.spawn()`
+
+### Argument Order (Critical)
+- Chromium: `<exe> [--profile-directory=<dir>] [--incognito] [customArgs] <url>`
+- Firefox: `<exe> [-P <profile>] [-private-window] [customArgs] <url>`
+- URL always last; profile before private flag
+
+### Detaching the Process
+- Use `Bun.spawn([exe, ...args], { stdio: ["ignore","ignore","ignore"] })`
+- Call `proc.unref()` immediately after — releases child from parent so Chowser doesn't wait
+- Without `unref()` Chowser would block until the browser window closes
+
+### Private Mode Flags
+- Chromium family → `--incognito`
+- Firefox/Zen/LibreWolf → `-private-window`
+- Safari → empty string (no CLI flag)
+- Other → `--private`
+
+### resolveExecutablePath() from browserDetector.ts
+- Returns null on macOS (not needed there, macOS uses mdfind)
+- Windows: probes known .exe paths from WINDOWS_BROWSERS spec list
+- Linux: runs `which <exe>` then probes LINUX_SEARCH_DIRS
+
+### LibreWolf prefix fix
+- `privateFlag()` only checks `org.mozilla` and `app.zen-browser` prefixes
+- LibreWolf appId is `io.gitlab.librewolf-community` — falls through to `--private` (correct)
+- Profile args in `launchBrowserNative` correctly adds `io.gitlab.librewolf` check for `-P` flag
+
+## Task 6: Shared Components (Button, Input, Toggle, Card, Icon)
+
+### Key Learnings
+
+**Svelte 5 Runes Pattern:**
+- Used `$props()` for reactive prop destructuring with type safety
+- Pattern: `let { prop = default } = $props<Interface>()`
+- Reactive state via `let` declarations (no useState needed)
+- Event binding via `on:click`, `on:change`, `on:input`
+
+**Component Architecture:**
+- Each component is minimal and focused (21-108 lines including styles)
+- All props optional with sensible defaults
+- Consistent callback pattern: `onchange?.(value)` for reactive updates
+- Button: 3 variants (primary, secondary, ghost) × 3 sizes (sm, md, lg)
+- Input: Label, placeholder, error state with red border and icon
+- Toggle: iOS-style 44×24px, animated thumb (20px), 0.3s easing
+- Card: Glass effect with `backdrop-filter: blur(20px)` + border
+- Icon: SVG wrapper with size/color props, accepts slot children
+
+**Design Token Integration:**
+- All colors use CSS variables (no hardcoded hex)
+- Spacing uses 4px base unit (--spacing-1 through --spacing-8)
+- Border radius uses predefined vars (--radius-sm/md/lg/xl/full)
+- Typography uses system fonts and modular scale
+- Dark mode automatically supported via @media query
+
+**Component Styling:**
+- Inline `<style>` blocks with scoped CSS (no leakage)
+- Focus states use accent color with subtle 2px shadow
+- Disabled states use opacity + cursor: not-allowed
+- Transitions: 0.2s for buttons/inputs, 0.3s for toggle
+- Shadow tokens for depth (--shadow-sm used on Toggle thumb)
+
+**Build Verification:**
+- Vite build succeeded with 113 modules transformed
+- No TypeScript errors
+- Bundle: legacy.js 25.06 kB (9.86 gzip)
+
+### Technical Decisions
+
+1. **Button padding:** Uses spacing tokens directly in sm/md/lg classes (not props)
+   - Ensures consistency and reduces prop surface area
+2. **Input error handling:** Separate error prop + errorMessage for flexibility
+   - Can show/hide errors independently from value validation
+3. **Toggle track/thumb:** Absolute positioned for precise 20px translate animation
+   - Simpler than transform-translate on entire button
+4. **Card padding:** Accepts optional padding prop (defaults to --spacing-4)
+   - Allows flexibility for different card sizes
+5. **Icon:** SVG wrapper with viewBox hardcoded to 24×24 for standard icon size
+   - Matches iOS/Material Design conventions
+
+### Files Created
+- `src/views/shared/components/Button.svelte` (108 lines)
+- `src/views/shared/components/Input.svelte` (106 lines)
+- `src/views/shared/components/Toggle.svelte` (75 lines)
+- `src/views/shared/components/Card.svelte` (21 lines)
+- `src/views/shared/components/Icon.svelte` (28 lines)
+
+### Blockers for Wave 2
+- Tasks 8-15 (all component views) now have these 5 shared components as dependencies
+- No index.ts barrel export yet (will be created in Task 7)

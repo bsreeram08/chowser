@@ -1,20 +1,25 @@
 {
   "name": "chowser-electrobun",
   "version": "0.1.0",
+  "type": "module",
   "description": "Smart browser router - intercept links and route them to the right browser. Built with Electrobun.",
   "scripts": {
-    "build": "electrobun build",
-    "dev": "electrobun dev",
-    "dev:watch": "electrobun dev --watch",
-    "package": "electrobun package",
-    "devc": "electrobun dev",
+    "build": "vite build && electrobun build",
+    "dev": "concurrently \"vite\" \"electrobun dev\"",
+    "dev:watch": "concurrently \"vite\" \"electrobun dev --watch\"",
+    "package": "vite build && electrobun package",
+    "devc": "concurrently \"vite\" \"electrobun dev\"",
     "test": "bun test src/bun/"
   },
   "dependencies": {
-    "electrobun": "^1.16.0"
+    "electrobun": "^1.15.1",
+    "svelte": "^5.0.0"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "@types/three": "^0.183.1",
-    "typescript": "^5.9.3"
+    "concurrently": "^8.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.0.0"
   }
 }

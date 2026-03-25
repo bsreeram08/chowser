@@ -19,16 +19,11 @@ const config: ElectrobunConfig = {
     },
     views: {
       picker: {
-        entrypoint: "src/views/picker/index.ts",
+        entrypoint: "build/views/src/views/picker/index.html",
       },
       settings: {
-        entrypoint: "src/views/settings/index.ts",
+        entrypoint: "build/views/src/views/settings/index.html",
       },
-    },
-    // Copy HTML files into the views folders in the built bundle
-    copy: {
-      "src/views/picker/index.html": "views/picker/index.html",
-      "src/views/settings/index.html": "views/settings/index.html",
     },
     mac: {
       // Path to the .iconset folder containing app icon PNGs

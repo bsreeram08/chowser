@@ -1,6 +1,10 @@
 {
-  "active_plan": "/Users/sreeram/workspace/Sreeram/projects/Chowser/.sisyphus/plans/arc-dia-profile-research.md",
-  "started_at": "2026-02-26T21:16:38.467Z",
-  "session_ids": ["ses_364309759ffeZ4CrUsQvgzizs2"],
-  "plan_name": "arc-dia-profile-research"
+  "active_plan": "/Users/sreeram/workspace/Sreeram/projects/Chowser/.sisyphus/plans/chowser-electrobun-release.md",
+  "started_at": "2026-03-25T17:07:45.997Z",
+  "session_ids": [
+    "ses_2da27e403ffea0GGwMnpM3LFYn",
+    "ses_2da078135ffelV11KYaUtQIfjO"
+  ],
+  "plan_name": "chowser-electrobun-release",
+  "agent": "atlas"
 }

@@ -1,0 +1,45 @@
+# TASK 2: Fix Electrobun Build Failure
+
+## Problem
+- `npm run build` failed with "Bundle failed" message
+- Vite compilation succeeded, but Electrobun bundling failed
+- No detailed error message was provided
+
+## Root Cause
+- Vite was generating HTML with absolute asset paths (`/picker.js`)
+- Electrobun requires relative paths for bundled assets (`./picker.js`)
+- When paths are absolute, Electrobun cannot resolve assets in the bundled app
+
+## Solution Applied
+1. Updated `vite.config.ts` to add `base: './'` config
+2. This tells Vite to generate relative asset paths instead of absolute
+3. Rebuilt with `npm run build`
+
+## Changes Made
+File: vite.config.ts
+- Added `base: './'` to the config object
+- Vite now generates paths like `../../../picker.js` instead of `/picker.js`
+
+## Verification
+✓ `npm run build` completes successfully (no "Bundle failed" error)
+✓ HTML files contain relative paths to assets
+✓ Dev app bundle created at build/dev-macos-arm64/Chowser-dev.app
+✓ Launcher binary exists and is executable
+✓ Clean rebuild from scratch succeeds
+
+## Test Results
+```
+npm run build
+> vite build && electrobun build
+
+[Vite output - 113 modules, 6 files generated]
+✓ built in 185ms
+
+Using config file: electrobun.config.ts
+skipping codesign
+skipping notarization
+[SUCCESS - no "Bundle failed" message]
+```
+
+## Status
+✅ COMPLETE - Electrobun bundling now works

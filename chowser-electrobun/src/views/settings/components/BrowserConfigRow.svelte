@@ -98,7 +98,7 @@
         <textarea
           placeholder="e.g., --new-window --disable-sync"
           value={customArgsInput}
-          on:blur={handleCustomArgsBlur}
+          onblur={handleCustomArgsBlur}
         />
       </div>
     {/if}

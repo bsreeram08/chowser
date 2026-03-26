@@ -118,15 +118,38 @@ updateTrayMenu();
 function buildFocusModeMenu(): MenuItemConfig[] {
   const s = getState();
   const fm = s.focusMode;
-  if (!fm) {
-    return [
-      {
-        label: "Set Focus Mode…",
+  
+  if (!fm || (fm.expiresAt !== null && fm.expiresAt <= Date.now())) {
+    // No active focus mode — show quick-set options
+    const browsers = s.configuredBrowsers.slice(0, 3); // Top 3 browsers for quick access
+    
+    const items: MenuItemConfig[] = [];
+    
+    // Add quick-set options for each browser
+    browsers.forEach((browser) => {
+      items.push({
+        label: `Focus: ${browser.name} for 1 Hour`,
         type: "normal" as const,
-        action: "focus-mode-menu",
-      },
-    ];
+        action: `focus-1hour-${browser.id}`,
+      });
+    });
+    
+    if (browsers.length > 0) {
+      items.push({ type: "divider" as const });
+      
+      browsers.forEach((browser) => {
+        items.push({
+          label: `Focus: ${browser.name} Until Tomorrow`,
+          type: "normal" as const,
+          action: `focus-tomorrow-${browser.id}`,
+        });
+      });
+    }
+    
+    return items;
   }
+  
+  // Active focus mode — show status and clear option
   const browser = s.configuredBrowsers.find((b) => b.id === fm.browserId);
   const browserName = browser?.name ?? "Unknown";
   const expLabel =
@@ -367,6 +390,25 @@ function handleMenuAction(action: string | undefined) {
     case "noop":
       break;
     default:
+      // Handle "focus-1hour-<browserId>"
+      if (action.startsWith("focus-1hour-")) {
+        const browserId = action.slice("focus-1hour-".length);
+        patchState({ focusMode: { browserId, expiresAt: Date.now() + 60 * 60 * 1000 } });
+        scheduleFocusModeExpiry();
+        updateTrayMenu();
+        break;
+      }
+      // Handle "focus-tomorrow-<browserId>"
+      if (action.startsWith("focus-tomorrow-")) {
+        const browserId = action.slice("focus-tomorrow-".length);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        patchState({ focusMode: { browserId, expiresAt: tomorrow.getTime() } });
+        scheduleFocusModeExpiry();
+        updateTrayMenu();
+        break;
+      }
       // Handle "open-recent-N"
       if (action.startsWith("open-recent-")) {
         const idx = parseInt(action.slice("open-recent-".length), 10);
@@ -630,7 +672,7 @@ function showPickerForManualOpen() {
 
 let settingsWindow: InstanceType<typeof BrowserWindow> | null = null;
 
-type SettingsSchema = ElectrobunRPCSchema & {
+export type SettingsSchema = ElectrobunRPCSchema & {
   bun: {
     requests: {
       getState: {

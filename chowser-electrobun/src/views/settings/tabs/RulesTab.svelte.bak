@@ -140,14 +140,14 @@
 
       if (editingRuleId) {
         // Update existing rule
-        await rpc.request('updateRule', {
+        await rpc.call('updateRule', {
           id: editingRuleId,
           ...formData,
           pathPrefix: formData.pathPrefix || undefined
         });
       } else {
         // Create new rule
-        await rpc.request('addRule', {
+        await rpc.call('addRule', {
           id: crypto.randomUUID(),
           isEnabled: true,
           ...formData,
@@ -165,7 +165,7 @@
   async function handleToggleRule(ruleId: string, enabled: boolean) {
     try {
       error = null;
-      await rpc.request('toggleRule', { id: ruleId, enabled });
+      await rpc.call('toggleRule', { id: ruleId, enabled });
       await loadRules();
     } catch (e) {
       error = `Failed to toggle rule: ${e instanceof Error ? e.message : String(e)}`;
@@ -179,7 +179,7 @@
     try {
       error = null;
       const newId = crypto.randomUUID();
-      await rpc.request('addRule', {
+      await rpc.call('addRule', {
         id: newId,
         name: `${rule.name} (Copy)`,
         hostPattern: rule.hostPattern,
@@ -202,7 +202,7 @@
 
     try {
       error = null;
-      await rpc.request('deleteRule', { id: ruleId });
+      await rpc.call('deleteRule', { id: ruleId });
       await loadRules();
     } catch (e) {
       error = `Failed to delete rule: ${e instanceof Error ? e.message : String(e)}`;
@@ -214,7 +214,7 @@
 
     try {
       testerLoading = true;
-      const result = await rpc.request('testRule', { url: testerUrl });
+      const result = await rpc.call('testRule', { url: testerUrl });
       testerResult = result;
     } catch (e) {
       testerResult = null;
@@ -233,29 +233,31 @@
     }, 3000);
   }
 
-  // Export configuration to JSON
+  // Export rules to JSON
   async function handleExportRules() {
     try {
-      const configJson = await rpc.request('exportConfig', undefined);
-      const jsonStr = configJson;
+      const response = await rpc.call('getRules', undefined);
+      if (!response) throw new Error('Failed to export');
+
+      const jsonStr = JSON.stringify(response, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `chowser-config-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `chowser-rules-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showNotification('Configuration exported successfully', 'success');
+      showNotification('Rules exported successfully', 'success');
     } catch (err) {
       console.error('Export failed:', err);
-      showNotification('Failed to export configuration', 'error');
+      showNotification('Failed to export rules', 'error');
     }
   }
 
-  // Import configuration from JSON
+  // Import rules from JSON
   function handleImportRules() {
     fileInput?.click();
   }
@@ -268,25 +270,37 @@
 
     try {
       const text = await file.text();
-      const result = await rpc.request('importConfig', { json: text });
-      
-      if (result.success) {
-        await loadRules();
-        showNotification('Configuration imported successfully', 'success');
-      } else {
-        showNotification(result.message || 'Import failed', 'error');
+      const data = JSON.parse(text);
+
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid format: expected array of routing rules');
       }
+
+      // Import each rule
+      for (const rule of data) {
+        await rpc.call('addRule', {
+          id: rule.id || crypto.randomUUID(),
+          ...rule,
+          pathPrefix: rule.pathPrefix || undefined,
+          sourceAppBundleId: rule.sourceAppBundleId || undefined,
+          profile: rule.profile || undefined
+        });
+      }
+
+      // Reload rules
+      await loadRules();
+      showNotification('Rules imported successfully', 'success');
     } catch (err) {
       console.error('Import failed:', err);
       const message = err instanceof Error ? err.message : 'Import failed';
       showNotification(message, 'error');
     } finally {
+      // Reset input
       if (fileInput) {
         fileInput.value = '';
       }
     }
   }
-
 </script>
 
 <div class="rules-tab">

@@ -6,6 +6,7 @@
   import UrlBubble from './components/UrlBubble.svelte';
   import PickerShell from './components/PickerShell.svelte';
   import QuickRuleSheet from './components/QuickRuleSheet.svelte';
+  import FocusStatusBanner from './components/FocusStatusBanner.svelte';
 
   // ---------------------------------------------------------------------------
   // RPC schema (mirrors PickerSchema in src/bun/index.ts)
@@ -73,6 +74,8 @@
   let selectedBrowserId = $state<string | null>(null);
   let isUnshortening = $state(false);
   let isLoaded = $state(false);
+  let focusMode = $state<FocusMode | null>(null);
+  let focusCountdown = $state<string | null>(null);
 
   // Layout mode — defaults to 'icons'; can be extended later from settings
   let layoutMode = $state<'icons' | 'list'>('icons');
@@ -102,6 +105,7 @@
       const data = await rpc.request('getPickerData', undefined);
       url = data.url;
       browsers = data.browsers;
+      focusMode = data.focusMode;
 
       // Select the first browser by default if none selected
       if (!selectedBrowserId && browsers.length > 0) {
@@ -109,6 +113,7 @@
       }
 
       isLoaded = true;
+      updateFocusCountdown();
     } catch (err) {
       console.error('[picker] Failed to load picker data:', err);
     }
@@ -117,6 +122,48 @@
   // Load on mount
   $effect(() => {
     loadPickerData();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Focus mode countdown timer
+  // ---------------------------------------------------------------------------
+
+  function updateFocusCountdown() {
+    if (!focusMode || focusMode.expiresAt === null) {
+      focusCountdown = null;
+      return;
+    }
+
+    const remaining = focusMode.expiresAt - Date.now();
+    if (remaining <= 0) {
+      focusCountdown = null;
+      focusMode = null;
+      return;
+    }
+
+    const mins = Math.ceil(remaining / 60000);
+    if (mins <= 1) {
+      focusCountdown = '< 1 min';
+    } else if (mins < 60) {
+      focusCountdown = `${mins}m`;
+    } else {
+      const hours = (remaining / 3600000).toFixed(1);
+      focusCountdown = `${hours}h`;
+    }
+  }
+
+  // Update countdown every minute (or more frequently if < 5 min remaining)
+  $effect(() => {
+    if (!focusMode || focusMode.expiresAt === null) return;
+
+    const remaining = focusMode.expiresAt - Date.now();
+    const interval = remaining < 300000 ? 1000 : 60000; // 1s if < 5 min, else 1 min
+
+    const timer = setInterval(() => {
+      updateFocusCountdown();
+    }, interval);
+
+    return () => clearInterval(timer);
   });
 
   // ---------------------------------------------------------------------------
@@ -297,6 +344,15 @@
 {#if isLoaded}
   <PickerShell>
     {#snippet url()}
+      {#if focusMode}
+        {#if focusMode.expiresAt === null || focusMode.expiresAt > Date.now()}
+          {@const focusBrowser = browsers.find(b => b.id === focusMode.browserId)}
+          <FocusStatusBanner
+            browserName={focusBrowser?.name ?? 'Unknown'}
+            countdown={focusCountdown}
+          />
+        {/if}
+      {/if}
       <UrlBubble
         {url}
         {isUnshortening}

@@ -1137,7 +1137,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 20. Implement Settings Browsers tab with full CRUD
+- [x] 20. Implement Settings Browsers tab with full CRUD
 
   **What to do**:
   - Create src/views/settings/tabs/BrowsersTab.svelte
@@ -1186,7 +1186,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 21. Implement Settings Rules tab with master-detail
+- [x] 21. Implement Settings Rules tab with master-detail
 
   **What to do**:
   - Create src/views/settings/tabs/RulesTab.svelte
@@ -1234,7 +1234,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 22. Implement Settings General tab
+- [x] 22. Implement Settings General tab
 
   **What to do**:
   - Create src/views/settings/tabs/GeneralTab.svelte
@@ -1282,7 +1282,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 23. Implement Settings Hidden Apps tab
+- [x] 23. Implement Settings Hidden Apps tab
 
   **What to do**:
   - Create src/views/settings/tabs/HiddenAppsTab.svelte
@@ -1325,7 +1325,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 24. Implement import/export UI for browsers and rules
+- [x] 24. Implement import/export UI for browsers and rules
 
   **What to do**:
   - Add Import/Export buttons to Browsers tab toolbar
@@ -1370,7 +1370,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 25. Implement Temporary Focus Mode UI
+- [x] 25. Implement Temporary Focus Mode UI
 
   **What to do**:
   - Add focus mode controls to picker UI

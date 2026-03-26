@@ -120,7 +120,7 @@ scheduleFocusModeExpiry();
 
 const tray = new Tray({
   image: join(PATHS.VIEWS_FOLDER, "../icons/icon_16x16.png"),
-  template: true,
+  template: false,
 });
 updateTrayMenu();
 

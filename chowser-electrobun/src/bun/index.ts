@@ -42,6 +42,7 @@ import {
   RECENT_URLS_MAX,
   DEFAULT_HIDDEN_APP_IDS,
   nextAvailableShortcut,
+  createDefaultState,
 } from "./models.ts";
 import { resolveRoute, recordDomainClick, getSuggestions } from "./routing.ts";
 import { getSuggestionForDomain, dismissSuggestion } from "./domainFrequency.ts";
@@ -175,6 +176,27 @@ function buildFocusModeMenu(): MenuItemConfig[] {
 }
 
 function openDefaultBrowserSettings(): void {
+  if (process.platform === "win32") {
+    // Windows 10/11: open Default Apps settings page
+    try {
+      Bun.spawn(["cmd", "/c", "start", "ms-settings:defaultapps"]).unref();
+    } catch {
+      console.warn("[chowser] Could not open Windows Default Apps settings");
+    }
+    return;
+  }
+
+  if (process.platform === "linux") {
+    // Linux: open GNOME Settings (default apps) if available, otherwise log guidance
+    try {
+      Bun.spawn(["gnome-control-center", "default-apps"]).unref();
+    } catch {
+      // KDE / other DEs: just log — no universal CLI to open default browser settings
+      console.info("[chowser] Set your default browser via your system settings or run: xdg-settings set default-web-browser chowser.desktop");
+    }
+    return;
+  }
+
   // macOS Ventura+ (13+): Desktop & Dock extension
   // macOS Monterey (12): com.apple.preferences.generalIn
   const urls = [
@@ -1086,16 +1108,9 @@ function openSettings() {
           patchState({ hiddenAppIds: ids });
         },
         resetToDefaults: () => {
-          const s = getState();
+          const defaults = createDefaultState();
           patchState({
-            configuredBrowsers: [
-              {
-                id: crypto.randomUUID(),
-                name: "Safari",
-                appId: "com.apple.Safari",
-                shortcutKey: "1",
-              },
-            ],
+            configuredBrowsers: defaults.configuredBrowsers,
             routingRules: [],
             hiddenAppIds: [...DEFAULT_HIDDEN_APP_IDS],
             domainFrequency: {},
@@ -1173,6 +1188,16 @@ function openSettings() {
           openDefaultBrowserSettings();
         },
         setDefaultBrowser: async () => {
+          if (process.platform === "win32") {
+            try {
+              const proc = Bun.spawn(["cmd", "/c", "start", "ms-settings:defaultapps"]);
+              proc.unref();
+              return { success: true };
+            } catch (err) {
+              return { success: false, error: (err as Error).message };
+            }
+          }
+
           if (isLinux()) {
             const applicationsDir = join(homedir(), ".local", "share", "applications");
             const desktopFile = join(applicationsDir, "chowser.desktop");
@@ -1203,7 +1228,7 @@ function openSettings() {
               return { success: false, error: (err as Error).message };
             }
           }
-          return { success: false, error: "Linux only" };
+          return { success: false, error: "Not supported on this platform" };
         },
       } as unknown as Parameters<typeof BrowserView.defineRPC<SettingsSchema>>[0]["handlers"]["requests"],
     },

@@ -1,6 +1,10 @@
 {
   "active_plan": "/Users/sreeram/workspace/Sreeram/projects/Chowser/.sisyphus/plans/chowser-electrobun-release.md",
   "started_at": "2026-03-25T17:07:45.997Z",
+  "completed_tasks": 37,
+  "total_tasks": 239,
+  "last_completed_task": "37. Implement URL cleaning and unshortening UI",
+  "last_commit": "86d7c31",
   "session_ids": [
     "ses_2da27e403ffea0GGwMnpM3LFYn",
     "ses_2da078135ffelV11KYaUtQIfjO",

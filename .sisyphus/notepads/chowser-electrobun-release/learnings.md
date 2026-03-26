@@ -756,3 +756,26 @@ All onboarding steps now complete:
 - ✅ Task 32: FinishStep
 
 Next tasks (Tasks 31, 33-35) can continue with remaining onboarding features.
+
+## [2026-03-26] Task 4: Cross-platform browser launcher
+
+### What was already done
+The `browserLauncher.ts` already had a complete cross-platform implementation:
+- `PLATFORM` constant from `process.platform` for branching
+- `launchBrowserNative()` for Windows/Linux using `Bun.spawn()`
+- macOS path preserved via `spawnSync("/usr/bin/open", ...)`
+- Profile args: `--profile-directory=` (Chromium) and `-P` (Firefox)
+
+### Changes made in this task
+1. **Added `detached: true`** to `Bun.spawn()` options — the code had `proc.unref()` but was missing the explicit `detached: true` flag required by task spec
+2. **Changed Firefox private flag**: `-private-window` → `-private` per task spec. Note: `-private-window` is technically more precise (opens new private window), but task spec explicitly requires `-private`
+
+### Key patterns
+- `Bun.spawn([exePath, ...args], { detached: true, stdio: ['ignore','ignore','ignore'] })` + `proc.unref()` = fully detached, non-blocking browser launch
+- macOS: `spawnSync("/usr/bin/open", ["-n", "-a", appPath, "--args", ...extraArgs, url])`
+- `resolveExecutablePath(appId)` returns `null` on macOS (uses mdfind in launcher instead)
+
+### Gotchas
+- `Bun.spawn()` exists as a global in Bun but NOT in Node.js — this file must only run under Bun
+- Firefox CLI flags: `-private` (quick private session) vs `-private-window` (new private window) — both work but have subtle differences
+- `resolveAppPath()` (macOS mdfind) is separate from `resolveExecutablePath()` (Win/Linux) — they serve the same purpose on different platforms

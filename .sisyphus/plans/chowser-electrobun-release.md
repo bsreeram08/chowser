@@ -387,7 +387,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(ui): add shared Svelte component library`
   - Files: `src/views/shared/components/*.svelte`
 
-- [ ] 4. Implement cross-platform browser launcher (Windows/Linux)
+- [x] 4. Implement cross-platform browser launcher (Windows/Linux)
 
   **What to do**:
   - Modify src/bun/browserLauncher.ts to handle Windows and Linux
@@ -812,7 +812,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 13. Build BrowserConfigRow component for settings
+- [x] 13. Build BrowserConfigRow component for settings
 
   **What to do**:
   - Create src/views/settings/components/BrowserConfigRow.svelte
@@ -856,7 +856,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 14. Build RuleRow component for settings
+- [x] 14. Build RuleRow component for settings
 
   **What to do**:
   - Create src/views/settings/components/RuleRow.svelte
@@ -900,7 +900,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 15. Build reusable Modal/Sheet component
+- [x] 15. Build reusable Modal/Sheet component
 
   **What to do**:
   - Create src/views/shared/components/Modal.svelte

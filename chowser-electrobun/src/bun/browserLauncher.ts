@@ -31,7 +31,7 @@ const CHROMIUM_APP_IDS = new Set([
 function privateFlag(appId: string): string {
   if (CHROMIUM_APP_IDS.has(appId)) return "--incognito";
   if (appId.startsWith("org.mozilla") || appId.startsWith("app.zen-browser"))
-    return "-private-window";
+    return "-private";
   if (appId === "com.apple.Safari") return ""; // Safari has no CLI flag
   return "--private";
 }
@@ -67,7 +67,7 @@ function resolveAppPath(appId: string): string | null {
  *
  * Argument structure:
  *   Chromium: <exe> [--profile-directory=<dir>] [--incognito] [customArgs] <url>
- *   Firefox:  <exe> [-P <profile>] [-private-window] [customArgs] <url>
+ *   Firefox:  <exe> [-P <profile>] [-private] [customArgs] <url>
  *   Other:    <exe> [customArgs] <url>
  */
 function launchBrowserNative(
@@ -112,6 +112,7 @@ function launchBrowserNative(
   // `unref()` releases the child from the parent process.
   try {
     const proc = Bun.spawn([exePath, ...args], {
+      detached: true,
       stdio: ["ignore", "ignore", "ignore"],
     });
     proc.unref();

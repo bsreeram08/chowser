@@ -15,6 +15,7 @@
     isOpen: boolean;
     url: string;
     browsers: Browser[];
+    prefillBrowserId?: string | null;
     onSave: (rule: {
       host: string;
       browserId: string;
@@ -28,6 +29,7 @@
     isOpen,
     url,
     browsers,
+    prefillBrowserId = null,
     onSave,
     onCancel
   } = $props<QuickRuleSheetProps>();
@@ -56,7 +58,7 @@
 
       // Set first browser as default
       if (browsers.length > 0 && !selectedBrowserId) {
-        selectedBrowserId = browsers[0].id;
+        selectedBrowserId = prefillBrowserId ?? browsers[0].id;
         selectedProfile = '';
       }
 

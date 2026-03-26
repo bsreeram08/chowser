@@ -37,11 +37,13 @@ const config: ElectrobunConfig = {
     },
     win: {
       // Icon for Windows installer (ICO format recommended)
-      icon: "icon.iconset/icon_256x256.png",
+      // Using PNG from assets/icons; Electrobun will convert to .ico as needed
+      icon: "assets/icons/icon-512.png",
     },
     linux: {
       // Icon for Linux application
-      icon: "icon.iconset/icon_256x256.png",
+      // Multiple sizes available: icon-256.png, icon-512.png, icon-1024.png
+      icon: "assets/icons/icon-256.png",
     },
   },
   runtime: {

@@ -1,0 +1,34 @@
+Task 38: Clipboard URL handling implemented
+
+CHANGES MADE:
+1. Updated buildClipboardMenu() in src/bun/index.ts
+   - Changed from simple menu item to submenu structure
+   - Menu shows "Open Clipboard URL → [truncated_url]" with submenu items
+   - Submenu items: "Open in Browser..." and "Open in Private..."
+
+2. Added new action handlers in handleMenuAction():
+   - "open-clipboard-picker": reads clipboard URL and opens picker
+   - "open-clipboard-private": reads clipboard URL and opens picker with private mode flag set
+
+3. Added state tracking:
+   - New variable: pendingPickerPrivateMode (boolean) to track if private mode should be suggested
+   - Updated getPickerData RPC response to include preselectedPrivateMode field
+   - Flag is cleared after picker uses it or when picker is dismissed
+
+4. Enhanced PickerSchema type:
+   - Added preselectedPrivateMode field to getPickerData response
+   - Allows picker UI to auto-enable private mode toggle based on tray menu selection
+
+FEATURES:
+✓ Clipboard URL detection on tray menu open (using Utils.clipboardReadText)
+✓ URL validation with isHttpUrl() check
+✓ Submenu items for "Open in Browser..." and "Open in Private..." options
+✓ Private mode flag passed to picker via RPC
+✓ Menu item hidden when clipboard doesn't contain valid http/https URL
+✓ Build verified - no compilation errors
+
+BUILD STATUS: ✓ SUCCESS
+- bun run build completed without errors
+- All TypeScript types validated
+- Vite build succeeded
+

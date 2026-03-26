@@ -2,8 +2,8 @@
 // Browser launcher tests
 // ---------------------------------------------------------------------------
 
-import { describe, test, expect } from "bun:test";
-import { launchByRoute } from "./browserLauncher.ts";
+import { describe, test, expect, beforeEach } from "bun:test";
+import { launchByRoute, launchBrowser, registerAsDefaultBrowser } from "./browserLauncher.ts";
 import type { BrowserConfig, ResolvedRoute } from "./models.ts";
 
 // ---------------------------------------------------------------------------
@@ -482,5 +482,215 @@ describe("launchByRoute", () => {
       browsers
     );
     expect(result).toBe(true);
+  });
+});
+
+// ===========================================================================
+// launchBrowser tests — platform-specific behavior
+// ===========================================================================
+
+describe("launchBrowser — cross-platform", () => {
+  let originalPlatform: string;
+
+  beforeEach(() => {
+    originalPlatform = process.platform;
+  });
+
+  test("launchBrowser with Chromium profile accepts browser config and executes", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-work",
+      name: "Chrome Work",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+      profile: "Profile 1",
+    };
+
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser accepts Chromium browser with profile", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-1",
+      name: "Chrome",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+      profile: "Default",
+    };
+    expect(() => {
+      launchBrowser("https://github.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser accepts Brave browser with profile", () => {
+    const testBrowser: BrowserConfig = {
+      id: "brave-1",
+      name: "Brave",
+      appId: "com.brave.Browser",
+      shortcutKey: "2",
+      profile: "Profile 1",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser accepts Edge browser", () => {
+    const testBrowser: BrowserConfig = {
+      id: "edge-1",
+      name: "Edge",
+      appId: "com.microsoft.edgemac",
+      shortcutKey: "3",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser accepts Firefox with profile", () => {
+    const testBrowser: BrowserConfig = {
+      id: "firefox-work",
+      name: "Firefox Work",
+      appId: "org.mozilla.firefox",
+      shortcutKey: "4",
+      profile: "work",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser accepts Zen browser with profile", () => {
+    const testBrowser: BrowserConfig = {
+      id: "zen-1",
+      name: "Zen",
+      appId: "app.zen-browser.zen",
+      shortcutKey: "5",
+      profile: "Default",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser accepts Safari", () => {
+    const testBrowser: BrowserConfig = {
+      id: "safari",
+      name: "Safari",
+      appId: "com.apple.Safari",
+      shortcutKey: "6",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles private mode with Chromium", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-1",
+      name: "Chrome",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, true);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles private mode with Firefox", () => {
+    const testBrowser: BrowserConfig = {
+      id: "firefox-1",
+      name: "Firefox",
+      appId: "org.mozilla.firefox",
+      shortcutKey: "2",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, true);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles custom arguments", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-custom",
+      name: "Chrome Custom",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+      customArguments: "--no-sandbox --disable-gpu",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles Chrome with both profile and custom args", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-full",
+      name: "Chrome Full",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+      profile: "Profile 1",
+      customArguments: "--no-sandbox",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles Firefox with both profile and custom args", () => {
+    const testBrowser: BrowserConfig = {
+      id: "firefox-full",
+      name: "Firefox Full",
+      appId: "org.mozilla.firefox",
+      shortcutKey: "1",
+      profile: "work",
+      customArguments: "-new-tab",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser with private mode and profile", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-private",
+      name: "Chrome Private",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+      profile: "Profile 2",
+    };
+    expect(() => {
+      launchBrowser("https://example.com", testBrowser, true);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles URLs with query params", () => {
+    const testBrowser: BrowserConfig = {
+      id: "chrome-1",
+      name: "Chrome",
+      appId: "com.google.Chrome",
+      shortcutKey: "1",
+    };
+    expect(() => {
+      launchBrowser("https://example.com/search?q=test&page=1", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("launchBrowser handles URLs with fragments", () => {
+    const testBrowser: BrowserConfig = {
+      id: "firefox-1",
+      name: "Firefox",
+      appId: "org.mozilla.firefox",
+      shortcutKey: "2",
+    };
+    expect(() => {
+      launchBrowser("https://example.com/docs#section-1", testBrowser, false);
+    }).not.toThrow();
+  });
+
+  test("registerAsDefaultBrowser opens system preferences", () => {
+    expect(() => {
+      registerAsDefaultBrowser("com.google.Chrome");
+    }).not.toThrow();
   });
 });

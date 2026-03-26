@@ -44,6 +44,7 @@ import {
   nextAvailableShortcut,
 } from "./models.ts";
 import { resolveRoute, recordDomainClick, getSuggestions } from "./routing.ts";
+import { getSuggestionForDomain, dismissSuggestion } from "./domainFrequency.ts";
 import { detectInstalledBrowsers } from "./browserDetector.ts";
 import { launchBrowser, launchByRoute } from "./browserLauncher.ts";
 import { cleanUrl, unshortenUrl, isHttpUrl } from "./urlUtils.ts";
@@ -329,14 +330,20 @@ function buildClipboardMenu(): MenuItemConfig[] {
       const truncated = text.length > 60 ? text.slice(0, 60) + "…" : text;
       return [
         {
-          label: `Open Clipboard URL`,
+          label: `Open Clipboard URL → ${truncated}`,
           type: "normal" as const,
-          action: "open-clipboard-url",
-        },
-        {
-          label: truncated,
-          type: "normal" as const,
-          action: "noop",
+          submenu: [
+            {
+              label: "Open in Browser…",
+              type: "normal" as const,
+              action: "open-clipboard-picker",
+            },
+            {
+              label: "Open in Private…",
+              type: "normal" as const,
+              action: "open-clipboard-private",
+            },
+          ],
         },
       ];
     }
@@ -461,9 +468,17 @@ function handleMenuAction(action: string | undefined) {
       flushState();
       Utils.quit();
       break;
-    case "open-clipboard-url": {
+    case "open-clipboard-picker": {
       const text = Utils.clipboardReadText() ?? "";
-      if (isHttpUrl(text)) handleIncomingURL(text);
+      if (isHttpUrl(text)) showPicker(text);
+      break;
+    }
+    case "open-clipboard-private": {
+      const text = Utils.clipboardReadText() ?? "";
+      if (isHttpUrl(text)) {
+        pendingPickerPrivateMode = true;
+        showPicker(text);
+      }
       break;
     }
     case "clear-focus-mode":
@@ -609,6 +624,7 @@ function recordRecentUrl(url: string, browserId: string | null) {
 let pickerWindow: InstanceType<typeof BrowserWindow> | null = null;
 let pendingPickerUrl: string | null = null;
 let pendingPickerSourceApp: string | null = null;
+let pendingPickerPrivateMode: boolean = false;
 
 type PickerSchema = ElectrobunRPCSchema & {
   bun: {
@@ -620,6 +636,7 @@ type PickerSchema = ElectrobunRPCSchema & {
           browsers: BrowserConfig[];
           suggestedRuleHostPattern: string;
           focusMode: FocusMode | null;
+          preselectedPrivateMode: boolean;
         };
       };
       openInBrowser: {
@@ -637,10 +654,18 @@ type PickerSchema = ElectrobunRPCSchema & {
          response: void;
        };
        unshortenUrl: {
-         params: { url: string };
-         response: { url: string; error?: string };
-       };
-     };
+          params: { url: string };
+          response: { url: string; error?: string };
+        };
+        getSuggestion: {
+          params: undefined;
+          response: { domain: string; browserId: string; browserName: string } | null;
+        };
+        dismissSuggestion: {
+          params: { domain: string };
+          response: void;
+        };
+      };
      messages: Record<string, never>;
   };
   webview: {
@@ -672,12 +697,16 @@ function showPicker(url: string, sourceApp?: string) {
           try {
             suggestedHostPattern = new URL(pendingPickerUrl ?? url).hostname;
           } catch {}
-          return {
+          const result = {
             url: pendingPickerUrl ?? url,
             browsers: s.configuredBrowsers,
             suggestedRuleHostPattern: suggestedHostPattern,
             focusMode: s.focusMode,
+            preselectedPrivateMode: pendingPickerPrivateMode,
           };
+          // Clear the flag after using it
+          pendingPickerPrivateMode = false;
+          return result;
         },
         openInBrowser: (params: unknown) => {
           const { browserId, usePrivateMode } = params as {
@@ -700,6 +729,7 @@ function showPicker(url: string, sourceApp?: string) {
           pickerWindow = null;
           pickerRPC = null;
           pendingPickerUrl = null;
+          pendingPickerPrivateMode = false;
         },
         createRule: (params: unknown) => {
           const { name, hostPattern, browserAppId, usePrivateMode } =
@@ -729,6 +759,24 @@ function showPicker(url: string, sourceApp?: string) {
            } catch (err) {
              return { url, error: (err as Error).message };
            }
+         },
+         getSuggestion: () => {
+           const s = getState();
+           let domain = "";
+           try {
+             domain = new URL(pendingPickerUrl ?? "").hostname;
+           } catch {
+             return null;
+           }
+           return getSuggestionForDomain(
+             domain,
+             s.domainFrequency,
+             s.configuredBrowsers,
+           );
+         },
+         dismissSuggestion: (params: unknown) => {
+           const { domain } = params as { domain: string };
+           dismissSuggestion(domain);
          },
        } as unknown as Parameters<typeof BrowserView.defineRPC<PickerSchema>>[0]["handlers"]["requests"],
     },

@@ -7,6 +7,7 @@
   import PickerShell from './components/PickerShell.svelte';
   import QuickRuleSheet from './components/QuickRuleSheet.svelte';
   import FocusStatusBanner from './components/FocusStatusBanner.svelte';
+  import SuggestionBanner from './components/SuggestionBanner.svelte';
 
   // ---------------------------------------------------------------------------
   // RPC schema (mirrors PickerSchema in src/bun/index.ts)
@@ -56,6 +57,14 @@
            params: { url: string };
            response: { url: string; error?: string };
          };
+         getSuggestion: {
+           params: undefined;
+           response: { domain: string; browserId: string; browserName: string } | null;
+         };
+         dismissSuggestion: {
+           params: { domain: string };
+           response: void;
+         };
        };
        messages: Record<string, never>;
     };
@@ -81,6 +90,8 @@
   let isLoaded = $state(false);
   let focusMode = $state<FocusMode | null>(null);
   let focusCountdown = $state<string | null>(null);
+  let suggestion = $state<{ domain: string; browserId: string; browserName: string } | null>(null);
+  let prefillBrowserId = $state<string | null>(null);
 
   // Layout mode — defaults to 'icons'; can be extended later from settings
   let layoutMode = $state<'icons' | 'list'>('icons');
@@ -119,6 +130,12 @@
 
       isLoaded = true;
       updateFocusCountdown();
+
+      try {
+        suggestion = await rpc.request('getSuggestion', undefined);
+      } catch {
+        suggestion = null;
+      }
     } catch (err) {
       console.error('[picker] Failed to load picker data:', err);
     }
@@ -333,10 +350,27 @@
     }
 
     showQuickRuleSheet = false;
+    prefillBrowserId = null;
   }
 
   function handleRuleCancel() {
     showQuickRuleSheet = false;
+    prefillBrowserId = null;
+  }
+
+  function handleSuggestionAccept() {
+    if (!suggestion) return;
+    prefillBrowserId = suggestion.browserId;
+    showQuickRuleSheet = true;
+    suggestion = null;
+  }
+
+  async function handleSuggestionDismiss() {
+    if (!suggestion) return;
+    try {
+      await rpc.request('dismissSuggestion', { domain: suggestion.domain });
+    } catch {}
+    suggestion = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -354,6 +388,14 @@
 {#if isLoaded}
   <PickerShell>
     {#snippet url()}
+      {#if suggestion}
+        <SuggestionBanner
+          domain={suggestion.domain}
+          browserName={suggestion.browserName}
+          onAccept={handleSuggestionAccept}
+          onDismiss={handleSuggestionDismiss}
+        />
+      {/if}
       {#if focusMode}
         {#if focusMode.expiresAt === null || focusMode.expiresAt > Date.now()}
           {@const focusBrowser = browsers.find(b => b.id === focusMode.browserId)}
@@ -391,6 +433,7 @@
       isOpen={showQuickRuleSheet}
       {url}
       browsers={browsers.map(b => ({ id: b.id, name: b.name, appId: b.appId }))}
+      {prefillBrowserId}
       onSave={handleRuleSave}
       onCancel={handleRuleCancel}
     />

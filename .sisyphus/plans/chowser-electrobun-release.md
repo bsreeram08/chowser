@@ -450,7 +450,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(launcher): add Windows and Linux browser launching`
   - Files: `src/bun/browserLauncher.ts`
 
-- [ ] 5. Add Windows/Linux build targets to electrobun.config.ts
+- [x] 5. Add Windows/Linux build targets to electrobun.config.ts
 
   **What to do**:
   - Add `build.windows` section to electrobun.config.ts
@@ -498,7 +498,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Task 4)
 
-- [ ] 6. Create platform detection utilities
+- [x] 6. Create platform detection utilities
 
   **What to do**:
   - Create src/bun/platform.ts with platform detection functions
@@ -544,7 +544,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Task 4)
 
-- [ ] 7. Set up Playwright for Electrobun UI testing
+- [x] 7. Set up Playwright for Electrobun UI testing
 
   **What to do**:
   - Install @playwright/test as dev dependency

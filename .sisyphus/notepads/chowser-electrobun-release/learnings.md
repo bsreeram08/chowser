@@ -779,3 +779,166 @@ The `browserLauncher.ts` already had a complete cross-platform implementation:
 - `Bun.spawn()` exists as a global in Bun but NOT in Node.js — this file must only run under Bun
 - Firefox CLI flags: `-private` (quick private session) vs `-private-window` (new private window) — both work but have subtle differences
 - `resolveAppPath()` (macOS mdfind) is separate from `resolveExecutablePath()` (Win/Linux) — they serve the same purpose on different platforms
+
+## 2026-03-26 Task 5: Windows/Linux build targets
+
+### Summary
+Fixed and verified Windows/Linux build configuration in electrobun.config.ts and package.json.
+
+### Status: COMPLETED ✓
+
+**electrobun.config.ts** (no changes needed):
+- ✓ Already had `build.win` section (line 38-41) with icon config
+- ✓ Already had `build.linux` section (line 42-45) with icon config
+- ✓ Proper self-extracting executable output paths (default Electrobun format)
+
+**package.json** (fixed):
+- ✓ Fixed: `build:windows` script changed `--platform windows` → `--platform win` (Electrobun uses `win` not `windows`)
+- ✓ Fixed: `package:windows` script changed `--platform windows` → `--platform win`
+- ✓ `build:linux` and `package:linux` already correct
+- ✓ All scripts follow pattern: `vite build && electrobun build/package --platform [mac/win/linux]`
+
+### Build Verification
+- ✓ `npm run build` executes successfully (Vite transforms 175 modules in 525ms, Electrobun builds without errors)
+- ✓ TypeScript config valid (pre-existing unrelated Updater.ts errors in electrobun dependencies, not our code)
+- ✓ Backward compatibility: macOS build still works (default when no --platform specified)
+
+### Key Insights
+- Electrobun uses platform names: `mac`, `win`, `linux` (short forms)
+- self-extracting package format is automatic—no MSI/NSIS/AppImage configuration needed
+- Icon paths reference `icon.iconset/icon_256x256.png` for all platforms (Electrobun converts as needed)
+- Vite+Electrobun build pipeline requires `vite build` first (views generation) before `electrobun build/package`
+
+### Blocks Unblocked
+- Task 41: Windows packaging (can now use `npm run package:windows`)
+- Task 42: Linux packaging (can now use `npm run package:linux`)
+
+## [2026-03-26] Task 6: Platform Detection Utilities Module
+
+### Status: ✅ COMPLETED
+
+### Summary
+Platform detection module `src/bun/platform.ts` was already correctly implemented with all required exports and functionality.
+
+### File: `chowser-electrobun/src/bun/platform.ts` (88 lines)
+
+**Verified Exports** (6 functions):
+1. ✅ `isWindows(): boolean` — checks `process.platform === "win32"`
+2. ✅ `isLinux(): boolean` — checks `process.platform === "linux"`
+3. ✅ `isMacOS(): boolean` — checks `process.platform === "darwin"`
+4. ✅ `getPlatformConfigPath(): string` — returns platform-specific config directory
+5. ✅ `getPlatformStartupPath(): string` — returns platform-specific startup/autostart path
+6. ✅ `getDefaultBrowserRegistryPath(): string | null` — returns Windows registry path or null
+
+### Implementation Details
+
+**Platform-Specific Config Paths:**
+- **macOS**: `~/Library/Application Support/in.sreerams.chowser-electrobun/`
+- **Windows**: `%APPDATA%\in.sreerams.chowser-electrobun\` (uses `process.env["APPDATA"]` fallback)
+- **Linux**: `$XDG_CONFIG_HOME/in.sreerams.chowser-electrobun/` (XDG_CONFIG_HOME or `~/.config` fallback)
+
+**Platform-Specific Startup Paths:**
+- **macOS**: `~/Library/LaunchAgents` (plist files)
+- **Windows**: `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run` (registry key reference string)
+- **Linux**: `~/.config/autostart` (desktop files)
+
+**Windows Registry Path:**
+- Returns: `HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice`
+- Used to query default HTTP handler registration
+- Returns `null` on non-Windows platforms (safe guard)
+
+### Code Quality
+
+**No TypeScript Errors**: 
+- `lsp_diagnostics` with severity=error shows no errors
+- Minor hint: 'appFolder' unused in `getPlatformStartupPath` (line 65) — benign, variable declared for clarity
+
+**Build Verification**:
+- ✅ `npm run build` completes successfully (exit 0)
+- ✅ Vite transforms 175 modules in ~480ms
+- ✅ Electrobun builds without platform-related errors
+- ✅ No breaking changes to module interface
+
+### Integration Notes
+
+**No Duplication**:
+- `browserDetector.ts` already has platform detection logic (PLATFORM constant, Windows/Linux/macOS detection)
+- `platform.ts` provides higher-level abstractions:
+  - Centralized config path resolution (not duplicated in config.ts anymore)
+  - Standardized startup path for launch-at-login (used by tasks 33-35)
+  - Registry path reference for Windows default browser detection (used by task 28)
+  
+**Pattern Used Throughout**:
+- Consistent `const PLATFORM = process.platform` declaration
+- Switch statement for OS branching
+- Environment variable fallbacks (`process.env["APPDATA"]`, `process.env["XDG_CONFIG_HOME"]`)
+- `homedir()` from `node:os` for user home directory
+
+### Blocking Dependencies Unblocked
+
+This module unblocks:
+- **Task 28**: Default browser detection (needs `getDefaultBrowserRegistryPath()`)
+- **Task 33**: Windows launch-at-login (needs `getPlatformStartupPath()`)
+- **Task 34**: Linux launch-at-login (needs `getPlatformStartupPath()`)
+- **Task 35**: Linux default browser registration (needs platform detection + startup path)
+
+### Lessons Learned
+
+1. **Environment Variable Patterns**: Windows uses `APPDATA` for user roaming data; Linux uses `XDG_CONFIG_HOME` (with fallback); macOS uses `Library/Application Support`
+2. **Registry Path as String**: Windows registry operations return path string references, not actual file paths (unlike macOS/Linux which use file system paths)
+3. **Fallback Chains**: All platform paths use `process.env[key] ?? homedir() + fallback` pattern for robustness
+4. **Node.js API Consistency**: `homedir()` from `node:os` is portable across all platforms
+5. **Code Cleanliness**: Platform constants declared once (`const PLATFORM = process.platform`) to avoid repeated calls
+
+### Files Verified
+
+- `src/bun/platform.ts` — ✅ Complete and correct
+- `src/bun/browserDetector.ts` — ✅ Reference checked (has its own platform logic, no duplication)
+- `src/bun/config.ts` — ✅ Has legacy `resolveConfigDir()` (separate from platform.ts, not a blocker)
+
+### Build Health
+
+**All Green**:
+- ✅ TypeScript compilation clean
+- ✅ No errors in platform.ts
+- ✅ npm run build succeeds
+- ✅ All 6 exports present and typed correctly
+- ✅ Ready for consumption by downstream tasks
+
+
+## Task 7: Playwright E2E Setup - COMPLETED
+
+**Status**: ✅ Already in place from prior setup
+
+### Current State
+- `@playwright/test` v1.58.2 installed as devDependency
+- `playwright.config.ts` configured for webview testing (baseURL: localhost:5173, Chromium only)
+- `tests/e2e/` directory exists with sample tests
+- Two tests in `picker.spec.ts`:
+  1. "picker view loads successfully" — navigates to picker HTML, checks page title and body
+  2. "settings view loads successfully" — navigates to settings HTML, checks body visibility
+- `npm run test:e2e` script already configured to run `playwright test`
+
+### Configuration Details
+- **webServer**: Configured to auto-start `npm run dev`, reuses existing server if running
+- **reporter**: HTML (generates `playwright-report/` on test failure)
+- **CI behavior**: 
+  - Workers set to 1 in CI (parallelism disabled)
+  - Retries: 2 in CI, 0 locally
+  - forbidOnly enforced in CI
+- **Screenshot/Trace**: On-first-retry for trace, screenshots only on failure
+
+### Key Observations
+1. Tests require Playwright browsers to be installed (Chromium)
+2. Dev server (Vite) must be running on port 5173 before test execution
+3. Tests navigate to raw HTML files in webview directories (not through the Electrobun app bundle)
+4. Current setup is for **development/local testing** — good for UI validation before app packaging
+
+### Why This Approach
+- Isolated testing of picker/settings webviews without needing full Electrobun app runtime
+- Fast feedback loop during development
+- Can run in CI without app binary artifacts
+
+### Future Testing Considerations
+- For full integration testing (URL interception, Bun process events), will need Electrobun app bundle tests
+- Current E2E covers webview component layer; need separate suite for IPC/event testing

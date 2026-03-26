@@ -1499,7 +1499,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 28. Implement Default Browser step with platform-specific registration
+ - [x] 28. Implement Default Browser step with platform-specific registration
 
   **What to do**:
   - Create src/views/onboarding/steps/DefaultBrowserStep.svelte

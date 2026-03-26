@@ -942,3 +942,86 @@ This module unblocks:
 ### Future Testing Considerations
 - For full integration testing (URL interception, Bun process events), will need Electrobun app bundle tests
 - Current E2E covers webview component layer; need separate suite for IPC/event testing
+
+
+## Task 28: DefaultBrowserStep for Onboarding Wizard
+
+### ✅ COMPLETED
+
+**File Created**: `chowser-electrobun/src/views/onboarding/steps/DefaultBrowserStep.svelte`
+
+### Features Implemented
+
+1. **Platform-specific instruction card**
+   - macOS: Opens System Settings → Desktop & Dock → Default web browser
+   - Windows: Opens ms-settings:defaultapps via Windows Settings
+   - Linux: Runs `xdg-settings set default-web-browser chowser.desktop` command
+   - Rendered via `{#if platform === 'win32'} / {:else if platform === 'linux'} / {:else}` block inside Card
+
+2. **Already-default detection state**
+   - Props: `isAlreadyDefault?: boolean` (parent passes result of RPC check on mount)
+   - Shows ✅ "Already set as default" card + "Continue" button when true
+   - `justSet` local `$state` flag also triggers success card after user clicks "Set as Default"
+
+3. **"Set as Default" primary button**
+   - `variant="primary"` `size="lg"` Button component
+   - Calls `onSetDefault()` prop — parent wires actual RPC:
+     - macOS: `rpc.request('openSystemSettings', { uri: 'x-apple.systempreferences:com.apple.preference.desktopscreeneffect' })`
+     - Windows: `rpc.request('openSystemSettings', { uri: 'ms-settings:defaultapps' })`
+     - Linux: `rpc.request('setDefaultBrowser', { method: 'xdg-settings' })`
+   - `settingInProgress` local state shows "Opening…" text during async call
+   - `disabled={settingInProgress}` prevents double-click
+
+4. **Skip option**
+   - "Skip this step" ghost link button at the very bottom
+   - Calls `onSkip()` prop
+   - Same pattern as AISetupStep.svelte footer button
+
+### Component Props Interface
+
+```typescript
+interface DefaultBrowserStepProps {
+  platform?: 'darwin' | 'win32' | 'linux';   // Current OS, default 'darwin'
+  isAlreadyDefault?: boolean;                  // RPC-detected, default false
+  onSetDefault?: () => void;                   // Trigger platform-specific RPC
+  onNext?: () => void;                         // Advance to next step
+  onSkip?: () => void;                         // Skip step entirely
+}
+```
+
+### Platform-Specific Registration URLs/Commands
+
+| Platform | Method | URI / Command |
+|----------|--------|--------------|
+| macOS    | `openSystemSettings` | `x-apple.systempreferences:com.apple.preference.desktopscreeneffect` |
+| Windows  | `openSystemSettings` | `ms-settings:defaultapps` |
+| Linux    | `setDefaultBrowser`  | method: `xdg-settings` → runs `xdg-settings set default-web-browser chowser.desktop` |
+
+### RPC Method Signatures (UI side, not implemented here)
+
+```typescript
+// macOS / Windows
+rpc.request('openSystemSettings', { uri: string }) → void
+
+// Linux
+rpc.request('setDefaultBrowser', { method: 'xdg-settings' }) → void
+
+// Auto-detection (call on mount in parent)
+rpc.request('isDefaultBrowser', undefined) → boolean
+```
+
+### Key Design Decisions
+
+- **Component is purely presentational** — platform detection passed as prop; parent calls RPC
+- **`platform` prop** (not imported directly from `platform.ts`) because this is a webview component; it cannot import Bun-side modules directly. Parent resolves the platform and passes it down.
+- **`justSet` local state** provides immediate UI feedback after clicking "Set as Default" without waiting for re-detection RPC
+- **Card component** wraps both the how-to-steps section and the success state (consistent with AISetupStep pattern)
+- **Footer skip** uses identical `.skip-button` pattern from AISetupStep.svelte
+
+### Build Status
+
+✅ `npm run build` succeeds with exit 0
+✅ 175 modules transformed (count unchanged)
+✅ No DefaultBrowserStep-specific TypeScript or Svelte compilation errors
+✅ All warnings are pre-existing in other components
+✅ Bundle sizes: settings.js 81.49 kB (gzip 25.76 kB)

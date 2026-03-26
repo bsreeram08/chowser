@@ -1552,7 +1552,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 29. Implement Browsers detection step
+- [x] 29. Implement Browsers detection step
 
   **What to do**:
   - Create src/views/onboarding/steps/BrowsersStep.svelte
@@ -1593,7 +1593,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 30. Implement AI Setup step (MCP server)
+- [x] 30. Implement AI Setup step (MCP server)
 
   **What to do**:
   - Create src/views/onboarding/steps/AISetupStep.svelte

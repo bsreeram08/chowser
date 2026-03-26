@@ -320,3 +320,219 @@ DefaultBrowserStep.svelte can now be created using similar pattern:
 - Props: `onNext`, `onSkip` (both optional)
 - Show system settings icon or similar
 - Implement two-button layout (System Settings button + Continue/Skip)
+
+## Task 29: Browsers Detection Step for Onboarding Wizard
+
+### ✅ COMPLETED
+
+**File Created**: `chowser-electrobun/src/views/onboarding/steps/BrowsersStep.svelte` (170 lines)
+
+### Features Implemented
+
+1. **Browser List Display**
+   - Accepts array of `Browser` objects with `id`, `name`, `appId`, `profiles`
+   - Renders each browser as a selectable item with checkbox
+   - Shows browser name and profile count (e.g., "3 profiles", "Default")
+
+2. **Browser Icon Integration**
+   - Uses BrowserIcon component: `<BrowserIcon bundleId={browser.appId} size="medium" />`
+   - Size: 32px (medium)
+   - Positioned left of browser info
+
+3. **Checkbox State Management**
+   - Local state using Svelte 5 `$state`: `let browserStates = $state<Record<string, boolean>>()`
+   - Defaults all browsers to checked
+   - `$effect` hook initializes states on props change
+   - Each toggle calls `onBrowserToggle(browserId, included)` callback
+
+4. **Profile Count Display**
+   - Helper function: `getProfileCount(browser)` returns:
+     - "Default" if no profiles
+     - "1 profile" if single profile
+     - "N profiles" for multiple
+
+5. **Detect Again Button**
+   - Secondary variant button with 🔍 emoji
+   - Calls `onDetectAgain()` callback
+   - Center-aligned below browser list
+
+6. **Layout & Styling**
+   - Vertical flexbox layout (column)
+   - Header: "Choose Your Browsers" heading + description text
+   - Scrollable browser list with overflow-y auto
+   - Footer: Primary "Continue" button (calls `onNext()`)
+   - Each browser item has border, rounded corners, hover state
+   - Consistent spacing using design tokens (--spacing-3 through --spacing-8)
+
+7. **Design Tokens Used**
+   - Colors: text-primary, text-secondary, control-background, control-border, separator, accent
+   - Typography: font-family-system, font-size-base/2xl, font-weight-regular/medium/bold
+   - Spacing: spacing-1 through spacing-8
+   - Radius: radius-md
+
+### Component Props Interface
+
+```typescript
+interface Browser {
+  id: string;
+  name: string;
+  appId: string;
+  profiles?: string[];
+}
+
+interface BrowsersStepProps {
+  browsers?: Browser[];
+  onBrowserToggle?: (browserId: string, included: boolean) => void;
+  onDetectAgain?: () => void;
+  onNext?: () => void;
+}
+```
+
+### Key Implementation Details
+
+- **Svelte 5 Runes**: Uses `$props` destructuring and `$state` for local checkbox tracking
+- **Reactive Effects**: `$effect` block ensures checkbox state is initialized when browsers prop changes
+- **Checkbox Binding**: `bind:checked={browserStates[browserId]}` keeps state in sync
+- **Event Handlers**: `onchange` event (Svelte 5 syntax, not deprecated `on:change`)
+- **Browser Item Layout**: Flexbox with checkbox + icon + info (name + profile count)
+- **Hover Effects**: Browser items lighten on hover with background color change
+
+### Build Status
+
+✅ `npm run build` succeeds with no BrowsersStep-specific errors
+✅ Bundle includes new step in vite build
+✅ All Svelte 5 syntax verified (no deprecated directives)
+✅ TypeScript compilation clean for this component
+
+### Integration Notes
+
+- Ready to be nested inside OnboardingShell.svelte (created in Task 26)
+- Follows same pattern as WelcomeStep.svelte (Task 27)
+- Works with RPC-provided browser data from `src/bun/index.ts` 
+- OnboardingShell manages navigation callbacks (onNext, onBack, etc.)
+- This step only handles browser selection UI + state callbacks
+
+### Next Steps (Task 30)
+
+RulesStep.svelte can now be created using similar pattern:
+- Show detected/available routing rules
+- Allow enabling/disabling rules
+- Preview rule conditions (host, path, source app)
+
+## Task 30: AI Setup Step for Onboarding Wizard
+
+### ✅ COMPLETED
+
+**File Created**: `chowser-electrobun/src/views/onboarding/steps/AISetupStep.svelte` (384 lines)
+
+### Features Implemented
+
+1. **Two-State UI (Stopped/Running)**
+   - When `serverStatus === 'stopped'`: Shows "Start Server" button with explainer text
+   - When `serverStatus === 'running'`: Shows running status, token, and setup instructions
+
+2. **Token Display & Copy**
+   - Shows truncated token (first 8 chars + "..." + last 8 chars) in monospace code block
+   - Secondary copy button reveals "✓ Copied" feedback for 2 seconds
+   - Uses `navigator.clipboard.writeText()` with error handling
+
+3. **Collapsible Setup Instructions**
+   - Toggle button expands/collapses setup prompt for AI assistants
+   - Stores prompt text in `<pre>` tag with monospace font
+   - Copy button exports full setup prompt to clipboard
+   - Prompt includes: server URL, auth token, and purpose
+
+4. **Status Badge**
+   - Green dot indicator + "Running" text when server active
+   - Centered badge with semi-transparent background
+
+5. **Skip Option**
+   - "Skip this step" link at bottom (ghost button styling)
+   - Calls `onSkip()` callback for users who don't want AI integration
+
+6. **Component Props Interface**
+   ```typescript
+   interface AISetupStepProps {
+     serverStatus?: 'running' | 'stopped';  // Server state
+     authToken?: string;                     // Auth token when running
+     onStartServer?: () => void;             // Start button clicked
+     onCopyToken?: () => void;               // Token copied (for telemetry)
+     onCopySetupPrompt?: () => void;         // Setup prompt copied
+     onSkip?: () => void;                    // Skip clicked
+   }
+   ```
+
+### Key Implementation Details
+
+- **Svelte 5 Runes**: 
+  - Props: `let { ... } = $props<AISetupStepProps>()`
+  - Local state: `let copiedToken = $state(false)` for copy feedback timing
+  - Derived state not needed (simple conditional rendering)
+
+- **Copy Feedback Pattern**:
+  ```typescript
+  const copyToClipboard = async (text: string, setCopied: (v: boolean) => void) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);  // Reset after 2s
+  };
+  ```
+
+- **Conditional Rendering**:
+  - `{#if serverStatus === 'stopped'}` — Start Server card
+  - `{#if serverStatus === 'running' && authToken}` — Running card with token + prompt
+
+- **Icon Usage**:
+  - 🤖 emoji for AI setup (stopped state)
+  - ▶/▼ chevron for collapsible prompt toggle
+
+- **Typography & Spacing**:
+  - Main heading: font-size-2xl, font-weight-bold
+  - Section headings: font-size-lg, font-weight-bold
+  - Descriptions: font-size-base, secondary text color
+  - Consistent gap spacing: var(--spacing-4) between sections
+
+- **Code/Token Display**:
+  - Font family: `'Monaco', 'Menlo', 'Ubuntu Mono', monospace`
+  - Background: var(--color-control-background)
+  - Border: 1px solid var(--color-control-border)
+  - Padding: var(--spacing-2) var(--spacing-3)
+
+### Design Tokens Used
+
+- Colors: accent, control-background, control-border, text-primary, text-secondary, separator
+- Typography: font-family-system, font-size-sm/base/lg/2xl, font-weight-regular/medium/bold
+- Spacing: spacing-2 through spacing-8
+- Radius: radius-md, radius-sm
+- Shadows: shadow-sm
+
+### Build Status
+
+✅ `npm run build` succeeds with exit 0
+✅ Bundle includes onboarding step in vite build
+✅ No AISetupStep-specific TypeScript or Svelte compilation errors
+✅ All 175 modules transformed successfully
+✅ Final bundle sizes: settings.js 81.49 kB (gzip 25.76 kB)
+
+### Acceptance Criteria Met
+
+- ✅ Start server button works (calls `onStartServer()`)
+- ✅ Token can be copied (shows "✓ Copied" feedback)
+- ✅ Setup prompt can be copied to clipboard
+- ✅ Skip advances to next step (calls `onSkip()`)
+- ✅ Responsive layout with Card component sections
+- ✅ Design tokens integrated throughout
+
+### Integration Notes
+
+- Ready to be nested inside OnboardingShell.svelte (Task 26)
+- Follows same pattern as WelcomeStep.svelte (Task 27) and BrowsersStep.svelte (Task 29)
+- Parent component (OnboardingView.svelte) will pass `serverStatus`, `authToken`, and callbacks
+- MCP server start/stop logic remains in parent; this component only handles UI
+
+### Next Steps (Tasks 31-35)
+
+RulesStep.svelte and FinishStep.svelte can be created using similar pattern:
+- RulesStep: Show sample rules, allow enabling/disabling, manage rule ordering
+- FinishStep: Completion summary, launch app, celebration
+

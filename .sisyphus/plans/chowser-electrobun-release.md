@@ -1721,7 +1721,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 33. Implement launch-at-login for Windows
+- [x] 33. Implement launch-at-login for Windows
 
   **What to do**:
   - Create platform-specific startup registration
@@ -1763,7 +1763,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 34. Implement launch-at-login for Linux
+- [x] 34. Implement launch-at-login for Linux
 
   **What to do**:
   - Create .desktop file in ~/.config/autostart/
@@ -1804,7 +1804,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 35. Implement default browser registration for Linux
+- [x] 35. Implement default browser registration for Linux
 
   **What to do**:
   - Create chowser.desktop file with MimeType handlers

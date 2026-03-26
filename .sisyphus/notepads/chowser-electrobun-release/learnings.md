@@ -1025,3 +1025,235 @@ rpc.request('isDefaultBrowser', undefined) → boolean
 ✅ No DefaultBrowserStep-specific TypeScript or Svelte compilation errors
 ✅ All warnings are pre-existing in other components
 ✅ Bundle sizes: settings.js 81.49 kB (gzip 25.76 kB)
+
+---
+
+## Task 33: Windows Launch-at-Login via Registry
+
+### ✅ COMPLETED
+
+**RPC handler signature:**
+```typescript
+setLaunchAtLogin: async (params: unknown) => {
+  const { enabled } = params as { enabled: boolean };
+  if (isWindows()) {
+    await setLaunchAtLoginWindows(enabled);
+  } else {
+    setLaunchAtLoginMac(enabled);
+  }
+  patchState({ launchAtLogin: enabled });
+}
+```
+
+**Registry key path:**
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+- Value name: `Chowser`
+- Value type: `REG_SZ`
+- Value data: `process.execPath` (full path to Chowser.exe)
+
+**reg.exe command patterns:**
+- Enable: `reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Chowser /t REG_SZ /d "<exe path>" /f`
+- Disable: `reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Chowser /f`
+
+**Bun.spawn() gotchas:**
+- Use `{ stdio: ["ignore", "pipe", "pipe"] }` to capture stdout/stderr
+- `await proc.exited` to wait for completion
+- Read stderr via `await new Response(proc.stderr).text()` for error messages
+- `reg delete` returns exit code 1 when key doesn't exist; treat as success for "disable"
+
+**Import:** `isWindows` imported from `./platform.ts` (already had `isLinux` imported for `setDefaultBrowser`)
+
+**Build verification:** `npm run build` exits code 0. All Svelte warnings are pre-existing (Svelte 5 migration debt), not introduced by this change.
+
+
+## Task 35: Linux Default Browser Registration
+
+### ✅ COMPLETED
+
+**File Modified**: `chowser-electrobun/src/bun/index.ts`
+
+### Implementation Summary
+
+Added `setDefaultBrowser` RPC handler to `SettingsSchema` and its implementation in `openSettings()`.
+
+**New imports added:**
+```typescript
+import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, basename, join } from "node:path";
+import { isWindows, isLinux } from "./platform.ts";
+```
+
+**Schema type added to `SettingsSchema`:**
+```typescript
+setDefaultBrowser: {
+  params: undefined;
+  response: { success: boolean; error?: string };
+};
+```
+
+**Handler implementation:**
+```typescript
+setDefaultBrowser: async () => {
+  if (isLinux()) {
+    const applicationsDir = join(homedir(), ".local", "share", "applications");
+    const desktopFile = join(applicationsDir, "chowser.desktop");
+    const exePath = process.execPath;
+    try {
+      await mkdir(applicationsDir, { recursive: true });
+      const desktopEntry = [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Chowser",
+        "Comment=Smart browser router",
+        `Exec=${exePath} %u`,
+        "Icon=chowser",
+        "Terminal=false",
+        "Categories=Network;WebBrowser;",
+        "MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;",
+        "",
+      ].join("\n");
+      await writeFile(desktopFile, desktopEntry, "utf-8");
+      const result = Bun.spawn(["xdg-settings", "set", "default-web-browser", "chowser.desktop"]);
+      await result.exited;
+      return { success: result.exitCode === 0 };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
+  return { success: false, error: "Linux only" };
+},
+```
+
+### Desktop Entry Format
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=Chowser
+Comment=Smart browser router
+Exec=/path/to/chowser %u
+Icon=chowser
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;
+```
+
+- Location: `~/.local/share/applications/chowser.desktop`
+- `%u` in Exec is the XDG URL argument placeholder
+- `MimeType` must include `x-scheme-handler/http`, `x-scheme-handler/https`, and `text/html`
+- Semicolons separate MIME types; trailing semicolon required
+
+### xdg-settings Command
+
+```
+xdg-settings set default-web-browser chowser.desktop
+```
+
+- Requires `.desktop` file to already exist in `~/.local/share/applications/`
+- Works on GNOME, KDE, XFCE, and other XDG-compliant desktops
+- Returns exit code 0 on success
+- `Bun.spawn()` + `await result.exited` used for async process management
+
+### Applications Directory Path
+
+- Standard XDG path: `~/.local/share/applications/`
+- Created with `mkdir(dir, { recursive: true })` — safe if already exists
+- `process.execPath` used for Exec value (avoids hardcoding binary path)
+
+### Return Value Convention
+
+Follows established RPC pattern: `{ success: boolean, error?: string }`
+- Non-Linux calls return `{ success: false, error: "Linux only" }`
+- Spawn failures return `{ success: false, error: (err as Error).message }`
+- Exit code 0 → `{ success: true }`
+
+### Build Verification
+
+✅ `npm run build` exits 0
+✅ Vite transforms 175 modules
+✅ Electrobun build completes (skipping codesign/notarization as expected)
+✅ All Svelte/TypeScript warnings are pre-existing (no new issues introduced)
+
+
+## Task 34: Linux Launch-at-Login via XDG Autostart
+
+**Status**: ✅ COMPLETED
+
+### Implementation
+
+**File Modified**: `chowser-electrobun/src/bun/index.ts`
+
+**New function added** (`setLaunchAtLoginLinux`):
+```typescript
+async function setLaunchAtLoginLinux(enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  const autostartDir = join(homedir(), ".config", "autostart");
+  const desktopFile = join(autostartDir, "chowser.desktop");
+  const exePath = process.execPath;
+
+  if (enabled) {
+    await mkdir(autostartDir, { recursive: true });
+    // writes [Desktop Entry] with Type, Name, Exec, Hidden, NoDisplay, X-GNOME-Autostart-enabled
+    await writeFile(desktopFile, desktopEntry, "utf-8");
+  } else {
+    await unlink(desktopFile);  // ENOENT treated as success (already removed)
+  }
+}
+```
+
+**Handler updated** (now has 3 branches):
+```typescript
+setLaunchAtLogin: async (params: unknown) => {
+  const { enabled } = params as { enabled: boolean };
+  if (isWindows()) {
+    await setLaunchAtLoginWindows(enabled);
+  } else if (isLinux()) {
+    await setLaunchAtLoginLinux(enabled);
+  } else {
+    setLaunchAtLoginMac(enabled);
+  }
+  patchState({ launchAtLogin: enabled });
+},
+```
+
+**New imports added**:
+- `unlink` added to existing `node:fs/promises` import line
+
+### Desktop Entry Format
+
+```
+[Desktop Entry]
+Type=Application
+Name=Chowser
+Exec=/path/to/chowser/binary
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+```
+
+Key fields:
+- `Exec`: uses `process.execPath` (actual binary path at runtime)
+- `Hidden=false`: Makes entry active (not hidden)
+- `NoDisplay=false`: Shows in startup app managers
+- `X-GNOME-Autostart-enabled=true`: GNOME/KDE/XFCE compatibility key
+
+### Autostart Directory Path
+
+- `~/.config/autostart/` — XDG autostart spec directory (created with `{ recursive: true }` if missing)
+- File name: `chowser.desktop`
+- Full path: `~/.config/autostart/chowser.desktop`
+
+### Gotchas
+
+1. **`unlink` vs `rm`**: Use Node.js `unlink()` not `rm()` for single files; handles `ENOENT` gracefully by returning `success: true`
+2. **No `%u` URL args in Exec**: Unlike `setDefaultBrowser` which uses `Exec=${exePath} %u` for MIME handling, autostart entries should NOT include `%u` (no URL to open on login)
+3. **`process.execPath` in Electrobun**: Returns the Bun binary path in dev mode, actual app binary in production — this is correct behavior
+4. **Directory creation**: `mkdir(autostartDir, { recursive: true })` is safe even if directory already exists
+5. **File already present in `setDefaultBrowser`**: The existing `setDefaultBrowser` handler creates a different desktop file at `~/.local/share/applications/chowser.desktop` (for MIME/default browser registration). The autostart file at `~/.config/autostart/chowser.desktop` is entirely separate and independent.
+
+### Build Verification
+
+- ✅ `npm run build` exits with code 0
+- ✅ Vite transforms 175 modules in ~504ms
+- ✅ Electrobun build completes without errors
+- ✅ All pre-existing warnings unchanged (none new from this task)

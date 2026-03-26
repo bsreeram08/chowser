@@ -22,7 +22,9 @@ import Electrobun, {
 } from "electrobun/bun";
 import type { MenuItemConfig } from "electrobun/bun";
 import { execFileSync } from "node:child_process";
-import { dirname, basename } from "node:path";
+import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, basename, join } from "node:path";
 
 import {
   loadState,
@@ -51,6 +53,7 @@ import {
   getMcpStatus,
   type McpStatus,
 } from "./mcpServer.ts";
+import { isWindows, isLinux } from "./platform.ts";
 
 // ---------------------------------------------------------------------------
 // Boot — load persisted state
@@ -223,6 +226,99 @@ end tell
     console.log(`[chowser] launch-at-login ${enabled ? "enabled" : "disabled"}`);
   } catch (err) {
     console.error("[chowser] Failed to set launch-at-login via osascript:", err);
+  }
+}
+
+async function setLaunchAtLoginWindows(enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  if (!isWindows()) return { success: false, error: "Windows only" };
+
+  const regKey = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+  const valueName = "Chowser";
+  const exePath = process.execPath;
+
+  try {
+    if (enabled) {
+      // reg add "HKCU\...\Run" /v Chowser /t REG_SZ /d "<exe path>" /f
+      const proc = Bun.spawn(
+        ["reg", "add", regKey, "/v", valueName, "/t", "REG_SZ", "/d", exePath, "/f"],
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
+      await proc.exited;
+      if (proc.exitCode === 0) {
+        console.log("[chowser] launch-at-login enabled (Windows registry)");
+        return { success: true };
+      }
+      const stderr = await new Response(proc.stderr).text();
+      console.error("[chowser] reg add failed:", stderr);
+      return { success: false, error: stderr.trim() || `reg.exe exited with code ${proc.exitCode}` };
+    } else {
+      // reg delete "HKCU\...\Run" /v Chowser /f
+      const proc = Bun.spawn(
+        ["reg", "delete", regKey, "/v", valueName, "/f"],
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
+      await proc.exited;
+      // Exit code 1 means the key didn't exist — treat that as success for "disable"
+      if (proc.exitCode === 0 || proc.exitCode === 1) {
+        console.log("[chowser] launch-at-login disabled (Windows registry)");
+        return { success: true };
+      }
+      const stderr = await new Response(proc.stderr).text();
+      console.error("[chowser] reg delete failed:", stderr);
+      return { success: false, error: stderr.trim() || `reg.exe exited with code ${proc.exitCode}` };
+    }
+  } catch (err) {
+    const msg = (err as Error).message ?? String(err);
+    console.error("[chowser] setLaunchAtLoginWindows error:", msg);
+    return { success: false, error: msg };
+  }
+}
+
+async function setLaunchAtLoginLinux(enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  if (!isLinux()) return { success: false, error: "Linux only" };
+
+  const autostartDir = join(homedir(), ".config", "autostart");
+  const desktopFile = join(autostartDir, "chowser.desktop");
+  const exePath = process.execPath;
+
+  if (enabled) {
+    try {
+      await mkdir(autostartDir, { recursive: true });
+
+      const desktopEntry = [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Chowser",
+        `Exec=${exePath}`,
+        "Hidden=false",
+        "NoDisplay=false",
+        "X-GNOME-Autostart-enabled=true",
+        "",
+      ].join("\n");
+
+      await writeFile(desktopFile, desktopEntry, "utf-8");
+      console.log("[chowser] launch-at-login enabled (Linux autostart)");
+      return { success: true };
+    } catch (err) {
+      const msg = (err as Error).message ?? String(err);
+      console.error("[chowser] setLaunchAtLoginLinux (enable) error:", msg);
+      return { success: false, error: msg };
+    }
+  } else {
+    try {
+      await unlink(desktopFile);
+      console.log("[chowser] launch-at-login disabled (Linux autostart)");
+      return { success: true };
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        // Already removed — treat as success
+        return { success: true };
+      }
+      const msg = (err as Error).message ?? String(err);
+      console.error("[chowser] setLaunchAtLoginLinux (disable) error:", msg);
+      return { success: false, error: msg };
+    }
   }
 }
 
@@ -725,6 +821,10 @@ export type SettingsSchema = ElectrobunRPCSchema & {
       toggleMcpServer: { params: undefined; response: McpStatus };
       setLaunchAtLogin: { params: { enabled: boolean }; response: void };
       openDefaultBrowserSettings: { params: undefined; response: void };
+      setDefaultBrowser: {
+        params: undefined;
+        response: { success: boolean; error?: string };
+      };
     };
     messages: Record<string, never>;
   };
@@ -997,14 +1097,52 @@ function openSettings() {
           updateTrayMenu();
           return getMcpStatus();
         },
-        setLaunchAtLogin: (params: unknown) => {
+        setLaunchAtLogin: async (params: unknown) => {
           const { enabled } = params as { enabled: boolean };
-          // setLaunchAtLoginMac handles errors internally (won't throw)
-          setLaunchAtLoginMac(enabled);
+          if (isWindows()) {
+            await setLaunchAtLoginWindows(enabled);
+          } else if (isLinux()) {
+            await setLaunchAtLoginLinux(enabled);
+          } else {
+            setLaunchAtLoginMac(enabled);
+          }
           patchState({ launchAtLogin: enabled });
         },
         openDefaultBrowserSettings: () => {
           openDefaultBrowserSettings();
+        },
+        setDefaultBrowser: async () => {
+          if (isLinux()) {
+            const applicationsDir = join(homedir(), ".local", "share", "applications");
+            const desktopFile = join(applicationsDir, "chowser.desktop");
+            const exePath = process.execPath;
+
+            try {
+              await mkdir(applicationsDir, { recursive: true });
+
+              const desktopEntry = [
+                "[Desktop Entry]",
+                "Type=Application",
+                "Name=Chowser",
+                "Comment=Smart browser router",
+                `Exec=${exePath} %u`,
+                "Icon=chowser",
+                "Terminal=false",
+                "Categories=Network;WebBrowser;",
+                "MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;",
+                "",
+              ].join("\n");
+              await writeFile(desktopFile, desktopEntry, "utf-8");
+
+              const result = Bun.spawn(["xdg-settings", "set", "default-web-browser", "chowser.desktop"]);
+              await result.exited;
+
+              return { success: result.exitCode === 0 };
+            } catch (err) {
+              return { success: false, error: (err as Error).message };
+            }
+          }
+          return { success: false, error: "Linux only" };
         },
       } as unknown as Parameters<typeof BrowserView.defineRPC<SettingsSchema>>[0]["handlers"]["requests"],
     },

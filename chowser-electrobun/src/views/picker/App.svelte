@@ -48,12 +48,16 @@
             name: string;
             hostPattern: string;
             browserAppId: string;
-            usePrivateMode: boolean;
-          };
-          response: void;
-        };
-      };
-      messages: Record<string, never>;
+         usePrivateMode: boolean;
+           };
+           response: void;
+         };
+         unshortenUrl: {
+           params: { url: string };
+           response: { url: string; error?: string };
+         };
+       };
+       messages: Record<string, never>;
     };
     webview: {
       requests: Record<string, never>;
@@ -73,6 +77,7 @@
   let showQuickRuleSheet = $state(false);
   let selectedBrowserId = $state<string | null>(null);
   let isUnshortening = $state(false);
+  let unshortenError = $state<string | null>(null);
   let isLoaded = $state(false);
   let focusMode = $state<FocusMode | null>(null);
   let focusCountdown = $state<string | null>(null);
@@ -278,13 +283,18 @@
   async function handleUnshorten() {
     if (isUnshortening || !url) return;
     isUnshortening = true;
+    unshortenError = null;
     try {
-      const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-      if (response.url && response.url !== url) {
+      const response = await rpc.request('unshortenUrl', { url });
+      if (response.error) {
+        unshortenError = response.error;
+      } else if (response.url && response.url !== url) {
         url = response.url;
+        unshortenError = null;
       }
-    } catch {
-      // Silent fail — unshortening is best-effort
+    } catch (err) {
+      unshortenError = (err as Error).message || 'Failed to unshorten URL';
+      console.error('[picker] Unshorten failed:', err);
     } finally {
       isUnshortening = false;
     }
@@ -356,6 +366,7 @@
       <UrlBubble
         {url}
         {isUnshortening}
+        {unshortenError}
         onUnshorten={handleUnshorten}
       />
     {/snippet}

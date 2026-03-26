@@ -1890,7 +1890,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 37. Implement URL cleaning and unshortening UI
+- [x] 37. Implement URL cleaning and unshortening UI
 
   **What to do**:
   - Wire up URL cleaning (already in routing.ts)

@@ -46,7 +46,7 @@ import {
 import { resolveRoute, recordDomainClick, getSuggestions } from "./routing.ts";
 import { detectInstalledBrowsers } from "./browserDetector.ts";
 import { launchBrowser, launchByRoute } from "./browserLauncher.ts";
-import { cleanUrl, isHttpUrl } from "./urlUtils.ts";
+import { cleanUrl, unshortenUrl, isHttpUrl } from "./urlUtils.ts";
 import {
   startMcpServer,
   stopMcpServer,
@@ -627,17 +627,21 @@ type PickerSchema = ElectrobunRPCSchema & {
         response: void;
       };
       dismissPicker: { params: undefined; response: void };
-      createRule: {
-        params: {
-          name: string;
-          hostPattern: string;
-          browserAppId: string;
-          usePrivateMode: boolean;
-        };
-        response: void;
-      };
-    };
-    messages: Record<string, never>;
+       createRule: {
+         params: {
+           name: string;
+           hostPattern: string;
+           browserAppId: string;
+           usePrivateMode: boolean;
+         };
+         response: void;
+       };
+       unshortenUrl: {
+         params: { url: string };
+         response: { url: string; error?: string };
+       };
+     };
+     messages: Record<string, never>;
   };
   webview: {
     requests: Record<string, never>;
@@ -715,9 +719,18 @@ function showPicker(url: string, sourceApp?: string) {
             isEnabled: true,
             useRegex: false,
           };
-          patchState({ routingRules: [...s.routingRules, newRule] });
-        },
-      } as unknown as Parameters<typeof BrowserView.defineRPC<PickerSchema>>[0]["handlers"]["requests"],
+           patchState({ routingRules: [...s.routingRules, newRule] });
+         },
+         unshortenUrl: async (params: unknown) => {
+           const { url } = params as { url: string };
+           try {
+             const result = await unshortenUrl(url);
+             return { url: result };
+           } catch (err) {
+             return { url, error: (err as Error).message };
+           }
+         },
+       } as unknown as Parameters<typeof BrowserView.defineRPC<PickerSchema>>[0]["handlers"]["requests"],
     },
   });
 

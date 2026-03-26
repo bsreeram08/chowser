@@ -5,6 +5,7 @@
   interface UrlBubbleProps {
     url: string;
     isUnshortening?: boolean;
+    unshortenError?: string | null;
     onCopy?: () => void;
     onUnshorten?: () => void;
   }
@@ -12,9 +13,30 @@
   let {
     url,
     isUnshortening = false,
+    unshortenError = null,
     onCopy,
     onUnshorten
   } = $props<UrlBubbleProps>();
+
+  // Clean URL by removing tracking params
+  function cleanTrackingParams(fullUrl: string): string {
+    try {
+      const u = new URL(fullUrl);
+      const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid'];
+      let removed = false;
+      for (const param of trackingParams) {
+        if (u.searchParams.has(param)) {
+          u.searchParams.delete(param);
+          removed = true;
+        }
+      }
+      if (!removed) return fullUrl;
+      const result = u.toString();
+      return result.endsWith('?') ? result.slice(0, -1) : result;
+    } catch {
+      return fullUrl;
+    }
+  }
 
   // Truncate URL: show first 30 + last 20 chars if > 60 chars
   function truncateUrl(fullUrl: string): string {
@@ -34,7 +56,9 @@
     }
   }
 
-  const displayUrl = truncateUrl(url);
+  // Display cleaned URL (tracking params removed)
+  const cleanedUrl = $derived(cleanTrackingParams(url));
+  const displayUrl = $derived(truncateUrl(cleanedUrl));
 </script>
 
 <div class="url-bubble">
@@ -47,8 +71,15 @@
       </Icon>
     </div>
 
-    <!-- URL text -->
-    <span class="url-text" title={url}>{displayUrl}</span>
+    <!-- URL text or error state -->
+    {#if unshortenError}
+      <div class="url-error">
+        <span class="error-label">Error:</span>
+        <span class="error-text" title={unshortenError}>{unshortenError}</span>
+      </div>
+    {:else}
+      <span class="url-text" title={cleanedUrl}>{displayUrl}</span>
+    {/if}
   </div>
 
   <!-- Action buttons -->
@@ -57,7 +88,20 @@
       <!-- Loading spinner -->
       <div class="spinner-wrapper">
         <div class="spinner"></div>
+        <span class="loading-text">Resolving...</span>
       </div>
+    {:else if unshortenError}
+      <!-- Error state: show retry button -->
+      <Button
+        variant="ghost"
+        size="sm"
+        onclick={onUnshorten}
+        title="Retry unshorten (H)"
+      >
+        <Icon size={14}>
+          <path d="M1 4v6h6m22-6v6h-6m-2-2l1.5-1.5M4 7l-1.5 1.5" />
+        </Icon>
+      </Button>
     {:else}
       <!-- Unshorten button -->
       <Button
@@ -124,6 +168,26 @@
     text-overflow: ellipsis;
   }
 
+  .url-error {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+    overflow: hidden;
+  }
+
+  .error-label {
+    font-weight: var(--font-weight-medium);
+    flex-shrink: 0;
+  }
+
+  .error-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .actions {
     display: flex;
     align-items: center;
@@ -135,8 +199,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    gap: var(--spacing-2);
   }
 
   .spinner {
@@ -146,6 +209,11 @@
     border-top-color: var(--color-accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+  }
+
+  .loading-text {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
   }
 
   @keyframes spin {

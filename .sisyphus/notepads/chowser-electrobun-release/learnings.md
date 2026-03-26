@@ -1257,3 +1257,123 @@ Key fields:
 - ✅ Vite transforms 175 modules in ~504ms
 - ✅ Electrobun build completes without errors
 - ✅ All pre-existing warnings unchanged (none new from this task)
+
+
+## Task 37: URL Cleaning and Unshortening UI
+
+### ✅ COMPLETED
+
+**Date**: 2026-03-26
+
+### Implementation Summary
+
+Added URL cleaning and unshortening functionality to the picker with proper error handling and loading states.
+
+### Files Modified
+
+1. **`src/bun/index.ts`**
+   - Added `import { unshortenUrl }` to imports from urlUtils.ts
+   - Added `unshortenUrl` RPC method to PickerSchema (line 640-644):
+     ```typescript
+     unshortenUrl: {
+       params: { url: string };
+       response: { url: string; error?: string };
+     };
+     ```
+   - Implemented RPC handler in picker requests (line 724-732):
+     ```typescript
+     unshortenUrl: async (params: unknown) => {
+       const { url } = params as { url: string };
+       try {
+         const result = await unshortenUrl(url);
+         return { url: result };
+       } catch (err) {
+         return { url, error: (err as Error).message };
+       }
+     },
+     ```
+
+2. **`src/views/picker/components/UrlBubble.svelte`**
+   - Added `unshortenError` prop for error state management
+   - Implemented `cleanTrackingParams()` function to remove utm_*, fbclid, gclid, etc.
+   - Changed display URL to use cleaned version (tracking params removed)
+   - Added three rendering states:
+     - **Normal**: Show cleaned URL with unshorten button
+     - **Loading**: Show "Resolving..." text + spinner
+     - **Error**: Show error message with retry button
+   - Used `$derived` for reactive cleaned and truncated URL values
+   - Updated styles to include `.url-error` class with red error color
+   - Expanded `.spinner-wrapper` to include loading text label
+
+3. **`src/views/picker/App.svelte`**
+   - Added `unshortenUrl` to PickerSchema type definition (line 55-58)
+   - Added `unshortenError` state variable (line 76)
+   - Rewrote `handleUnshorten()` to use RPC call instead of fetch:
+     - Calls `rpc.request('unshortenUrl', { url })`
+     - Handles both success and error responses
+     - Sets error state if unshorten fails
+     - Clears error on successful unshorten
+   - Updated UrlBubble component call to pass `{unshortenError}` prop
+   - H key handler already present (lines 237-245) — no changes needed
+
+### Key Implementation Details
+
+**URL Cleaning (UrlBubble.svelte)**:
+- Removes 7 common tracking parameters: utm_source, utm_medium, utm_campaign, utm_term, utm_content, fbclid, gclid
+- Uses native URL API with error fallback (returns original URL if parsing fails)
+- Cleans trailing `?` when no params remain
+- Applied to all URL displays by default
+
+**Unshortening (RPC call)**:
+- H key (also S) triggers unshorten
+- Loading state shows spinner + "Resolving..." text
+- Successful unshorten updates `url` state and clears error
+- Failed unshorten sets error message, shows retry button
+- Error message displayed inline in URL bubble
+
+**Svelte 5 Patterns Used**:
+- `$props` destructuring for component props
+- `$derived` for reactive cleaned/truncated URL values
+- Conditional rendering with `{#if}` blocks for state branching
+
+### Verification
+
+✅ `npm run build` succeeds (exit 0)
+✅ UrlBubble warning about state reference fixed (used `$derived`)
+✅ H key handler works without breaking other shortcuts
+✅ RPC schema properly typed with unshortenUrl method
+✅ Error handling implemented for failed unshorten attempts
+✅ All design tokens used (colors, spacing, typography)
+✅ No new dependencies added
+
+### Design Tokens Integrated
+
+- `--color-text-primary` / `--color-text-secondary` for text
+- `--color-error` for error message display
+- `--color-accent` for spinner color
+- `--color-control-background` for spinner border
+- `--font-size-xs` / `--font-size-sm` for text sizes
+- `--spacing-1` through `--spacing-4` for gaps
+- `--radius-lg` for bubble border radius
+
+### User Experience
+
+1. URLs automatically cleaned (tracking params removed) on display
+2. H key triggers unshorten with loading indicator
+3. Progress shown during unshorten ("Resolving..." + spinner)
+4. Final URL shown after unshorten completes
+5. Error displayed with retry button if unshorten fails
+6. Original URL can still be copied at any time
+7. Picker stays open, no navigation on unshorten
+
+### Integration Notes
+
+- Works with existing `urlUtils.ts` functions (`cleanUrl`, `unshortenUrl`)
+- `urlUtils.unshortenUrl` has 10-redirect max and 8s timeout
+- RPC handler error handling passes error message to UI for user feedback
+- Picker H key handler already implemented — no changes needed
+
+### Next Steps (Not in Scope)
+
+- Task 38+: Other UI features for picker/settings
+

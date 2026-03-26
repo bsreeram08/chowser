@@ -254,3 +254,69 @@ Individual step components can now import and use OnboardingShell:
 
 Each will render inside the `<slot />` and call the `onNext`/`onBack`/`onSkip`/`onClose` callbacks to control shell navigation.
 
+
+## Task 27: Welcome Step for Onboarding Wizard
+
+### ✅ COMPLETED
+
+**File Created**: `chowser-electrobun/src/views/onboarding/steps/WelcomeStep.svelte` (95 lines)
+
+### Features Implemented
+
+1. **Logo Display**
+   - Large 🧭 emoji (72px font-size)
+   - Drop shadow for depth (0 2px 8px, 0.1 opacity)
+
+2. **Welcome Content**
+   - Heading: "Welcome to Chowser" (2xl, bold)
+   - Description: 2-sentence explanation of purpose
+   - Max-width 400px for readability
+
+3. **Call-to-Action Button**
+   - "Get Started" button (primary variant, lg size)
+   - Full width (max 300px)
+   - Calls `onNext()` prop to advance to next step
+
+4. **Layout**
+   - Vertical stack with flexbox (flex-direction: column)
+   - Center-aligned content
+   - Responsive spacing using design tokens (gap: var(--spacing-8))
+   - Flex container fills available height
+
+### Component Props Interface
+
+```typescript
+interface WelcomeStepProps {
+  onNext?: () => void;  // Called when Get Started clicked
+}
+```
+
+### Design Tokens Used
+
+- Colors: `--color-text-primary`, `--color-text-secondary`
+- Typography: `--font-family-system`, `--font-size-2xl`, `--font-weight-bold`, `--font-weight-regular`
+- Spacing: `--spacing-3`, `--spacing-8`
+- Line heights: `--line-height-tight`, `--line-height-normal`
+
+### Build Status
+
+✅ `npm run build` succeeds with no errors
+✅ All Svelte 5 syntax verified
+✅ Bundle includes onboarding steps in vite build
+✅ No TypeScript or compilation warnings specific to WelcomeStep
+
+### Integration Notes
+
+- Imports Button component from `../../shared/components/Button.svelte`
+- Imports design tokens from `../../shared/tokens.css`
+- Uses Svelte 5 runes: `let { onNext = () => {} } = $props<WelcomeStepProps>()`
+- Ready to be nested inside OnboardingShell.svelte (created in Task 26)
+- Follows same pattern as macOS OnboardingSteps.swift:WelcomeStepView
+
+### Next Steps (Task 28)
+
+DefaultBrowserStep.svelte can now be created using similar pattern:
+- Import Button, design tokens
+- Props: `onNext`, `onSkip` (both optional)
+- Show system settings icon or similar
+- Implement two-button layout (System Settings button + Continue/Skip)

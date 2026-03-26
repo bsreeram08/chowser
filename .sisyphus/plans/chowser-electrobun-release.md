@@ -1459,7 +1459,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 27. Implement Welcome step
+- [x] 27. Implement Welcome step
 
   **What to do**:
   - Create src/views/onboarding/steps/WelcomeStep.svelte

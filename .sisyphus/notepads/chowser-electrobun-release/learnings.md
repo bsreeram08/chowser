@@ -536,3 +536,223 @@ RulesStep.svelte and FinishStep.svelte can be created using similar pattern:
 - RulesStep: Show sample rules, allow enabling/disabling, manage rule ordering
 - FinishStep: Completion summary, launch app, celebration
 
+
+## Task 31: RulesStep Component
+
+**Created:** 2026-03-26 13:15 UTC
+
+### File Created
+- `chowser-electrobun/src/views/onboarding/steps/RulesStep.svelte` (380 lines)
+
+### Implementation Details
+
+**Props Interface:**
+```typescript
+interface RulesStepProps {
+  onNext?: () => void;
+  onSkip?: () => void;
+}
+```
+
+**Key Sections:**
+1. **Header** — Title "Smart Routing Rules" with explanation
+2. **Visual Diagram** — Shows URL flow (github.com → two route examples with icons)
+3. **Example Rules** — Two Card-based examples:
+   - Work domain: `*.company.com → Chrome Work`
+   - Personal domain: `github.com → Firefox`
+4. **Rule Creation Methods** — Grid of two Cards:
+   - Quick: Press `R` key from picker
+   - Advanced: Settings tab for full control
+5. **Footer** — "Skip this step" link + "Continue" button
+
+**Design Patterns Used:**
+- Center-aligned header with max-width description (500px)
+- Card component for example sections
+- Grid layout (2 columns, responsive to 1 at <500px)
+- Monospace font for domain patterns and key badges
+- Icons for visual emphasis (💼 work, 🏠 personal, ⚡ quick, ⚙️ advanced)
+
+**Key CSS Classes:**
+- `.routing-diagram` — Flexbox column with centered alignment
+- `.route-destinations` — Flex column of Card examples
+- `.methods-grid` — CSS Grid, 2 columns, responsive
+- `.example-title`, `.example-pattern`, `.example-browser` — Typography hierarchy
+- `.key-badge` — Styled keyboard key (R, Rules) inline with text
+
+**Design Token Usage:**
+- Color: Primary text, secondary text, accent, glass effects, control background
+- Spacing: Vars (1-8), max-width 500px/400px containers
+- Typography: System font family, font-size vars, font-weight vars
+- Border & shadow: Glass effect via Card component
+
+### Build Verification
+
+✅ Build succeeds: `npm run build` (0 errors)
+✅ Vite transforms 175 modules
+✅ No Svelte/TypeScript compilation errors
+✅ Bundle sizes stable
+✅ No TODOs/FIXMEs in component
+
+### Acceptance Criteria Met
+
+- ✅ File created at exact path with `.svelte` extension
+- ✅ Explains smart routing concept clearly
+- ✅ Shows 2 example rules (work domain → Chrome, personal → Firefox)
+- ✅ Mentions rule creation from picker (R key) and settings
+- ✅ "Skip this step" button in footer
+- ✅ Design tokens fully integrated (colors, spacing, typography)
+- ✅ Svelte 5 runes pattern (`$props`, `$state`)
+- ✅ `npm run build` passes with zero errors
+
+### Integration Notes
+
+- Ready for OnboardingView.svelte to import and wire into step sequence
+- Follows established pattern from WelcomeStep, BrowsersStep, AISetupStep
+- Pure UI component; no RPC/routing logic (informational only)
+- Responsive grid layout adapts to smaller viewports
+
+### Lessons Learned
+
+1. **Semantic HTML comments** — HTML `<!-- -->` comments are standard in Svelte for section organization and maintainability (distinct from code-level comments)
+2. **Card reusability** — Using Card component with padding prop makes visually consistent example sections
+3. **Routing diagram** — Simple flexbox column with arrow divider effectively communicates domain → browser routing flow
+4. **Responsive grid** — Two-column grid with `@media (max-width: 500px)` fallback to single column ensures good mobile experience
+5. **Key badges** — Inline monospace badges for keyboard shortcuts (R, Rules) reinforce picker interaction model
+
+### Next Steps (Tasks 32-35)
+
+- FinishStep.svelte: Completion summary, celebration, launch app button
+- Wire RulesStep into OnboardingView.svelte step array
+- Test onboarding flow end-to-end with all 5 steps
+
+## Task 32: Finish Step for Onboarding Wizard
+
+### ✅ COMPLETED
+
+**File Created**: `chowser-electrobun/src/views/onboarding/steps/FinishStep.svelte` (158 lines)
+
+### Features Implemented
+
+1. **Success State Display**
+   - Large animated confetti emoji (🎉) with bounce animation
+   - 64px font-size with drop shadow for depth
+   - Fade-in + scale animation on load (0.6s ease-out)
+
+2. **Heading & Description**
+   - Main heading: "You're All Set!" (2xl, bold)
+   - Description: "Chowser is ready to route your links intelligently and beautifully."
+   - Center-aligned with consistent spacing
+
+3. **Setup Summary Card**
+   - Card component with padding
+   - Section heading: "What's Ready:"
+   - Checklist with ✅ emoji checkmarks:
+     - ✅ Browsers detected and configured
+     - ✅ Smart routing enabled
+     - ✅ AI assistant integration ready
+
+4. **Next Steps Guidance**
+   - Helper text: "Next: Set Chowser as your default browser in System Settings..."
+   - Secondary color text for de-emphasis
+   - Positioned below summary card
+
+5. **Two-Button Footer**
+   - Layout: Secondary "Open Settings" button (left) + Primary "Start Using Chowser" button (right)
+   - Full width with flex gap spacing
+   - Both buttons are size "lg" (48px height, large font)
+   - Calls `onOpenSettings` and `onFinish` callbacks respectively
+
+6. **Layout Structure**
+   - Main container: flex-column with space-between (content at top, footer at bottom)
+   - Content section: flex-column, centered, scrollable, max-width 420px
+   - Footer section: flex-row with gap, centered, max-width 420px
+
+### Component Props Interface
+
+```typescript
+interface FinishStepProps {
+  onFinish?: () => void;       // Called when "Start Using Chowser" clicked
+  onOpenSettings?: () => void; // Called when "Open Settings" clicked
+}
+```
+
+### Key Implementation Details
+
+- **Svelte 5 Runes**: 
+  - Props: `let { onFinish = () => {}, onOpenSettings = () => {} } = $props<FinishStepProps>()`
+  - No local state needed (purely presentational)
+
+- **Animation**:
+  - CSS keyframes `bounce` with scale (0.8→1.05→1) and opacity (0→1)
+  - Applied to success emoji with 0.6s ease-out timing
+
+- **Design Tokens Used**:
+  - Colors: accent, text-primary, text-secondary, control-background, control-border
+  - Typography: font-family-system, font-size-sm/base/2xl, font-weight-regular/semibold/bold
+  - Spacing: spacing-2 through spacing-8
+  - Radius: radius-md
+  - Shadows: drop-shadow for emoji
+
+- **Responsive**:
+  - Card and footer max-width 420px (matches other steps)
+  - Full width buttons with flex-1 growth
+  - Responsive padding via design tokens
+
+### Design Tokens Used
+
+- All tokens from `src/views/shared/tokens.css`
+- Colors: text-primary, text-secondary, accent
+- Typography: font-family-system, all font-sizes and font-weights
+- Spacing: spacing-2 through spacing-8
+- Radius: radius-md
+- Shadows: drop-shadow for emoji effect
+
+### Build Status
+
+✅ `npm run build` succeeds with exit 0
+✅ Bundle includes onboarding step in vite build
+✅ No FinishStep-specific TypeScript or Svelte compilation errors
+✅ All 175 modules transformed successfully
+✅ Final bundle sizes: settings.js 81.49 kB (gzip 25.76 kB)
+
+### Acceptance Criteria Met
+
+- ✅ File created: `src/views/onboarding/steps/FinishStep.svelte`
+- ✅ Success message with 🎉 emoji
+- ✅ Summary checklist with ✅ emoji checkmarks
+- ✅ "Open Settings" button (calls `onOpenSettings` callback)
+- ✅ "Start Using Chowser" primary button (calls `onFinish` callback)
+- ✅ Design tokens fully integrated
+- ✅ Svelte 5 runes pattern (`$props`, no local state)
+- ✅ `npm run build` passes with zero errors
+
+### Integration Notes
+
+- Ready to be nested inside OnboardingShell.svelte (Task 26)
+- Follows same pattern as WelcomeStep.svelte (Task 27), BrowsersStep.svelte (Task 29), AISetupStep.svelte (Task 30)
+- Parent component (OnboardingView.svelte) will pass callbacks
+- Component is purely presentational — parent handles onboarding completion logic (marking hasCompletedOnboarding, closing window)
+- Matches macOS SwiftUI pattern from OnboardingSteps.swift:FinishStepView
+
+### Pattern Consistency
+
+✅ Props interface with callbacks matching other steps
+✅ Main heading + description structure
+✅ Card component for content sections (like AISetupStep)
+✅ Footer with action buttons (secondary + primary layout)
+✅ Center-aligned content with max-width constraint
+✅ All design tokens used consistently
+✅ Svelte 5 runes pattern throughout
+✅ No new dependencies added
+
+### Files Created
+
+1. `chowser-electrobun/src/views/onboarding/steps/FinishStep.svelte` (158 lines)
+
+All onboarding steps now complete:
+- ✅ Task 27: WelcomeStep
+- ✅ Task 29: BrowsersStep  
+- ✅ Task 30: AISetupStep
+- ✅ Task 32: FinishStep
+
+Next tasks (Tasks 31, 33-35) can continue with remaining onboarding features.

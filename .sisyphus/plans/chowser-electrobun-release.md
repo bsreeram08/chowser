@@ -1637,7 +1637,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 31. Implement Rules introduction step
+- [x] 31. Implement Rules introduction step
 
   **What to do**:
   - Create src/views/onboarding/steps/RulesStep.svelte
@@ -1677,7 +1677,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 32. Implement Finish step with completion handling
+- [x] 32. Implement Finish step with completion handling
 
   **What to do**:
   - Create src/views/onboarding/steps/FinishStep.svelte

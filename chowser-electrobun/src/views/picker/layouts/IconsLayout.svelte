@@ -1,6 +1,6 @@
 <script lang="ts">
   import BrowserIcon from '../../shared/components/BrowserIcon.svelte';
-  import '@import "../../shared/tokens.css";
+
 
   interface Browser {
     id: string;

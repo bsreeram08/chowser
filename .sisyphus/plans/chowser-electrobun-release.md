@@ -1033,7 +1033,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 18. Implement Picker keyboard handling (1-9, arrows, P, H, R)
+- [x] 18. Implement Picker keyboard handling (1-9, arrows, P, H, R)
 
   **What to do**:
   - Add keydown event listener to picker window

@@ -1046,3 +1046,80 @@ interface QuickRuleSheetProps {
 - Task 18 will pass intercepted URL and browsers array as props
 - Task 18 will handle onSave callback (create rule + close picker)
 - Task 18 will handle onCancel callback (close sheet)
+
+## Task 18: Picker Keyboard Handling + App.svelte Full Implementation
+
+### What we built
+✓ `src/views/picker/App.svelte` — Complete picker entry point with Electrobun RPC wiring and all keyboard shortcuts
+
+### Electrobun Webview RPC Pattern
+```typescript
+// 1. Define schema (mirrors PickerSchema in src/bun/index.ts)
+type PickerSchema = ElectrobunRPCSchema & {
+  bun: { requests: { methodName: { params: T; response: R } }; messages: Record<string, never> };
+  webview: { requests: Record<string, never>; messages: { refreshPicker: undefined } };
+};
+
+// 2. Create RPC with message handlers
+const rpc = Electroview.defineRPC<PickerSchema>({
+  handlers: { messages: { refreshPicker: () => loadPickerData() } }
+});
+
+// 3. Instantiate Electroview
+const electroview = new Electroview({ rpc });
+
+// 4. Make requests
+const data = await rpc.request('methodName', params);
+```
+
+### Keyboard Handling Architecture Decision
+- **All shortcuts in `App.svelte` only** — do NOT duplicate arrow key logic
+- Arrow keys are deliberately NOT handled in App.svelte (delegated to layouts)
+  - `IconsLayout.svelte` handles left/right arrows
+  - `ListLayout.svelte` handles up/down arrows
+- When `showQuickRuleSheet` is true, early return at top of `handleKeydown` — modal manages its own keys
+
+### Keyboard Shortcut Map
+| Key | Action |
+|-----|--------|
+| 1-9 | Open browser matching `shortcutKey` |
+| Enter / Space | Open `selectedBrowserId` |
+| Option+Enter | Open `selectedBrowserId` in private mode |
+| Escape | `rpc.request('dismissPicker', undefined)` |
+| P | Toggle `isPrivateMode` |
+| H / S | Trigger `handleUnshorten()` |
+| R | Set `showQuickRuleSheet = true` |
+| Tab / Shift-Tab | Cycle selection (wraps around) |
+| Letter key | Find first browser where `name.toLowerCase().startsWith(key)` |
+
+### Pre-existing Build Issues Fixed (not in App.svelte)
+1. **`IconsLayout.svelte` line 3**: Had malformed `import '@import "../../shared/tokens.css";'` — removed
+2. **`BrowserIcon.svelte` lines 32, 37**: Had JSX-style comments `{/* ... */}` — converted to `<!-- -->`
+
+### PickerShell Named Slot Usage in Svelte 5
+PickerShell still uses old `$$slots.url` detection / `<slot name="url">` API. In Svelte 5, pass named content with snippet syntax:
+```svelte
+<PickerShell>
+  {#snippet url()}
+    <UrlBubble ... />
+  {/snippet}
+  <!-- default slot content here -->
+</PickerShell>
+```
+This is backward-compatible with the old Svelte 4 slot API inside PickerShell.
+
+### QuickRuleSheet Browser Prop Mapping
+QuickRuleSheet expects `{ id, name, appId }` objects, not full `BrowserConfig`. Map before passing:
+```svelte
+browsers={browsers.map(b => ({ id: b.id, name: b.name, appId: b.appId }))}
+```
+
+### Build Output
+- `build/views/picker.js` 29.59 kB (gzip: 11.80 kB)
+- `build/views/picker.css` 16.29 kB (gzip: 3.39 kB)
+- 142 modules transformed, zero errors
+
+### Files Modified
+- `src/views/picker/App.svelte` — Complete rewrite (360 lines)
+- `src/views/picker/layouts/IconsLayout.svelte` — Fixed syntax error (malformed import line 3)
+- `src/views/shared/components/BrowserIcon.svelte` — Fixed JSX comment syntax

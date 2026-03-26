@@ -29,12 +29,12 @@
 
 <div class="browser-icon-wrapper" class:selected={isSelected} data-size={size}>
   <div class="icon-container">
-    {/* Placeholder icon — gradient background with initial */}
+    <!-- Placeholder icon — gradient background with initial -->
     <div class="icon-placeholder">
       {initial}
     </div>
 
-    {/* Shortcut badge (if provided) */}
+    <!-- Shortcut badge (if provided) -->
     {#if shortcutKey}
       <div class="shortcut-badge">
         {shortcutKey}

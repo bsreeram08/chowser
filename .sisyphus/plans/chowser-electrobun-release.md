@@ -1415,7 +1415,7 @@ Max Concurrent: 7 (Wave 1)
   - Message: `feat(ui): implement complete picker and settings functionality`
   - Files: `src/views/picker/**/*.svelte`, `src/views/settings/**/*.svelte`
 
-- [ ] 26. Build Onboarding wizard shell with step navigation
+- [x] 26. Build Onboarding wizard shell with step navigation
 
   **What to do**:
   - Create src/views/onboarding/OnboardingShell.svelte

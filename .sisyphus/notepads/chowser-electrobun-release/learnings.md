@@ -159,3 +159,98 @@ export const rpc = {
 - These already exist as `exportConfig` / `importConfig` — may need separate methods or aliasing
 - Test import/export workflow end-to-end with real data
 
+
+## Task 26: Onboarding Wizard Shell with Step Navigation
+
+### ✅ COMPLETED
+
+**File Created**: `chowser-electrobun/src/views/onboarding/OnboardingShell.svelte` (291 lines)
+
+### Features Implemented
+
+1. **Step Indicator** (5 circles)
+   - Shows current step (1-5) with active state highlighting
+   - Circle buttons disabled (visual only, non-interactive)
+   - Active step colored with accent blue
+
+2. **Progress Bar**
+   - Positioned at top of shell
+   - Fills proportionally: 0%, 20%, 40%, 60%, 80%, 100%
+   - Uses CSS transition for smooth animation
+   - Derived calculation: `((currentStep - 1) / TOTAL_STEPS) * 100`
+
+3. **Navigation Buttons**
+   - **Back**: Disabled on step 1, auto-enabled after
+   - **Skip**: Conditionally shown when `allowSkip` prop is true
+   - **Next**: Disabled on step 5 (last step)
+   - Primary styling on Next (blue accent), secondary on Back, ghost on Skip
+
+4. **Close Button**
+   - X icon in top-right corner
+   - Calls `onClose` callback when clicked
+   - Positioned absolutely with z-index to stay visible
+
+5. **Content Slot**
+   - Flexible `<slot />` for individual step components
+   - Centered layout with overflow-y auto for tall content
+   - Flex: 1 to fill available space
+
+### Component Props Interface
+
+```typescript
+interface OnboardingShellProps {
+  currentStep?: number;        // 1-5, default 1
+  allowSkip?: boolean;         // Show skip button, default false
+  onNext?: () => void;         // Called when Next clicked
+  onBack?: () => void;         // Called when Back clicked
+  onSkip?: () => void;         // Called when Skip clicked
+  onClose?: () => void;        // Called when X clicked
+}
+```
+
+### Derived Reactive Values
+
+- `progressPercentage`: `$derived.by()` calculates progress bar width
+- `canGoBack`: `$derived()` enables Back button based on step > 1
+- `canGoForward`: `$derived()` enables Next button based on step < TOTAL_STEPS
+- `stepNumbers`: `$derived.by()` creates array [1,2,3,4,5] for indicator
+
+### Design Tokens Used
+
+- Colors: `--color-accent`, `--color-accent-hover`, `--color-accent-pressed`
+- Typography: `--font-family-system`, `--font-size-base`, `--font-weight-medium`
+- Spacing: `--spacing-2` through `--spacing-6`
+- Radius: `--radius-md`
+- Borders: `--color-control-border`, `--color-separator`
+
+### CSS Structure
+
+- `.onboarding-shell`: Main flex container (column)
+- `.close-button`: Absolute positioned button with hover/active states
+- `.progress-bar-container` / `.progress-bar`: Thin bar at top with animated width
+- `.step-indicator`: Center-aligned circle buttons
+- `.step-content`: Flexible slot area
+- `.navigation-buttons`: Bottom footer with back/skip/next buttons
+- `.nav-button*`: Button variants (primary, secondary, ghost)
+
+### Build Status
+
+✅ `npm run build` succeeds with no OnboardingShell errors
+✅ Bundle includes onboarding shell in vite build
+✅ No TypeScript or Svelte compilation errors
+
+### No TODOs/FIXMEs
+
+All code is production-ready with no incomplete sections.
+
+### Next Steps (Tasks 27-32)
+
+Individual step components can now import and use OnboardingShell:
+- WelcomeStep.svelte
+- DefaultBrowserStep.svelte
+- BrowsersStep.svelte
+- RulesStep.svelte
+- FinishStep.svelte
+
+Each will render inside the `<slot />` and call the `onNext`/`onBack`/`onSkip`/`onClose` callbacks to control shell navigation.
+

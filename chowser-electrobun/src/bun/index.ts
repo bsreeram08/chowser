@@ -18,13 +18,14 @@ import Electrobun, {
   BrowserWindow,
   BrowserView,
   Utils,
+  PATHS,
   type ElectrobunRPCSchema,
 } from "electrobun/bun";
 import type { MenuItemConfig } from "electrobun/bun";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, basename, join } from "node:path";
+import { join, dirname, basename } from "node:path";
 
 import {
   loadState,
@@ -117,7 +118,10 @@ scheduleFocusModeExpiry();
 // System tray icon
 // ---------------------------------------------------------------------------
 
-const tray = new Tray({ title: "⟳", template: true });
+const tray = new Tray({
+  image: join(PATHS.VIEWS_FOLDER, "../icons/icon_16x16.png"),
+  template: true,
+});
 updateTrayMenu();
 
 function buildFocusModeMenu(): MenuItemConfig[] {
@@ -700,6 +704,9 @@ type PickerSchema = ElectrobunRPCSchema & {
 
 let pickerRPC: ReturnType<typeof BrowserView.defineRPC<PickerSchema>> | null =
   null;
+// Prevents multiple windows from being created when open-url events arrive
+// concurrently (e.g. during startup) before pickerWindow is fully initialised.
+let pickerCreating = false;
 
 function showPicker(url: string, sourceApp?: string) {
   pendingPickerUrl = url;
@@ -709,6 +716,10 @@ function showPicker(url: string, sourceApp?: string) {
     (pickerRPC.send as unknown as { refreshPicker: () => void }).refreshPicker();
     return;
   }
+
+  // Guard against re-entrant calls while the window is being constructed
+  if (pickerCreating) return;
+  pickerCreating = true;
 
   const rpc = BrowserView.defineRPC<PickerSchema>({
     handlers: {
@@ -826,9 +837,14 @@ function showPicker(url: string, sourceApp?: string) {
     sandbox: false,
   } as never);
 
+  pickerCreating = false;
+
+  pickerWindow.show();
+
   pickerWindow.on("close", () => {
     pickerWindow = null;
     pickerRPC = null;
+    pickerCreating = false;
     pendingPickerUrl = null;
   });
 }
@@ -1245,6 +1261,8 @@ function openSettings() {
     navigationRules: "deny-all",
     sandbox: false,
   } as never);
+
+  settingsWindow.show();
 
   settingsWindow.on("close", () => {
     settingsWindow = null;

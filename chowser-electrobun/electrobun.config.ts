@@ -19,11 +19,15 @@ const config: ElectrobunConfig = {
     },
     views: {
       picker: {
-        entrypoint: "build/views/src/views/picker/index.html",
+        entrypoint: "src/views/picker/index.html",
       },
       settings: {
-        entrypoint: "build/views/src/views/settings/index.html",
+        entrypoint: "src/views/settings/index.html",
       },
+    },
+    copy: {
+      "icon.iconset/icon_16x16.png": "icons/icon_16x16.png",
+      "icon.iconset/icon_16x16@2x.png": "icons/icon_16x16@2x.png",
     },
     mac: {
       // Path to the .iconset folder containing app icon PNGs

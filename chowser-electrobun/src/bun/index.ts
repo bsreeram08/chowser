@@ -148,21 +148,68 @@ function buildFocusModeMenu(): MenuItemConfig[] {
 }
 
 function openDefaultBrowserSettings(): void {
-  // macOS Ventura+ (13+): Desktop & Dock extension
-  // macOS Monterey (12): com.apple.preferences.generalIn
-  const urls = [
-    "x-apple.systempreferences:com.apple.Desktop-Settings.extension",
-    "x-apple.systempreferences:com.apple.preferences.generalIn",
-  ];
-  for (const url of urls) {
+  const platform = process.platform;
+
+  if (platform === "darwin") {
+    // macOS Ventura+ (13+): Desktop & Dock extension
+    // macOS Monterey (12): com.apple.preferences.generalIn
+    const urls = [
+      "x-apple.systempreferences:com.apple.Desktop-Settings.extension",
+      "x-apple.systempreferences:com.apple.preferences.generalIn",
+    ];
+    for (const url of urls) {
+      try {
+        if (Utils.openExternal(url)) return;
+      } catch {}
+    }
     try {
-      if (Utils.openExternal(url)) return;
-    } catch {}
+      Utils.openPath("/System/Applications/System Settings.app");
+    } catch {
+      console.warn("[chowser] Could not open System Settings");
+    }
+    return;
   }
-  try {
-    Utils.openPath("/System/Applications/System Settings.app");
-  } catch {
-    console.warn("[chowser] Could not open System Settings");
+
+  if (platform === "win32") {
+    // Windows: Open System Settings -> Apps -> Default apps
+    try {
+      // Windows 10/11: Open Default Apps settings
+      Utils.openExternal("ms-settings:defaultapps");
+    } catch {
+      // Fallback: try opening the classic control panel
+      try {
+        Utils.openExternal("control.exe /name Microsoft.DefaultPrograms /page pageDefaultProgram");
+      } catch {
+        console.warn("[chowser] Could not open Windows Default Apps settings");
+      }
+    }
+    return;
+  }
+
+  if (platform === "linux") {
+    // Linux: Try various desktop environment approaches
+    const tryCommands = [
+      "xdg-open https://applications.google.com", // Fallback web page
+      "gnome-control-center default-apps", // GNOME
+      "mate-control-center default-applications", // MATE
+      "xfce4-settings-manager", // XFCE
+      "systemsettings5", // KDE
+    ];
+    for (const cmd of tryCommands) {
+      try {
+        const [program, ...args] = cmd.split(" ");
+        const { spawnSync } = require("node:child_process");
+        const result = spawnSync(program, args, { timeout: 2000 });
+        if (result.status === 0) return;
+      } catch {}
+    }
+    // Last resort: try xdg-settings
+    try {
+      const { spawnSync } = require("node:child_process");
+      spawnSync("xdg-settings", ["set", "default-web-browser", "chowser.desktop"], { timeout: 2000 });
+    } catch {
+      console.warn("[chowser] Could not open Linux default apps settings");
+    }
   }
 }
 
@@ -175,6 +222,25 @@ function appBundleInfo(): { appName: string; appPath: string } | null {
   const appName = basename(appPath, ".app");
   if (!appName || !appPath) return null;
   return { appName, appPath };
+}
+
+function setLaunchAtLogin(enabled: boolean): void {
+  const platform = process.platform;
+
+  if (platform === "darwin") {
+    setLaunchAtLoginMac(enabled);
+    return;
+  }
+
+  if (platform === "win32") {
+    setLaunchAtLoginWindows(enabled);
+    return;
+  }
+
+  if (platform === "linux") {
+    setLaunchAtLoginLinux(enabled);
+    return;
+  }
 }
 
 function setLaunchAtLoginMac(enabled: boolean): void {
@@ -200,6 +266,86 @@ end tell
     console.log(`[chowser] launch-at-login ${enabled ? "enabled" : "disabled"}`);
   } catch (err) {
     console.error("[chowser] Failed to set launch-at-login via osascript:", err);
+  }
+}
+
+function setLaunchAtLoginWindows(enabled: boolean): void {
+  const { spawnSync } = require("node:child_process");
+  const path = require("node:path");
+  const HOME = process.env["USERPROFILE"] || process.env["HOME"] || "";
+  const startupFolder = path.join(HOME, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup");
+  const appName = "Chowser.lnk";
+  const targetPath = process.execPath;
+  const lnkPath = path.join(startupFolder, appName);
+
+  try {
+    if (enabled) {
+      // Create a shortcut in the startup folder using PowerShell
+      const psScript = `
+        $WshShell = New-Object -ComObject WScript.Shell
+        $Shortcut = $WshShell.CreateShortcut("${lnkPath.replace(/\\/g, "\\\\")}")
+        $Shortcut.TargetPath = "${targetPath.replace(/\\/g, "\\\\")}"
+        $Shortcut.WorkingDirectory = "${path.dirname(targetPath).replace(/\\/g, "\\\\")}"
+        $Shortcut.Description = "Chowser - Browser Router"
+        $Shortcut.Save()
+      `;
+      spawnSync("powershell", ["-Command", psScript], {
+        timeout: 5000,
+        windowsHide: true,
+      });
+      console.log(`[chowser] launch-at-login enabled (Windows startup folder)`);
+    } else {
+      // Remove the shortcut from startup folder
+      const { existsSync, unlinkSync } = require("node:fs");
+      if (existsSync(lnkPath)) {
+        unlinkSync(lnkPath);
+      }
+      console.log(`[chowser] launch-at-login disabled (Windows startup folder)`);
+    }
+  } catch (err) {
+    console.error("[chowser] Failed to set launch-at-login on Windows:", err);
+  }
+}
+
+function setLaunchAtLoginLinux(enabled: boolean): void {
+  const { spawnSync } = require("node:child_process");
+  const { existsSync, unlinkSync, writeFileSync, mkdirSync } = require("node:fs");
+  const path = require("node:path");
+  const HOME = process.env["HOME"] || "";
+  const configDir = path.join(HOME, ".config");
+  const autostartDir = path.join(configDir, "autostart");
+  const desktopFileName = "in.sreerams.chowser-electrobun.desktop";
+  const desktopFilePath = path.join(autostartDir, desktopFileName);
+
+  // Ensure autostart directory exists
+  if (!existsSync(autostartDir)) {
+    mkdirSync(autostartDir, { recursive: true });
+  }
+
+  try {
+    if (enabled) {
+      const targetPath = process.execPath;
+      const desktopEntry = `[Desktop Entry]
+Type=Application
+Name=Chowser
+Comment=Chowser - Browser Router
+Exec=${targetPath}
+Icon=chowser
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+`;
+      writeFileSync(desktopFilePath, desktopEntry, "utf-8");
+      console.log(`[chowser] launch-at-login enabled (Linux autostart)`);
+    } else {
+      if (existsSync(desktopFilePath)) {
+        unlinkSync(desktopFilePath);
+      }
+      console.log(`[chowser] launch-at-login disabled (Linux autostart)`);
+    }
+  } catch (err) {
+    console.error("[chowser] Failed to set launch-at-login on Linux:", err);
   }
 }
 
@@ -957,8 +1103,8 @@ function openSettings() {
         },
         setLaunchAtLogin: (params: unknown) => {
           const { enabled } = params as { enabled: boolean };
-          // setLaunchAtLoginMac handles errors internally (won't throw)
-          setLaunchAtLoginMac(enabled);
+          // setLaunchAtLogin handles errors internally (won't throw)
+          setLaunchAtLogin(enabled);
           patchState({ launchAtLogin: enabled });
         },
         openDefaultBrowserSettings: () => {

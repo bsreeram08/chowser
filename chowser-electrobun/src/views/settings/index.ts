@@ -213,7 +213,7 @@ function onboardingBannerHTML(): string {
       <div class="onboarding-banner-icon">👋</div>
       <div class="onboarding-banner-body">
         <h3>Welcome to Chowser!</h3>
-        <p>To intercept links, set Chowser as your default browser in macOS System Settings → Desktop &amp; Dock → Default web browser.</p>
+        <p>To intercept links, set Chowser as your default browser in your system's Default Apps settings.</p>
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary" id="openDefaultBrowserSettings">Open System Settings</button>
           <button class="btn btn-ghost" id="dismissOnboarding">Got it</button>
@@ -473,7 +473,7 @@ function renderGeneralTab(): string {
       <div class="list-item">
         <div class="list-item-body">
           <div class="list-item-title">Set Chowser as Default Browser</div>
-          <div class="list-item-subtitle">Opens macOS System Settings → Desktop &amp; Dock</div>
+          <div class="list-item-subtitle">Opens system Default Apps settings</div>
         </div>
         <button class="btn btn-primary" id="setDefaultBrowserBtn">Open Settings</button>
       </div>

@@ -1,9 +1,20 @@
 // ---------------------------------------------------------------------------
 // Browser launcher — open a URL in a specific browser / profile
+// Cross-platform: macOS, Windows, Linux
 // ---------------------------------------------------------------------------
 
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { BrowserConfig, ResolvedRoute } from "./models.ts";
+import { resolveExecutablePath } from "./browserDetector.ts";
+
+// ---------------------------------------------------------------------------
+// Platform detection
+// ---------------------------------------------------------------------------
+
+const PLATFORM = process.platform; // 'darwin' | 'win32' | 'linux'
 
 // ---------------------------------------------------------------------------
 // Chromium-family bundle IDs that support --profile-directory
@@ -22,7 +33,7 @@ const CHROMIUM_APP_IDS = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
-// Private-mode flags by browser
+// Private-mode flags by browser (platform-specific)
 // ---------------------------------------------------------------------------
 
 function privateFlag(appId: string): string {
@@ -33,11 +44,31 @@ function privateFlag(appId: string): string {
   return "--private";
 }
 
+/**
+ * Private mode flags for Windows (Chromium-based browsers)
+ */
+function privateFlagWindows(appId: string): string {
+  if (CHROMIUM_APP_IDS.has(appId)) return "--incognito";
+  if (appId.startsWith("org.mozilla") || appId.startsWith("app.zen-browser"))
+    return "-private-window";
+  return "--private";
+}
+
+/**
+ * Private mode flags for Linux (Chromium-based browsers)
+ */
+function privateFlagLinux(appId: string): string {
+  if (CHROMIUM_APP_IDS.has(appId)) return "--incognito";
+  if (appId.startsWith("org.mozilla") || appId.startsWith("app.zen-browser"))
+    return "--private-window";
+  return "--private";
+}
+
 // ---------------------------------------------------------------------------
-// Resolve browser path from bundle ID
+// macOS: Resolve browser path from bundle ID using mdfind
 // ---------------------------------------------------------------------------
 
-function resolveAppPath(appId: string): string | null {
+function resolveAppPathMac(appId: string): string | null {
   try {
     const result = spawnSync(
       "/usr/bin/mdfind",
@@ -55,16 +86,23 @@ function resolveAppPath(appId: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Main launch function
+// Main launch function (cross-platform)
 // ---------------------------------------------------------------------------
 
 /**
  * Open `url` in the browser described by `browser` (or `route`).
  *
- * Strategy:
- *   • Chromium with profile → `open -n -a "App.app" --args --profile-directory=<dir> <url>`
- *   • Firefox with profile  → `open -n -a "App.app" --args -P <profile> <url>`
- *   • Everything else       → `open -a <bundleId> <url>` (via LSOpenURLsWithRole)
+ * Strategy by platform:
+ *   macOS:
+ *     • Chromium with profile → `open -n -a "App.app" --args --profile-directory=<dir> <url>`
+ *     • Firefox with profile  → `open -n -a "App.app" --args -P <profile> <url>`
+ *     • Everything else       → `open -a <bundleId> <url>` (via LSOpenURLsWithRole)
+ *   Windows:
+ *     • Direct exe launch with arguments
+ *     • Falls back to `start "" "url"` for simple launches
+ *   Linux:
+ *     • Try xdg-open first for simple launches
+ *     • Direct exe launch with arguments for profile/private mode
  */
 export function launchBrowser(
   url: string,
@@ -72,7 +110,30 @@ export function launchBrowser(
   usePrivateMode = false
 ): void {
   const appId = browser.appId;
-  const appPath = resolveAppPath(appId);
+
+  switch (PLATFORM) {
+    case "darwin":
+      launchBrowserMac(url, browser, usePrivateMode);
+      break;
+    case "win32":
+      launchBrowserWindows(url, browser, usePrivateMode);
+      break;
+    case "linux":
+      launchBrowserLinux(url, browser, usePrivateMode);
+      break;
+    default:
+      // Fallback to macOS behavior
+      launchBrowserMac(url, browser, usePrivateMode);
+  }
+}
+
+function launchBrowserMac(
+  url: string,
+  browser: BrowserConfig,
+  usePrivateMode: boolean
+): void {
+  const appId = browser.appId;
+  const appPath = resolveAppPathMac(appId);
 
   // Build extra args list
   const extraArgs: string[] = [];
@@ -108,6 +169,120 @@ export function launchBrowser(
   // Plain launch by bundle ID
   const args = ["-b", appId, url];
   spawnSync("/usr/bin/open", args, { timeout: 5000 });
+}
+
+function launchBrowserWindows(
+  url: string,
+  browser: BrowserConfig,
+  usePrivateMode: boolean
+): void {
+  const appId = browser.appId;
+
+  // Get executable path from browser detector
+  let exePath = resolveExecutablePath(appId);
+
+  // Build extra args list
+  const extraArgs: string[] = [];
+
+  if (usePrivateMode) {
+    const flag = privateFlagWindows(appId);
+    if (flag) extraArgs.push(flag);
+  }
+
+  if (browser.profile) {
+    if (CHROMIUM_APP_IDS.has(appId)) {
+      extraArgs.push(`--profile-directory=${browser.profile}`);
+    } else if (
+      appId.startsWith("org.mozilla") ||
+      appId.startsWith("app.zen-browser")
+    ) {
+      extraArgs.push("-P", browser.profile);
+    }
+  }
+
+  if (browser.customArguments) {
+    extraArgs.push(...parseCustomArguments(browser.customArguments));
+  }
+
+  if (exePath && existsSync(exePath)) {
+    // Direct exe launch with arguments
+    const args = [exePath, ...extraArgs, url];
+    try {
+      spawnSync(exePath, [...extraArgs, url], {
+        timeout: 5000,
+        windowsHide: true,
+      });
+      return;
+    } catch {
+      // Fall through to start command
+    }
+  }
+
+  // Fallback: use start command to open URL (will use default browser)
+  // This is less reliable but works when we can't find the browser exe
+  try {
+    spawnSync(
+      "cmd",
+      ["/c", "start", "", url],
+      { timeout: 5000, windowsHide: true }
+    );
+  } catch (err) {
+    console.error("[launcher] Failed to launch browser on Windows:", err);
+  }
+}
+
+function launchBrowserLinux(
+  url: string,
+  browser: BrowserConfig,
+  usePrivateMode: boolean
+): void {
+  const appId = browser.appId;
+
+  // Get executable path from browser detector
+  let exePath = resolveExecutablePath(appId);
+
+  // Build extra args list
+  const extraArgs: string[] = [];
+
+  if (usePrivateMode) {
+    const flag = privateFlagLinux(appId);
+    if (flag) extraArgs.push(flag);
+  }
+
+  if (browser.profile) {
+    if (CHROMIUM_APP_IDS.has(appId)) {
+      extraArgs.push(`--profile-directory=${browser.profile}`);
+    } else if (
+      appId.startsWith("org.mozilla") ||
+      appId.startsWith("app.zen-browser")
+    ) {
+      extraArgs.push("--profile", browser.profile);
+    }
+  }
+
+  if (browser.customArguments) {
+    extraArgs.push(...parseCustomArguments(browser.customArguments));
+  }
+
+  if (exePath && existsSync(exePath)) {
+    // Direct exe launch with arguments
+    try {
+      spawnSync(exePath, [...extraArgs, url], {
+        timeout: 5000,
+      });
+      return;
+    } catch {
+      // Fall through to xdg-open
+    }
+  }
+
+  // Fallback: use xdg-open (will use default browser)
+  // This is less reliable for specific browser launching but works as fallback
+  try {
+    spawnSync("xdg-open", [url], { timeout: 5000 });
+  } catch (err) {
+    console.error("[launcher] Failed to launch browser on Linux:", err);
+  }
 }
 
 /**

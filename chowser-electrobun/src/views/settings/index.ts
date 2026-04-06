@@ -400,7 +400,7 @@ function renderAppsTab(hiddenAppIds: string[]): string {
       <button class="btn btn-primary" id="addHiddenAppBtn">Hide App</button>
     </div>
     <div class="card" style="margin-bottom:12px">
-      ${rows || `<div class="empty-state" style="padding:20px"><div>No hidden apps configured</div></div>`}
+      ${rows || `<div class="empty-state"><div>No hidden apps configured</div></div>`}
     </div>
     <button class="btn btn-ghost btn-sm" id="resetHiddenAppsBtn">Reset to defaults</button>`;
 }

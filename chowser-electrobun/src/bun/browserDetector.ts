@@ -423,7 +423,11 @@ function linuxFindExecutable(executables: string[]): string | null {
   // First try `which` for PATH-based discovery
   for (const exe of executables) {
     try {
-      const result = spawnSync("which", [exe], { encoding: "utf-8", timeout: 2000 });
+      const result = spawnSync("which", [exe], {
+        encoding: "utf-8",
+        timeout: 2000,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       const path = (result.stdout ?? "").trim();
       if (path && existsSync(path)) return path;
     } catch {}

@@ -211,6 +211,7 @@ function launchBrowserWindows(
       spawnSync(exePath, [...extraArgs, url], {
         timeout: 5000,
         windowsHide: true,
+        stdio: ["ignore", "ignore", "ignore"],
       });
       return;
     } catch {
@@ -224,7 +225,7 @@ function launchBrowserWindows(
     spawnSync(
       "cmd",
       ["/c", "start", "", url],
-      { timeout: 5000, windowsHide: true }
+      { timeout: 5000, windowsHide: true, stdio: ["ignore", "ignore", "ignore"] }
     );
   } catch (err) {
     console.error("[launcher] Failed to launch browser on Windows:", err);
@@ -269,6 +270,7 @@ function launchBrowserLinux(
     try {
       spawnSync(exePath, [...extraArgs, url], {
         timeout: 5000,
+        stdio: ["ignore", "ignore", "ignore"],
       });
       return;
     } catch {
@@ -279,7 +281,10 @@ function launchBrowserLinux(
   // Fallback: use xdg-open (will use default browser)
   // This is less reliable for specific browser launching but works as fallback
   try {
-    spawnSync("xdg-open", [url], { timeout: 5000 });
+    spawnSync("xdg-open", [url], {
+      timeout: 5000,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
   } catch (err) {
     console.error("[launcher] Failed to launch browser on Linux:", err);
   }

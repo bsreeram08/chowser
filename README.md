@@ -43,7 +43,7 @@ Chowser lives in your menu bar and uses zero resources when idle.
 
 ### Mac App Store
 
-[Download from the Mac App Store](https://apps.apple.com/app/chowser/id6741527291)
+[Download from the Mac App Store](https://apps.apple.com/in/app/chowser/id6760034779)
 
 ### Build from Source
 

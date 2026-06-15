@@ -47,168 +47,171 @@ extension SettingsView {
     }
     
     var rulesSection: some View {
-        HStack(spacing: 0) {
-            // Sidebar List of Rules
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text("Rules")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                    
-                    Spacer()
+        GeometryReader { geometry in
+            let sidebarWidth = max(220, min(320, geometry.size.width * 0.36))
+            HStack(spacing: 0) {
+                // Sidebar List of Rules
+                VStack(spacing: 0) {
+                    // Header
+                    HStack {
+                        Text("Rules")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                        
+                        Spacer()
 
-                    Menu {
-                        Button(action: exportRules) {
-                            Label("Export Rules…", systemImage: "square.and.arrow.up")
-                        }
-                        .disabled(browserManager.routingRules.isEmpty)
+                        Menu {
+                            Button(action: exportRules) {
+                                Label("Export Rules…", systemImage: "square.and.arrow.up")
+                            }
+                            .disabled(browserManager.routingRules.isEmpty)
 
-                        Button(action: importRules) {
-                            Label("Import Rules…", systemImage: "square.and.arrow.down")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .frame(width: 28)
-                    .accessibilityIdentifier("settings.rulesMenuButton")
-                     
-                    Button(action: { 
-                        preselectedRuleBrowserIdentity = nil
-                        showingAddRuleSheet = true 
-                    }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.accent)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Add new routing rule")
-                    .accessibilityIdentifier("settings.addRuleButton")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 20)
-                
-                // Search Field
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    
-                    TextField("Search rules...", text: $ruleSearchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-                
-                Divider()
-                
-                // Rules List
-                List(selection: $selectedRuleId) {
-                    let groups = groupedRoutingRules
-                    let isSearching = !ruleSearchText.isEmpty
-                    
-                    if groups.flatMap({ $0.rules }).isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: isSearching ? "magnifyingglass" : "bolt.horizontal.circle")
-                                .font(.system(size: 32))
-                                .foregroundStyle(.tertiary)
-                            Text(isSearching ? "No Matches Found" : "No Rules Configured")
-                                .font(.system(size: 13, weight: .medium))
+                            Button(action: importRules) {
+                                Label("Import Rules…", systemImage: "square.and.arrow.down")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.system(size: 16))
                                 .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, 40)
-                        .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(groups) { group in
-                            // Only show browsers that have rules matching the search,
-                            // or all browsers if not searching.
-                            if !group.rules.isEmpty || (!isSearching && !browserManager.configuredBrowsers.isEmpty) {
-                                Section {
-                                    ForEach(group.rules) { rule in
-                                        RuleRowView(
-                                            rule: rule,
-                                            browser: group.browser,
-                                            isSelected: selectedRuleId == rule.id
-                                        )
-                                        .tag(rule.id)
-                                        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
-                                        .listRowSeparator(.hidden)
-                                        .listRowBackground(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(selectedRuleId == rule.id ? Color.accentColor : Color.clear)
-                                        )
-                                    }
-                                } header: {
-                                    HStack {
-                                        if let icon = AppMetadataCache.shared.icon(for: group.browser.bundleId) {
-                                            Image(nsImage: icon)
-                                                .resizable()
-                                                .frame(width: 14, height: 14)
-                                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .menuStyle(.borderlessButton)
+                        .frame(width: 28)
+                        .accessibilityIdentifier("settings.rulesMenuButton")
+                         
+                        Button(action: { 
+                            preselectedRuleBrowserIdentity = nil
+                            showingAddRuleSheet = true 
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Add new routing rule")
+                        .accessibilityIdentifier("settings.addRuleButton")
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 20)
+                    
+                    // Search Field
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        
+                        TextField("Search rules...", text: $ruleSearchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                    
+                    Divider()
+                    
+                    // Rules List
+                    List(selection: $selectedRuleId) {
+                        let groups = groupedRoutingRules
+                        let isSearching = !ruleSearchText.isEmpty
+                        
+                        if groups.flatMap({ $0.rules }).isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: isSearching ? "magnifyingglass" : "bolt.horizontal.circle")
+                                    .font(.system(size: 32))
+                                    .foregroundStyle(.tertiary)
+                                Text(isSearching ? "No Matches Found" : "No Rules Configured")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(.top, 40)
+                            .listRowBackground(Color.clear)
+                        } else {
+                            ForEach(groups) { group in
+                                // Only show browsers that have rules matching the search,
+                                // or all browsers if not searching.
+                                if !group.rules.isEmpty || (!isSearching && !browserManager.configuredBrowsers.isEmpty) {
+                                    Section {
+                                        ForEach(group.rules) { rule in
+                                            RuleRowView(
+                                                rule: rule,
+                                                browser: group.browser,
+                                                isSelected: selectedRuleId == rule.id
+                                            )
+                                            .tag(rule.id)
+                                            .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+                                            .listRowSeparator(.hidden)
+                                            .listRowBackground(
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .fill(selectedRuleId == rule.id ? Color.accentColor : Color.clear)
+                                            )
                                         }
-                                        
-                                        Text(group.browser.name)
-                                            .font(.system(size: 11, weight: .bold))
-                                            .foregroundStyle(.secondary)
-                                        
-                                        Spacer()
-                                        
-                                        Button(action: {
-                                            preselectedRuleBrowserIdentity = group.id
-                                            showingAddRuleSheet = true
-                                        }) {
-                                            Image(systemName: "plus")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundStyle(.tertiary)
+                                    } header: {
+                                        HStack {
+                                            if let icon = AppMetadataCache.shared.icon(for: group.browser.bundleId) {
+                                                Image(nsImage: icon)
+                                                    .resizable()
+                                                    .frame(width: 14, height: 14)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                                            }
+                                            
+                                            Text(group.browser.name)
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(.secondary)
+                                            
+                                            Spacer()
+                                            
+                                            Button(action: {
+                                                preselectedRuleBrowserIdentity = group.id
+                                                showingAddRuleSheet = true
+                                            }) {
+                                                Image(systemName: "plus")
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .accessibilityIdentifier("settings.addRuleForBrowserButton")
                                         }
-                                        .buttonStyle(.plain)
-                                        .accessibilityIdentifier("settings.addRuleForBrowserButton")
+                                        .padding(.vertical, 8)
                                     }
-                                    .padding(.vertical, 8)
                                 }
                             }
                         }
                     }
+                    .listStyle(.sidebar) // SideBar list style handles sections better on macOS
+                    .scrollContentBackground(.hidden)
                 }
-                .listStyle(.sidebar) // SideBar list style handles sections better on macOS
-                .scrollContentBackground(.hidden)
-            }
-            .frame(width: 300)
-            .background(Color.primary.opacity(0.01))
-            
-            Divider()
-            
-            // Rule Detail Area
-            ZStack {
-                if let ruleId = selectedRuleId, let rule = browserManager.routingRules.first(where: { $0.id == ruleId }) {
-                    ModernRuleDetailView(
-                        rule: rule,
-                        manager: browserManager,
-                        onUpdate: { updated in
-                            browserManager.updateRule(updated)
-                        },
-                        onDelete: {
-                            browserManager.removeRoutingRule(id: ruleId)
-                            selectedRuleId = nil
-                        }
-                    )
-                    .id(ruleId)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-                } else {
-                    rulesPlaceholderView
-                        .transition(.opacity)
+                .frame(width: sidebarWidth)
+                .background(Color.primary.opacity(0.01))
+                
+                Divider()
+                
+                // Rule Detail Area
+                ZStack {
+                    if let ruleId = selectedRuleId, let rule = browserManager.routingRules.first(where: { $0.id == ruleId }) {
+                        ModernRuleDetailView(
+                            rule: rule,
+                            manager: browserManager,
+                            onUpdate: { updated in
+                                browserManager.updateRule(updated)
+                            },
+                            onDelete: {
+                                browserManager.removeRoutingRule(id: ruleId)
+                                selectedRuleId = nil
+                            }
+                        )
+                        .id(ruleId)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    } else {
+                        rulesPlaceholderView
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedRuleId)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedRuleId)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
     
@@ -260,7 +263,7 @@ extension SettingsView {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            try browserManager.importRules(from: url)
+            try browserManager.importRules(from: url, skipExisting: browserManager.skipExistingImportedRules)
         } catch {
             print("Import rules failed: \(error.localizedDescription)")
         }

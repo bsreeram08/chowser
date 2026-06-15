@@ -538,7 +538,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.title = "Chowser Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 1100, height: 700))
-        window.minSize = NSSize(width: 900, height: 600)
+        window.minSize = NSSize(width: 820, height: 560)
         window.maxSize = NSSize(width: 2000, height: 1500)
         window.center()
         window.isReleasedWhenClosed = false

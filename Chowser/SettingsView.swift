@@ -88,8 +88,7 @@ struct SettingsView: View {
             case .general: generalSection
             }
         }
-        .frame(minWidth: 1100, idealWidth: 1300, minHeight: 700, idealHeight: 900)
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(minWidth: 820, idealWidth: 1080, minHeight: 560)
         .sheet(isPresented: $showingAddSheet) {
             AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
         }

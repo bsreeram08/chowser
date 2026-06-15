@@ -474,7 +474,7 @@ extension SettingsView {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            try browserManager.importBrowsers(from: url)
+            try browserManager.importBrowsers(from: url, skipExisting: browserManager.skipExistingImportedBrowsers)
         } catch {
             print("Import failed: \(error.localizedDescription)")
         }
@@ -515,4 +515,3 @@ extension SettingsView {
         .id(browser.id)
     }
 }
-

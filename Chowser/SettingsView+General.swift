@@ -142,6 +142,18 @@ extension SettingsView {
                 }
 
                 Section {
+                    Toggle("Skip existing rules on import", isOn: $manager.skipExistingImportedRules)
+                        .accessibilityIdentifier("settings.importRulesSkipExisting")
+                    Toggle("Skip existing browsers on import", isOn: $manager.skipExistingImportedBrowsers)
+                        .accessibilityIdentifier("settings.importBrowsersSkipExisting")
+                    Text("When enabled, imports ignore items already present in your setup.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                } header: {
+                    Text("Import Behavior")
+                }
+
+                Section {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Default Browser")

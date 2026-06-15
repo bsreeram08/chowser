@@ -26,6 +26,13 @@
 			remoteGlobalIDString = 30E5E9EE2F4847CD00E18455;
 			remoteInfo = Chowser;
 		};
+		D4B7A1012F59100100ABCDEF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 30E5E9E72F4847CD00E18455 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 30E5E9EE2F4847CD00E18455;
+			remoteInfo = Chowser;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -228,6 +235,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				D4B7A1022F59100100ABCDEF /* PBXTargetDependency */,
 			);
 			name = ChowserUITests;
 			productName = ChowserUITests;
@@ -351,6 +359,11 @@
 			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
 			targetProxy = CFC3E7415FCB405E9A35AE14 /* PBXContainerItemProxy */;
 		};
+		D4B7A1022F59100100ABCDEF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
+			targetProxy = D4B7A1012F59100100ABCDEF /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -358,10 +371,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151648;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 3.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserScreenshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -378,10 +391,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151648;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 3.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserScreenshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -524,7 +537,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151648;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -561,7 +574,7 @@
 				CODE_SIGN_ENTITLEMENTS = Chowser/ChowserAppStore.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151648;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -608,7 +621,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151648;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 3.6.0;
@@ -640,7 +653,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151648;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 3.6.0;

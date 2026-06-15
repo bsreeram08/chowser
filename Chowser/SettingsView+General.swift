@@ -303,14 +303,14 @@ struct MCPServerSettingsRow: View {
                     .padding(.vertical, 6)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.05)))
 
-                    Text("Use this token to authenticate POST/DELETE requests to the API.")
+                    Text("Send it as `Authorization: Bearer <token>` for every API request, including status and read calls.")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            Text("The local API server lets AI assistants (Claude, personal agents, etc.) configure your browsers and rules.")
+            Text("The local API server is off by default, listens only on this Mac, and lets AI assistants configure browsers and rules only after you start it and share the token.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

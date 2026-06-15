@@ -123,9 +123,11 @@ struct DefaultBrowserStepView: View {
 // MARK: - Browsers Step
 struct BrowsersStepView: View {
     let nextAction: () -> Void
+
+    @State private var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     
     var body: some View {
-        VStack(spacing: 30) {
+        VStack(spacing: 24) {
             Spacer()
             
             HStack(spacing: 20) {
@@ -134,13 +136,15 @@ struct BrowsersStepView: View {
                 BrowserCircle(iconName: "globe", shortcut: "2", color: .red)
                 BrowserCircle(iconName: "network", shortcut: "3", color: .green)
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 4)
             
             VStack(spacing: 12) {
-                Text("Automatic Detection")
+                Text("Browser Detection")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                 
-                Text("Chowser automatically finds your installed browsers and their profiles.")
+                Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                     ? "Chowser finds installed browsers and supported profiles automatically."
+                     : "Chowser finds installed browsers automatically. In App Store builds, profile names are informational because macOS opens only the selected browser app.")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -154,12 +158,32 @@ struct BrowsersStepView: View {
                     .padding(.horizontal, 40)
                     .fixedSize(horizontal: false, vertical: true)
                 
-                Text("Note: Direct profile switching is unsupported for Arc and Dia.")
+                Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                     ? "Note: Direct profile switching is unsupported for Arc and Dia."
+                     : "Profile/private launch arguments are unavailable in App Store builds.")
                     .font(.system(size: 11, weight: .thin))
                     .foregroundStyle(.secondary.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                     .padding(.top, 4)
+
+                if profileAccessStatus.needsRecovery {
+                    Button(action: grantProfileAccess) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder.badge.plus")
+                            Text("Allow Profile Access")
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.12))
+                        .foregroundColor(.blue)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("onboarding.profileAccess.grantButton")
+                    .padding(.top, 4)
+                }
             }
             
             Spacer()
@@ -177,6 +201,13 @@ struct BrowsersStepView: View {
             .padding(.horizontal, 40)
             .padding(.bottom, 40)
         }
+    }
+
+    @MainActor
+    private func grantProfileAccess() {
+        _ = SandboxBookmarkManager.shared.requestApplicationSupportAccess()
+        BrowserProfileDetector.clearCache()
+        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     }
 }
 
@@ -200,8 +231,7 @@ struct BrowserCircle: View {
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.1))
-                .clipShape(Capsule())
+                .customChipSurface(cornerRadius: 999, hoverOpacity: 0.03)
         }
     }
 }
@@ -223,14 +253,15 @@ struct AISetupStepView: View {
     /// Full prompt: remote template + API credentials appended.
     private var setupPrompt: String {
         let base = fetchedTemplate ?? """
-I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac. It's a browser chooser app with a local MCP-style HTTP API server for configuration.
+I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac. It's a browser chooser app with an opt-in, localhost-only MCP-style HTTP API server for configuration.
 
 Your goal is to configure my browsers and routing rules.
 
-1. **Discover API Schema**: Start by calling `GET /status` to see endpoints and required JSON fields.
-2. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari).
-3. **Configure**: Use `POST /browsers` to add profiles and `POST /rules` to set routing. Use the credentials below.
-4. **Confirm**: Show a summary and ask for confirmation before making changes.
+1. **Authenticate**: Use `Authorization: Bearer <token>` on every request, including `GET /status`, `GET /browsers`, and `GET /rules`.
+2. **Discover API Schema**: Call `GET /status` to see endpoints and required JSON fields.
+3. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari).
+4. **Configure**: Use `POST /browsers` to add profiles and `POST /rules` to set routing. Use the credentials below.
+5. **Confirm**: Show a summary and ask for confirmation before making changes.
 
 **Note**: Direct profile switching is unsupported for Arc and Dia browsers; do not attempt to configure specific profiles for these apps.
 """
@@ -239,7 +270,7 @@ Your goal is to configure my browsers and routing rules.
 
         ---
         API server: http://localhost:\(server.port)
-        Auth token: \(server.authToken)
+        Authorization header: Bearer \(server.authToken)
         """
     }
 
@@ -257,7 +288,7 @@ Your goal is to configure my browsers and routing rules.
                     Text("Set Up with AI")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
 
-                    Text("Start the local API server, copy the setup prompt, then paste it into any AI assistant.")
+                    Text("Start the local-only API server, copy the setup prompt, then paste it into an AI assistant. The API is off by default and requires the token for every request.")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -314,8 +345,7 @@ Your goal is to configure my browsers and routing rules.
                                 .truncationMode(.tail)
                         }
                         .padding(12)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+                        .customCardSurface(cornerRadius: 10)
 
                     }
                     .padding(.horizontal, 40)

@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State var browserViewMode: SettingsView.BrowserViewMode = .grid
     @State var draggedBrowserId: UUID? = nil
     @State var dropTargetBrowserId: UUID? = nil
+    @State var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
 
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]

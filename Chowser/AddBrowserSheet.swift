@@ -11,23 +11,65 @@ struct AddBrowserSheet: View {
         case custom = "Custom App"
     }
 
+    typealias BrowserEntry = (name: String, bundleId: String, profile: String?, iconURL: URL?)
+
     @State private var activeTab: SheetTab = .installed
-    @State private var availableBrowsers: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] = []
-    @State private var allBrowsersIncludingHidden: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] = []
+    @State private var availableBrowsers: [BrowserEntry] = []
+    @State private var allBrowsersIncludingHidden: [BrowserEntry] = []
     @State private var hoveredIdentity: String?
     @State private var searchText = ""
     @State private var showHiddenApps = false
+    @State private var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
 
-    private var filteredBrowsers: [(name: String, bundleId: String, profile: String?, iconURL: URL?)] {
+    private var filteredBrowsers: [BrowserEntry] {
         let configuredIdentities = Set(manager.configuredBrowsers.map { "\($0.bundleId)|\($0.profile ?? "")" })
         let source = showHiddenApps ? allBrowsersIncludingHidden : availableBrowsers
-        let candidates = source.filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
+        let candidates = Self.browserCandidates(
+            for: source,
+            configuredIdentities: configuredIdentities,
+            supportsLaunchArguments: BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+        )
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return candidates }
         return candidates.filter {
             $0.name.localizedStandardContains(trimmedQuery) ||
             $0.bundleId.localizedStandardContains(trimmedQuery)
         }
+    }
+
+    static func browserCandidates(
+        for source: [BrowserEntry],
+        configuredIdentities: Set<String>,
+        supportsLaunchArguments: Bool
+    ) -> [BrowserEntry] {
+        guard !supportsLaunchArguments else {
+            return source.filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
+        }
+
+        var seenBundleIDs: Set<String> = []
+        var candidates: [BrowserEntry] = []
+
+        for entry in source {
+            guard seenBundleIDs.insert(entry.bundleId).inserted else { continue }
+            let plainEntry: BrowserEntry = (
+                name: plainBrowserName(from: entry),
+                bundleId: entry.bundleId,
+                profile: nil,
+                iconURL: entry.iconURL
+            )
+            guard !configuredIdentities.contains("\(plainEntry.bundleId)|") else { continue }
+            candidates.append(plainEntry)
+        }
+
+        return candidates
+    }
+
+    private static func plainBrowserName(from entry: BrowserEntry) -> String {
+        guard entry.profile != nil,
+              let dash = entry.name.range(of: " - ") else {
+            return entry.name
+        }
+        return String(entry.name[..<dash.lowerBound])
     }
 
     var body: some View {
@@ -71,8 +113,7 @@ struct AddBrowserSheet: View {
         }
         .frame(width: 440, height: 520)
         .onAppear {
-            availableBrowsers = BrowserManager.getInstalledBrowsers()
-            allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
+            refreshInstalledBrowsers()
         }
         .accessibilityIdentifier("settings.addSheet.root")
     }
@@ -82,6 +123,12 @@ struct AddBrowserSheet: View {
     @ViewBuilder
     private var installedAppsContent: some View {
         VStack(spacing: 0) {
+            if profileAccessStatus.needsRecovery {
+                addSheetProfileAccessBanner
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+            }
+
             // Search + hidden toggle
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -143,6 +190,71 @@ struct AddBrowserSheet: View {
                 }
             }
         }
+    }
+
+
+    private var addSheetProfileAccessBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.blue)
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild ? "Find browser profiles" : "Profile names are informational")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(addSheetProfileAccessMessage)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Button("Allow Access…") {
+                grantProfileAccessFromAddSheet()
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier("settings.addSheet.profileAccess.grantButton")
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.blue.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.blue.opacity(0.16))
+        )
+    }
+
+    private var addSheetProfileAccessMessage: String {
+        switch profileAccessStatus {
+        case .missing:
+            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                return "Allow read-only access to Application Support to list Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles."
+            }
+            return "App Store builds can list profile names after access, but macOS sandboxing opens only the selected browser app."
+        case .stale:
+            return "The saved profile access permission is stale. Grant access again to refresh this list."
+        case .invalid:
+            return "The saved profile access permission could not be opened. Grant access again to repair profile discovery."
+        case .granted:
+            return "Profile access is enabled."
+        }
+    }
+
+    @MainActor
+    private func grantProfileAccessFromAddSheet() {
+        _ = SandboxBookmarkManager.shared.requestApplicationSupportAccess()
+        refreshInstalledBrowsers()
+    }
+
+    private func refreshInstalledBrowsers() {
+        BrowserProfileDetector.clearCache()
+        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
+        availableBrowsers = BrowserManager.getInstalledBrowsers()
+        allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
     }
 
     private func browserOption(entry: (name: String, bundleId: String, profile: String?, iconURL: URL?), isHidden: Bool = false) -> some View {
@@ -208,8 +320,7 @@ struct AddBrowserSheet: View {
                     } else {
                         manager.addHiddenBundleID(entry.bundleId)
                     }
-                    availableBrowsers = BrowserManager.getInstalledBrowsers()
-                    allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
+                    refreshInstalledBrowsers()
                 } label: {
                     Image(systemName: isHidden ? "eye.slash" : "eye")
                         .font(.system(size: 11))
@@ -325,8 +436,11 @@ struct CustomAppForm: View {
                     TextField("Optional — e.g. --profile-directory={profile} {url}", text: $customArgs)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11, design: .monospaced))
+                        .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
                         .accessibilityIdentifier("settings.addSheet.custom.argsField")
-                    Text("Placeholders: {url}, {profile}. If omitted, URL is appended at the end.")
+                    Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                         ? "Placeholders: {url}, {profile}. If omitted, URL is appended at the end."
+                         : "Custom launch arguments are unavailable in App Store builds because macOS ignores them from sandboxed apps.")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -346,7 +460,9 @@ struct CustomAppForm: View {
             Button("Add App") {
                 let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
                 let bundleId = customBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
-                let args = customArgs.trimmingCharacters(in: .whitespacesAndNewlines)
+                let args = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                    ? customArgs.trimmingCharacters(in: .whitespacesAndNewlines)
+                    : ""
 
                 manager.addBrowser(name: name, bundleId: bundleId)
                 if !args.isEmpty, let id = manager.configuredBrowsers.last(where: { $0.bundleId == bundleId })?.id {

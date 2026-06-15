@@ -29,8 +29,7 @@ struct DetailSection<Content: View>: View {
             
             content
                 .padding(16)
-                .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+                .customCardSurface(cornerRadius: 12)
         }
     }
 }

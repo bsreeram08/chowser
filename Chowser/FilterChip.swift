@@ -50,15 +50,13 @@ struct FilterChip: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(isHovering ? 0.06 : 0.03))
+            .customChipSurface(
+                cornerRadius: 999,
+                isSelected: isSelected,
+                selectedColor: .accentColor,
+                hoverOpacity: isHovering ? 0.06 : 0.03
             )
             .foregroundStyle(isSelected ? .white : .primary)
-            .overlay(
-                Capsule()
-                    .strokeBorder(isSelected ? Color.clear : Color.primary.opacity(0.1), lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
         .onHover { hovering in

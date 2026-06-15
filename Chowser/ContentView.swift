@@ -8,25 +8,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Visual Effect View Wrapper
-struct VisualEffectBackground: NSViewRepresentable {
-    var material: NSVisualEffectView.Material
-    var blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
-
 struct ContentView: View {
     var browserManager = BrowserManager.shared
     @State private var hoveredBrowserId: UUID?
@@ -40,6 +21,14 @@ struct ContentView: View {
     @State private var privateMode = false
     @State private var isUnshortening = false
     @State private var unshorteningError: String? = nil
+
+    private var supportsPrivateLaunchMode: Bool {
+        BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+    }
+
+    private var effectivePrivateMode: Bool {
+        supportsPrivateLaunchMode && privateMode
+    }
 
     @ViewBuilder
     private var panelContent: some View {
@@ -89,58 +78,28 @@ struct ContentView: View {
     var body: some View {
         panelContent
             .fixedSize(horizontal: false, vertical: true)
-            .background(panelBackground)
-            .overlay(panelOverlay)
+            .pickerPanelSurface()
             .padding(64) // Increased room for softer, wider glowing shadows
             .scaleEffect(appeared ? 1.0 : 0.96)
             .opacity(appeared ? 1.0 : 0.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: privateMode)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: effectivePrivateMode)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showingConfigureRule)
             .onAppear(perform: handleAppear)
             .onDisappear(perform: handleDisappear)
+            .onChange(of: browserManager.currentURL) {
+                syncPrivateModeRequest()
+            }
+            .onChange(of: browserManager.currentURLPrivateModeRequested) {
+                syncPrivateModeRequest()
+            }
             .onChange(of: browserManager.configuredBrowsers) {
                 syncKeyboardSelection(with: browserManager.configuredBrowsers)
             }
     }
 
-    @ViewBuilder
-    private var panelBackground: some View {
-        ZStack {
-            // 1. Isolate the shadow safely so it perfectly traces a RoundedRectangle 
-            // without being dragged into a box shape by the VisualEffectView NSView bounds.
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.black)
-                    .shadow(
-                        color: privateMode ? Color.purple.opacity(0.7) : .black.opacity(0.25),
-                        radius: privateMode ? 20 : 10,
-                        y: privateMode ? 0 : 4
-                    )
-                
-                // Punch out the center completely so the NSVisualEffectView can see the desktop through the window
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.black)
-                    .blendMode(.destinationOut)
-            }
-            .compositingGroup()
-
-            // 2. Frosted glass backdrop blur beneath the tint
-            VisualEffectBackground(material: .menu, blendingMode: .behindWindow)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            
-            // 3. The actual color tint
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(privateMode ? Color(red: 0.15, green: 0.05, blue: 0.25).opacity(0.85) : Color(NSColor.windowBackgroundColor).opacity(0.65))
-        }
-    }
-
-    @ViewBuilder
-    private var panelOverlay: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .strokeBorder(privateMode ? Color.purple.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 0.5)
-    }
-
     private func handleAppear() {
+        syncPrivateModeRequest()
+
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
             appeared = true
         }
@@ -183,6 +142,10 @@ struct ContentView: View {
         dismissTask = nil
     }
 
+    private func syncPrivateModeRequest() {
+        privateMode = supportsPrivateLaunchMode && browserManager.currentURLPrivateModeRequested
+    }
+
     // MARK: - URL Bubble
 
     private func urlBubble(url: URL) -> some View {
@@ -203,9 +166,9 @@ struct ContentView: View {
                 Button(action: { showingConfigureRule = true }) {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(privateMode ? Color.purple.opacity(0.8) : Color.secondary)
+                        .foregroundStyle(effectivePrivateMode ? Color.purple.opacity(0.8) : Color.secondary)
                         .padding(6)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                        .pickerInteractiveMiniButton()
                 }
                 .buttonStyle(.plain)
                 .help("Add routing rule for this URL (R)")
@@ -229,10 +192,10 @@ struct ContentView: View {
                 Button(action: { copyCurrentURL(url) }) {
                     Image(systemName: urlCopied ? "checkmark" : "doc.on.clipboard")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(urlCopied ? Color.green : (privateMode ? Color.purple.opacity(0.8) : Color.secondary))
+                        .foregroundStyle(urlCopied ? Color.green : (effectivePrivateMode ? Color.purple.opacity(0.8) : Color.secondary))
                         .contentTransition(.symbolEffect(.replace))
                         .padding(6)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                        .pickerInteractiveMiniButton()
                 }
                 .buttonStyle(.plain)
                 .help("Copy URL (⌘C)")
@@ -303,7 +266,7 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor.opacity(0.08)))
+                    .pickerInlineCard()
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
@@ -378,7 +341,7 @@ struct ContentView: View {
         let isSuggested = suggestedBrowserBundleId == browser.bundleId
 
         return Button(action: {
-            let usePrivate = privateMode || NSEvent.modifierFlags.contains(.option)
+            let usePrivate = requestedPrivateMode(modifierFlags: NSEvent.modifierFlags)
             openUrl(with: browser, usePrivateMode: usePrivate)
         }) {
             HStack(spacing: 10) {
@@ -398,7 +361,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(browser.name)
                         .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                        .foregroundStyle(isSelected ? (privateMode ? Color.purple : .primary) : .primary)
+                        .foregroundStyle(isSelected ? (effectivePrivateMode ? Color.purple : .primary) : .primary)
                         .lineLimit(1)
 
                     if let profileLabel = displayProfileLabel(for: browser) {
@@ -422,13 +385,13 @@ struct ContentView: View {
                     .foregroundStyle(Color.primary.opacity(0.6))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+                    .pickerBadgeChip()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? (privateMode ? Color.purple.opacity(0.2) : Color.primary.opacity(0.1)) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
+                    .fill(isSelected ? (effectivePrivateMode ? Color.purple.opacity(0.2) : Color.primary.opacity(0.1)) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
             )
         }
         .buttonStyle(.plain)
@@ -454,24 +417,17 @@ struct ContentView: View {
         let iconDimensions = pickerIconDimensions
 
         return Button(action: {
-            let usePrivate = privateMode || NSEvent.modifierFlags.contains(.option)
+            let usePrivate = requestedPrivateMode(modifierFlags: NSEvent.modifierFlags)
             openUrl(with: browser, usePrivateMode: usePrivate)
         }) {
             VStack(spacing: 4) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? (privateMode ? Color.purple.opacity(0.3) : Color.primary.opacity(0.12)) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(isSelected ? (privateMode ? Color.purple.opacity(0.5) : Color.primary.opacity(0.08)) : Color.clear, lineWidth: 1)
-                        )
-                        .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
-                        .overlay(
-                            // Subtle suggestion glow
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Color.accentColor.opacity(isSuggested ? 0.5 : 0), lineWidth: 1.5)
-                                .shadow(color: Color.accentColor.opacity(isSuggested ? 0.3 : 0), radius: 4)
-                        )
+                    browserIconHitAreaSurface(
+                        isSelected: isSelected,
+                        isHovered: isHovered,
+                        isSuggested: isSuggested,
+                        iconDimensions: iconDimensions
+                    )
 
                     if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
                         Image(nsImage: icon)
@@ -504,9 +460,7 @@ struct ContentView: View {
                         .foregroundStyle(Color.primary.opacity(0.9))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 2)
-                        .background(Capsule().fill(Color(NSColor.windowBackgroundColor).opacity(0.95)))
-                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
-                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .pickerBadgeChip()
                         .padding(2)
                         .offset(x: 2, y: 2)
                 }
@@ -515,7 +469,7 @@ struct ContentView: View {
                 if browserManager.pickerShowLabels {
                     Text(displayName(for: browser))
                         .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
-                        .foregroundStyle(isSelected ? (privateMode ? Color.purple : Color.primary) : Color.primary.opacity(0.6))
+                        .foregroundStyle(isSelected ? (effectivePrivateMode ? Color.purple : Color.primary) : Color.primary.opacity(0.6))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(width: iconDimensions.hitArea + 4)
@@ -543,11 +497,51 @@ struct ContentView: View {
         )
     }
 
+    @ViewBuilder
+    private func browserIconHitAreaSurface(
+        isSelected: Bool,
+        isHovered: Bool,
+        isSuggested: Bool,
+        iconDimensions: IconDimensions
+    ) -> some View {
+        let cornerRadius: CGFloat = 12
+        let highlightColor = isSelected
+            ? (effectivePrivateMode ? Color.purple.opacity(0.3) : Color.primary.opacity(0.12))
+            : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
+        let selectionStrokeColor = isSelected
+            ? (effectivePrivateMode ? Color.purple.opacity(0.5) : Color.primary.opacity(0.08))
+            : Color.clear
+
+        ZStack {
+            if isSelected || isHovered {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(highlightColor)
+                    .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
+                    .pickerInlineCard()
+            } else {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.clear)
+                    .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
+            }
+
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(selectionStrokeColor, lineWidth: 1)
+                .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
+
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(isSuggested ? 0.5 : 0), lineWidth: 1.5)
+                .shadow(color: Color.accentColor.opacity(isSuggested ? 0.3 : 0), radius: 4)
+                .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
+        }
+    }
+
     // MARK: - Keyboard Hints Row
 
     private var keyboardHintsRow: some View {
         HStack(spacing: 6) {
-            keyHintChip(keys: ["P"], label: "Private", isActive: privateMode)
+            if supportsPrivateLaunchMode {
+                keyHintChip(keys: ["P"], label: "Private", isActive: effectivePrivateMode)
+            }
             keyHintChip(keys: ["H"], label: "Resolve", isDisabled: browserManager.currentURL == nil || isUnshortening)
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
             keyHintChip(keys: ["Esc"], label: "Close")
@@ -566,17 +560,11 @@ struct ContentView: View {
             ForEach(keys, id: \.self) { key in
                 Text(key)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(isAccent ? .white : (isActive ? Color.purple : Color.primary.opacity(0.6)))
+                    .foregroundStyle(isAccent ? Color.accentColor : (isActive ? Color.purple : Color.primary.opacity(0.6)))
                     .fixedSize()
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(
-                                isAccent ? Color.accentColor.opacity(0.8) :
-                                    (isActive ? Color.purple.opacity(0.2) : Color.primary.opacity(0.1))
-                            )
-                    )
+                    .pickerBadgeChip()
             }
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
@@ -672,6 +660,7 @@ struct ContentView: View {
 
     private func dismissPicker() {
         privateMode = false
+        browserManager.currentURLPrivateModeRequested = false
         showingConfigureRule = false
         browserManager.currentURL = nil
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue == "picker" {
@@ -683,8 +672,13 @@ struct ContentView: View {
 
     private func openUrl(with browser: BrowserConfig, usePrivateMode: Bool = false) {
         guard let url = browserManager.currentURL else { return }
+        let effectiveUsePrivateMode = supportsPrivateLaunchMode && usePrivateMode
         dismissPicker()
-        browserManager.open(url: url, withBrowserBundleID: browser.bundleId, profile: browser.profile, usePrivateMode: usePrivateMode)
+        browserManager.open(url: url, withBrowserBundleID: browser.bundleId, profile: browser.profile, usePrivateMode: effectiveUsePrivateMode)
+    }
+
+    private func requestedPrivateMode(modifierFlags: NSEvent.ModifierFlags) -> Bool {
+        supportsPrivateLaunchMode && (privateMode || modifierFlags.contains(.option))
     }
 
     private func copyCurrentURL(_ url: URL) {
@@ -736,7 +730,7 @@ struct ContentView: View {
 
         // Number keys — open by shortcut
         if let shortcutKey = normalizedShortcutKey(from: event) {
-            let usePrivateMode = privateMode || event.modifierFlags.contains(.option)
+            let usePrivateMode = requestedPrivateMode(modifierFlags: event.modifierFlags)
             return openBrowser(matchingShortcutKey: shortcutKey, usePrivateMode: usePrivateMode)
         }
 
@@ -744,6 +738,7 @@ struct ContentView: View {
         if let letter = normalizedLetterKey(from: event) {
             switch letter {
             case "p":
+                guard supportsPrivateLaunchMode else { return false }
                 withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) { privateMode.toggle() }
                 return true
             case "r":
@@ -788,7 +783,7 @@ struct ContentView: View {
 
         switch event.keyCode {
         case 36, 76, 49:                                  // return / enter / space
-            let usePrivateMode = privateMode || event.modifierFlags.contains(.option)
+            let usePrivateMode = requestedPrivateMode(modifierFlags: event.modifierFlags)
             return openSelectedBrowser(usePrivateMode: usePrivateMode)
         default: return false
         }

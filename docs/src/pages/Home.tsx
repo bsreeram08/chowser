@@ -107,7 +107,7 @@ export const Home: React.FC = () => {
     }
   };
 
-  const APP_STORE_URL = "https://apps.apple.com/app/chowser/id6741527291";
+  const APP_STORE_URL = "https://apps.apple.com/in/app/chowser/id6760034779";
 
   const handleCopy = () => {
     let url = "";

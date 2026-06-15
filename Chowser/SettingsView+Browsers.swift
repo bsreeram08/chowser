@@ -144,6 +144,12 @@ extension SettingsView {
             Divider()
                 .padding(.horizontal, 20)
 
+            if profileAccessStatus.needsRecovery {
+                profileAccessBanner
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+            }
+
             if !browserManager.configuredBrowsers.isEmpty {
                 HStack(spacing: 8) {
                     sectionSearchField(
@@ -216,6 +222,121 @@ extension SettingsView {
                 set: { if !$0 { browserToEdit = nil } }
             ))
         }
+    }
+
+
+    private var profileAccessBanner: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: profileAccessIconName)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(profileAccessIconColor)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(profileAccessTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(profileAccessMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Allow Access…") {
+                grantProfileAccessFromSettings()
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier("settings.profileAccess.grantButton")
+
+            if profileAccessStatus.hasStoredBookmark {
+                Button("Reset") {
+                    resetProfileAccessFromSettings()
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.profileAccess.resetButton")
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(profileAccessIconColor.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(profileAccessIconColor.opacity(0.18))
+        )
+        .accessibilityIdentifier("settings.profileAccess.banner")
+    }
+
+    private var profileAccessIconName: String {
+        switch profileAccessStatus {
+        case .missing:
+            return "folder.badge.questionmark"
+        case .stale, .invalid:
+            return "exclamationmark.triangle"
+        case .granted:
+            return "checkmark.shield"
+        }
+    }
+
+    private var profileAccessIconColor: Color {
+        switch profileAccessStatus {
+        case .missing:
+            return .blue
+        case .stale, .invalid:
+            return .orange
+        case .granted:
+            return .green
+        }
+    }
+
+    private var profileAccessTitle: String {
+        switch profileAccessStatus {
+        case .missing:
+            return "Browser profile access is optional"
+        case .stale:
+            return "Browser profile access needs renewal"
+        case .invalid:
+            return "Browser profile access needs repair"
+        case .granted:
+            return "Browser profile access enabled"
+        }
+    }
+
+    private var profileAccessMessage: String {
+        switch profileAccessStatus {
+        case .missing:
+            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                return "To discover Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles, allow read-only access to ~/Library/Application Support."
+            }
+            return "App Store builds can read profile names after access, but macOS sandboxing opens only the selected browser app."
+        case .stale:
+            return "The saved Application Support permission is stale. Grant access again to refresh browser profile discovery."
+        case .invalid:
+            return "The saved Application Support permission could not be opened. Reset it or grant access again."
+        case .granted:
+            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                return "Chowser can read browser profile names from Application Support."
+            }
+            return "Chowser can read browser profile names, but App Store builds cannot pass profile/private launch arguments to browsers."
+        }
+    }
+
+    @MainActor
+    private func grantProfileAccessFromSettings() {
+        if SandboxBookmarkManager.shared.requestApplicationSupportAccess() {
+            BrowserProfileDetector.clearCache()
+            profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
+        } else {
+            profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
+        }
+    }
+
+    private func resetProfileAccessFromSettings() {
+        SandboxBookmarkManager.shared.clearGrant()
+        BrowserProfileDetector.clearCache()
+        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     }
 
     // MARK: - Browser Grid View

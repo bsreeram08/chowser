@@ -86,8 +86,11 @@ struct EditBrowserSheet: View {
                         TextField("Optional — e.g. --profile-directory={profile} {url}", text: $editingCustomArgs)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
+                            .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
                             .accessibilityIdentifier("settings.editBrowser.argsField")
-                        Text("Placeholders: {url}, {profile}. If omitted, URL is appended at the end.")
+                        Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                             ? "Placeholders: {url}, {profile}. If omitted, URL is appended at the end."
+                             : "App Store builds can choose browser apps, but macOS does not deliver custom launch arguments from sandboxed apps.")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
@@ -116,7 +119,9 @@ struct EditBrowserSheet: View {
 
                 Button("Save Changes") {
                     manager.updateBrowserName(id: browser.id, to: editingName.trimmingCharacters(in: .whitespacesAndNewlines))
-                    manager.updateBrowserCustomArguments(id: browser.id, to: editingCustomArgs.trimmingCharacters(in: .whitespacesAndNewlines))
+                    if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                        manager.updateBrowserCustomArguments(id: browser.id, to: editingCustomArgs.trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)

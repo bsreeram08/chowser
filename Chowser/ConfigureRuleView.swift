@@ -59,6 +59,9 @@ struct ConfigureRuleView: View {
                         Text(hostPattern)
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .pickerBadgeChip()
                     }
                     
                     Divider().opacity(0.5)
@@ -79,11 +82,18 @@ struct ConfigureRuleView: View {
                     Toggle("Use Private Mode", isOn: $usePrivateMode)
                         .toggleStyle(.checkbox)
                         .font(.system(size: 11, weight: .medium))
+                        .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
                         .frame(maxWidth: .infinity, alignment: .trailing)
+
+                    if !BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                        Text("Private mode is unavailable in App Store builds.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
                 .padding(16)
-                .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+                .pickerInlineCard()
             }
             .padding(20)
 
@@ -152,7 +162,7 @@ struct ConfigureRuleView: View {
             pathPrefix: nil,
             browserBundleId: browserBundleId,
             profile: profile,
-            usePrivateMode: usePrivateMode
+            usePrivateMode: BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild ? usePrivateMode : false
         )
         isPresented = false
         onSave()

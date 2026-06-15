@@ -87,4 +87,49 @@ struct BrowserConfigTests {
         b.name = "Modified"
         #expect(a != b)
     }
+
+    // MARK: - Add Browser Sheet Candidates
+
+    @Test("Unsupported launch-argument builds collapse profile variants to plain browser apps")
+    func unsupportedLaunchArgumentsCollapseProfileVariants() {
+        let source: [AddBrowserSheet.BrowserEntry] = [
+            (name: "Google Chrome - Personal", bundleId: "com.google.Chrome", profile: "Default", iconURL: nil),
+            (name: "Google Chrome - Work", bundleId: "com.google.Chrome", profile: "Profile 1", iconURL: nil),
+            (name: "Firefox", bundleId: "org.mozilla.firefox", profile: "default-release", iconURL: nil),
+            (name: "Safari", bundleId: "com.apple.Safari", profile: nil, iconURL: nil),
+        ]
+
+        let candidates = AddBrowserSheet.browserCandidates(
+            for: source,
+            configuredIdentities: ["com.apple.Safari|"],
+            supportsLaunchArguments: false
+        )
+
+        #expect(candidates.count == 2)
+        #expect(candidates[0].name == "Google Chrome")
+        #expect(candidates[0].bundleId == "com.google.Chrome")
+        #expect(candidates[0].profile == nil)
+        #expect(candidates[1].name == "Firefox")
+        #expect(candidates[1].bundleId == "org.mozilla.firefox")
+        #expect(candidates[1].profile == nil)
+    }
+
+    @Test("Launch-argument-capable builds keep profile variants selectable")
+    func launchArgumentCapableBuildsKeepProfileVariants() {
+        let source: [AddBrowserSheet.BrowserEntry] = [
+            (name: "Google Chrome - Personal", bundleId: "com.google.Chrome", profile: "Default", iconURL: nil),
+            (name: "Google Chrome - Work", bundleId: "com.google.Chrome", profile: "Profile 1", iconURL: nil),
+        ]
+
+        let candidates = AddBrowserSheet.browserCandidates(
+            for: source,
+            configuredIdentities: ["com.google.Chrome|Profile 1"],
+            supportsLaunchArguments: true
+        )
+
+        #expect(candidates.count == 1)
+        #expect(candidates[0].name == "Google Chrome - Personal")
+        #expect(candidates[0].bundleId == "com.google.Chrome")
+        #expect(candidates[0].profile == "Default")
+    }
 }

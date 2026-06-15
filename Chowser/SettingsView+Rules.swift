@@ -56,7 +56,25 @@ extension SettingsView {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                     
                     Spacer()
-                    
+
+                    Menu {
+                        Button(action: exportRules) {
+                            Label("Export Rules…", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(browserManager.routingRules.isEmpty)
+
+                        Button(action: importRules) {
+                            Label("Import Rules…", systemImage: "square.and.arrow.down")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 28)
+                    .accessibilityIdentifier("settings.rulesMenuButton")
+                     
                     Button(action: { 
                         preselectedRuleBrowserIdentity = nil
                         showingAddRuleSheet = true 
@@ -67,6 +85,7 @@ extension SettingsView {
                     }
                     .buttonStyle(.plain)
                     .help("Add new routing rule")
+                    .accessibilityIdentifier("settings.addRuleButton")
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 20)
@@ -150,6 +169,7 @@ extension SettingsView {
                                                 .foregroundStyle(.tertiary)
                                         }
                                         .buttonStyle(.plain)
+                                        .accessibilityIdentifier("settings.addRuleForBrowserButton")
                                     }
                                     .padding(.vertical, 8)
                                 }
@@ -215,6 +235,36 @@ extension SettingsView {
                 .padding(.top, 20)
         }
     }
+
+    func exportRules() {
+        let panel = NSSavePanel()
+        panel.title = "Export Routing Rules"
+        panel.nameFieldStringValue = "ChowserRules.json"
+        panel.allowedContentTypes = [.json]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try browserManager.exportRules(to: url)
+        } catch {
+            print("Export rules failed: \(error.localizedDescription)")
+        }
+    }
+
+    func importRules() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Routing Rules"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try browserManager.importRules(from: url)
+        } catch {
+            print("Import rules failed: \(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - Modern Rule Detail View
@@ -277,6 +327,7 @@ struct ModernRuleDetailView: View {
                                     .padding(10)
                                     .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
                                     .onChange(of: localRule.hostPattern) { _, _ in update() }
+                                    .accessibilityIdentifier("settings.rule.hostField")
                             }
                             
                             HStack(spacing: 24) {
@@ -340,13 +391,26 @@ struct ModernRuleDetailView: View {
                                 .pickerStyle(.menu)
                                 .labelsHidden()
                                 .controlSize(.small)
+                                .accessibilityIdentifier("settings.rule.browserPicker")
                             }
                             
-                            Toggle("Use Private Mode", isOn: Binding(
-                                get: { localRule.usePrivateMode },
-                                set: { localRule.usePrivateMode = $0; update() }
-                            ))
-                            .toggleStyle(.checkbox)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Toggle("Use Private Mode", isOn: Binding(
+                                    get: { BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild && localRule.usePrivateMode },
+                                    set: {
+                                        localRule.usePrivateMode = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild ? $0 : false
+                                        update()
+                                    }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
+
+                                if !BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                                    Text("Private/incognito routing needs browser launch arguments, which macOS does not deliver to sandboxed App Store builds.")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
                         }
                     }
                     

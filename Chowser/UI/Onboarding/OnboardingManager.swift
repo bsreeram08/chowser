@@ -9,19 +9,37 @@ import AppKit
 import SwiftUI
 
 final class OnboardingManager {
-    static let shared = OnboardingManager()
-    
-    // Allows clearing for testing
-    private let userDefaultsKey = "hasCompletedOnboarding"
-    
+    static let shared = OnboardingManager(defaults: AppEnvironment.makeDefaultStore())
+
+    static let completionDefaultsKey = "hasCompletedOnboarding"
+
+    private let defaults: UserDefaults
+
     var hasCompletedOnboarding: Bool {
-        get { UserDefaults.standard.bool(forKey: userDefaultsKey) }
-        set { UserDefaults.standard.set(newValue, forKey: userDefaultsKey) }
+        get { Self.hasCompletedOnboarding(in: defaults) }
+        set { Self.setHasCompletedOnboarding(newValue, in: defaults) }
     }
     
     private var onboardingWindowController: NSWindowController?
     
-    private init() {}
+    init(defaults: UserDefaults = AppEnvironment.makeDefaultStore()) {
+        self.defaults = defaults
+        if AppEnvironment.shouldClearDataOnLaunch {
+            Self.resetOnboarding(in: defaults)
+        }
+    }
+
+    static func hasCompletedOnboarding(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: completionDefaultsKey)
+    }
+
+    static func setHasCompletedOnboarding(_ isComplete: Bool, in defaults: UserDefaults) {
+        defaults.set(isComplete, forKey: completionDefaultsKey)
+    }
+
+    static func resetOnboarding(in defaults: UserDefaults) {
+        defaults.removeObject(forKey: completionDefaultsKey)
+    }
     
     func showOnboardingWindow(completion: @escaping () -> Void) {
         // Force the app to act like a regular app so the window comes to the very front
@@ -76,6 +94,6 @@ final class OnboardingManager {
     
     // For debugging/testing
     func resetOnboarding() {
-        UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+        Self.resetOnboarding(in: defaults)
     }
 }

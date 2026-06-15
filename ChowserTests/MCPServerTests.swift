@@ -53,9 +53,10 @@ struct MCPServerTests {
 
     // Minimal HTTP helpers
 
-    private func get(_ path: String) async throws -> (Int, [String: Any]) {
-        let url = URL(string: "http://localhost:\(testPort)\(path)")!
-        let (data, response) = try await URLSession.shared.data(from: url)
+    private func get(_ path: String, token: String?) async throws -> (Int, [String: Any]) {
+        var req = URLRequest(url: URL(string: "http://localhost:\(testPort)\(path)")!)
+        if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let (data, response) = try await URLSession.shared.data(for: req)
         let status = (response as! HTTPURLResponse).statusCode
         let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         return (status, json)
@@ -65,7 +66,7 @@ struct MCPServerTests {
         var req = URLRequest(url: URL(string: "http://localhost:\(testPort)\(path)")!)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token { req.setValue(token, forHTTPHeaderField: "X-Chowser-Token") }
+        if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
         let status = (response as! HTTPURLResponse).statusCode
@@ -76,7 +77,7 @@ struct MCPServerTests {
     private func delete(_ path: String, token: String?) async throws -> (Int, [String: Any]) {
         var req = URLRequest(url: URL(string: "http://localhost:\(testPort)\(path)")!)
         req.httpMethod = "DELETE"
-        if let token { req.setValue(token, forHTTPHeaderField: "X-Chowser-Token") }
+        if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let (data, response) = try await URLSession.shared.data(for: req)
         let status = (response as! HTTPURLResponse).statusCode
         let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
@@ -157,19 +158,20 @@ struct MCPServerTests {
         await stopAndWait()
     }
 
-    // MARK: - GET Endpoints (no auth required)
+    // MARK: - Authenticated GET Endpoints
 
     @Test("GET /status returns 200 with app info and full endpoint schema")
     func statusEndpoint() async throws {
         try await withServer {
-            let (status, body) = try await get("/status")
+            let (status, body) = try await get("/status", token: MCPServer.shared.authToken)
             #expect(status == 200)
             #expect(body["status"] as? String == "ok")
             #expect(body["app"] as? String == "Chowser")
             #expect(body["version"] != nil)
             #expect(body["browsers_count"] != nil)
             #expect(body["rules_count"] != nil)
-            #expect(body["auth_header"] as? String == "X-Chowser-Token")
+            #expect(body["auth_header"] as? String == "Authorization")
+            #expect(body["auth_scheme"] as? String == "Bearer")
 
             // Endpoint schema must be present and cover all operations
             let endpoints = body["endpoints"] as? [[String: Any]]
@@ -185,13 +187,15 @@ struct MCPServerTests {
             // Each entry must document auth requirement
             let allHaveAuth = endpoints?.allSatisfy { $0["auth"] != nil } ?? false
             #expect(allHaveAuth)
+            let allRequireAuth = endpoints?.allSatisfy { $0["auth"] as? Bool == true } ?? false
+            #expect(allRequireAuth)
         }
     }
 
     @Test("GET /browsers returns 200 with browsers array")
     func getBrowsers() async throws {
         try await withServer {
-            let (status, body) = try await get("/browsers")
+            let (status, body) = try await get("/browsers", token: MCPServer.shared.authToken)
             #expect(status == 200)
             #expect(body["browsers"] is [Any])
         }
@@ -200,7 +204,7 @@ struct MCPServerTests {
     @Test("GET /rules returns 200 with rules array")
     func getRules() async throws {
         try await withServer {
-            let (status, body) = try await get("/rules")
+            let (status, body) = try await get("/rules", token: MCPServer.shared.authToken)
             #expect(status == 200)
             #expect(body["rules"] is [Any])
         }
@@ -209,12 +213,91 @@ struct MCPServerTests {
     @Test("GET to unknown path returns 404")
     func unknownPath() async throws {
         try await withServer {
-            let (status, _) = try await get("/doesnotexist")
+            let (status, _) = try await get("/doesnotexist", token: MCPServer.shared.authToken)
             #expect(status == 404)
         }
     }
 
-    // MARK: - Auth Enforcement (POST / DELETE)
+    // MARK: - Auth Enforcement
+
+    @Test("GET /status without token returns 401")
+    func statusNoToken() async throws {
+        try await withServer {
+            let (status, body) = try await get("/status", token: nil)
+            #expect(status == 401)
+            #expect(body["error"] != nil)
+        }
+    }
+
+    @Test("GET /status with wrong token returns 401")
+    func statusWrongToken() async throws {
+        try await withServer {
+            let (status, body) = try await get("/status", token: "not-the-real-token")
+            #expect(status == 401)
+            #expect(body["error"] != nil)
+        }
+    }
+
+    @Test("GET /status with malformed Authorization header returns 401")
+    func statusMalformedAuthorizationHeader() async throws {
+        try await withServer {
+            var req = URLRequest(url: URL(string: "http://localhost:\(testPort)/status")!)
+            req.setValue(MCPServer.shared.authToken, forHTTPHeaderField: "Authorization")
+            let (data, response) = try await URLSession.shared.data(for: req)
+            let status = (response as! HTTPURLResponse).statusCode
+            let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            #expect(status == 401)
+            #expect(json["error"] != nil)
+        }
+    }
+
+    @Test("GET /browsers without token returns 401")
+    func getBrowsersNoToken() async throws {
+        try await withServer {
+            let (status, body) = try await get("/browsers", token: nil)
+            #expect(status == 401)
+            #expect(body["error"] != nil)
+        }
+    }
+
+    @Test("GET /browsers with wrong token returns 401")
+    func getBrowsersWrongToken() async throws {
+        try await withServer {
+            let (status, body) = try await get("/browsers", token: "not-the-real-token")
+            #expect(status == 401)
+            #expect(body["error"] != nil)
+        }
+    }
+
+    @Test("GET /rules without token returns 401")
+    func getRulesNoToken() async throws {
+        try await withServer {
+            let (status, body) = try await get("/rules", token: nil)
+            #expect(status == 401)
+            #expect(body["error"] != nil)
+        }
+    }
+
+    @Test("GET /rules with wrong token returns 401")
+    func getRulesWrongToken() async throws {
+        try await withServer {
+            let (status, body) = try await get("/rules", token: "not-the-real-token")
+            #expect(status == 401)
+            #expect(body["error"] != nil)
+        }
+    }
+
+    @Test("Stopped server refuses API connections")
+    func stoppedServerRefusesConnections() async {
+        if MCPServer.shared.isRunning { await stopAndWait() }
+
+        do {
+            _ = try await get("/status", token: "stopped-server-token")
+            Issue.record("Stopped server unexpectedly accepted a connection")
+        } catch {
+            return
+        }
+    }
 
     @Test("POST /browsers without token returns 401")
     func postBrowserNoToken() async throws {
@@ -346,7 +429,7 @@ struct MCPServerTests {
             var req = URLRequest(url: URL(string: "http://localhost:\(testPort)/browsers")!)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue(MCPServer.shared.authToken, forHTTPHeaderField: "X-Chowser-Token")
+            req.setValue("Bearer \(MCPServer.shared.authToken)", forHTTPHeaderField: "Authorization")
             req.httpBody = Data()   // empty — triggers "Missing request body" guard
             let (data, response) = try await URLSession.shared.data(for: req)
             let status = (response as! HTTPURLResponse).statusCode
@@ -362,7 +445,7 @@ struct MCPServerTests {
             var req = URLRequest(url: URL(string: "http://localhost:\(testPort)/rules")!)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue(MCPServer.shared.authToken, forHTTPHeaderField: "X-Chowser-Token")
+            req.setValue("Bearer \(MCPServer.shared.authToken)", forHTTPHeaderField: "Authorization")
             req.httpBody = Data()
             let (data, response) = try await URLSession.shared.data(for: req)
             let status = (response as! HTTPURLResponse).statusCode
@@ -410,6 +493,110 @@ struct MCPServerTests {
         }
     }
 
+    @Test("POST /rules rejects invalid regex and malformed path prefixes")
+    func postRuleRejectsInvalidRegexAndPath() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let uniqueBundle = "com.chowser.rulevalidation.\(UUID().uuidString.prefix(8))"
+
+            let (_, browserBody) = try await post("/browsers", token: token,
+                body: ["name": "Rule Validation Browser", "bundleId": uniqueBundle])
+            let browserId = browserBody["id"] as? String
+
+            let (regexStatus, regexBody) = try await post("/rules", token: token, body: [
+                "hostPattern": "[invalid",
+                "browserBundleId": uniqueBundle,
+                "useRegex": true,
+            ])
+            #expect(regexStatus == 422)
+            #expect(regexBody["error"] != nil)
+
+            let (pathStatus, pathBody) = try await post("/rules", token: token, body: [
+                "hostPattern": "example.com",
+                "browserBundleId": uniqueBundle,
+                "pathPrefix": "https://example.com/docs",
+            ])
+            #expect(pathStatus == 422)
+            #expect(pathBody["error"] != nil)
+
+            if let browserId {
+                _ = try await delete("/browsers?id=\(browserId)", token: token)
+            }
+        }
+    }
+
+    @Test("POST /rules invalid update returns 422 and preserves existing rule")
+    func postRuleInvalidUpdatePreservesExistingRule() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let uniqueBundle = "com.chowser.ruleupdate.\(UUID().uuidString.prefix(8))"
+
+            let (_, browserBody) = try await post("/browsers", token: token,
+                body: ["name": "Rule Update Browser", "bundleId": uniqueBundle])
+            let browserId = browserBody["id"] as? String
+
+            let (createStatus, createBody) = try await post("/rules", token: token, body: [
+                "hostPattern": "safe-update.example.com",
+                "browserBundleId": uniqueBundle,
+                "pathPrefix": "docs",
+            ])
+            #expect(createStatus == 201)
+            let ruleId = createBody["id"] as? String
+            #expect(ruleId != nil)
+
+            let (updateStatus, updateBody) = try await post("/rules", token: token, body: [
+                "id": ruleId!,
+                "hostPattern": "safe-update.example.com",
+                "browserBundleId": uniqueBundle,
+                "pathPrefix": "https://evil.example.com/docs",
+            ])
+            #expect(updateStatus == 422)
+            #expect(updateBody["error"] != nil)
+
+            let (_, rulesBody) = try await get("/rules", token: token)
+            let rules = rulesBody["rules"] as? [[String: Any]] ?? []
+            let preserved = rules.first { $0["id"] as? String == ruleId }
+            #expect(preserved?["hostPattern"] as? String == "safe-update.example.com")
+            #expect(preserved?["pathPrefix"] as? String == "/docs")
+
+            if let ruleId {
+                _ = try await delete("/rules?id=\(ruleId)", token: token)
+            }
+            if let browserId {
+                _ = try await delete("/browsers?id=\(browserId)", token: token)
+            }
+        }
+    }
+
+    @Test("POST /rules with unknown id returns 404 instead of creating a rule")
+    func postRuleUnknownIdDoesNotCreateRule() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let uniqueBundle = "com.chowser.unknownrule.\(UUID().uuidString.prefix(8))"
+            let unknownId = UUID().uuidString
+
+            let (_, browserBody) = try await post("/browsers", token: token,
+                body: ["name": "Unknown Rule Browser", "bundleId": uniqueBundle])
+            let browserId = browserBody["id"] as? String
+
+            let (status, body) = try await post("/rules", token: token, body: [
+                "id": unknownId,
+                "hostPattern": "unknown-id.example.com",
+                "browserBundleId": uniqueBundle,
+            ])
+            #expect(status == 404)
+            #expect(body["error"] != nil)
+
+            let (_, rulesBody) = try await get("/rules", token: token)
+            let rules = rulesBody["rules"] as? [[String: Any]] ?? []
+            #expect(!rules.contains { $0["hostPattern"] as? String == "unknown-id.example.com" })
+
+            if let browserId {
+                _ = try await delete("/browsers?id=\(browserId)", token: token)
+            }
+        }
+    }
+
     // MARK: - Full CRUD Round-Trips
 
     @Test("POST /browsers creates browser; duplicate POST updates it; DELETE removes it")
@@ -432,7 +619,7 @@ struct MCPServerTests {
             #expect(updateBody["id"] as? String == addedId)
 
             // Verify rename
-            let (_, listBody) = try await get("/browsers")
+            let (_, listBody) = try await get("/browsers", token: token)
             let browsers = listBody["browsers"] as? [[String: Any]] ?? []
             let updated = browsers.first { $0["bundleId"] as? String == uniqueBundle }
             #expect(updated?["name"] as? String == "Test Browser Renamed")
@@ -442,7 +629,7 @@ struct MCPServerTests {
             #expect(deleteStatus == 200)
 
             // Verify gone
-            let (_, listBody2) = try await get("/browsers")
+            let (_, listBody2) = try await get("/browsers", token: token)
             let browsers2 = listBody2["browsers"] as? [[String: Any]] ?? []
             #expect(!browsers2.contains { $0["bundleId"] as? String == uniqueBundle })
         }
@@ -469,7 +656,7 @@ struct MCPServerTests {
             #expect(ruleId != nil)
 
             // Verify in GET /rules
-            let (_, rulesBody) = try await get("/rules")
+            let (_, rulesBody) = try await get("/rules", token: token)
             let rules = rulesBody["rules"] as? [[String: Any]] ?? []
             #expect(rules.contains { $0["id"] as? String == ruleId })
 
@@ -482,7 +669,7 @@ struct MCPServerTests {
             #expect(updateStatus == 200)
 
             // Verify update
-            let (_, rulesBody2) = try await get("/rules")
+            let (_, rulesBody2) = try await get("/rules", token: token)
             let rules2 = rulesBody2["rules"] as? [[String: Any]] ?? []
             let updatedRule = rules2.first { $0["id"] as? String == ruleId }
             #expect(updatedRule?["hostPattern"] as? String == "rules-test-updated.example.com")
@@ -497,7 +684,7 @@ struct MCPServerTests {
             }
 
             // Verify rule gone
-            let (_, rulesBody3) = try await get("/rules")
+            let (_, rulesBody3) = try await get("/rules", token: token)
             let rules3 = rulesBody3["rules"] as? [[String: Any]] ?? []
             #expect(!rules3.contains { $0["id"] as? String == ruleId })
         }

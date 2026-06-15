@@ -6,19 +6,18 @@
 //  Start/stop from the menu bar. Listens on localhost only for security.
 //
 //  Endpoints:
-//    GET  /browsers          — list configured browsers
+//    GET  /browsers          — list configured browsers (token required)
 //    POST /browsers          — add or update a browser (JSON body, token required)
 //    DELETE /browsers?id=<uuid> — remove a browser by ID (token required)
-//    GET  /rules             — list routing rules
+//    GET  /rules             — list routing rules (token required)
 //    POST /rules             — add or update a rule (JSON body, token required)
 //    DELETE /rules?id=<uuid> — remove a rule by ID (token required)
-//    GET  /status            — server health check + app version
+//    GET  /status            — server health check + app version (token required)
 //
 //  Authentication:
-//    State-changing requests (POST/DELETE) require the header:
-//      X-Chowser-Token: <token>
-//    The token is generated on server start and printed to stdout.
-//    GET requests do not require authentication.
+//    Every request requires the header:
+//      Authorization: Bearer <token>
+//    The token is generated on server start and shown in Settings/onboarding.
 //
 
 import Foundation
@@ -66,7 +65,6 @@ final class MCPServer {
                     guard let s = capturedSelf else { return }
                     s.isRunning = true
                     print("Chowser MCP: Server listening on localhost:\(s.port)")
-                    print("Chowser MCP: Auth token: \(s.authToken)")
                 }
             case .failed(let error):
                 print("Chowser MCP: Server failed: \(error)")
@@ -180,14 +178,30 @@ final class MCPServer {
     }
 
     private nonisolated func parseAuthToken(from headerSection: String) -> String? {
+        var legacyHeaderToken: String?
+
         for line in headerSection.components(separatedBy: "\r\n") {
             let parts = line.split(separator: ":", maxSplits: 1)
-            if parts.count == 2,
-               parts[0].trimmingCharacters(in: .whitespaces).lowercased() == "x-chowser-token" {
-                return parts[1].trimmingCharacters(in: .whitespaces)
+            guard parts.count == 2 else { continue }
+
+            let name = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+
+            if name == "authorization" {
+                let components = value.split(separator: " ", maxSplits: 1).map(String.init)
+                guard components.count == 2,
+                      components[0].lowercased() == "bearer" else {
+                    return nil
+                }
+                return components[1].trimmingCharacters(in: .whitespaces)
+            }
+
+            if name == "x-chowser-token" {
+                legacyHeaderToken = value
             }
         }
-        return nil
+
+        return legacyHeaderToken
     }
 
     private func processHTTPRequest(_ data: Data, authToken requestToken: String?) -> Data {
@@ -214,11 +228,8 @@ final class MCPServer {
         let queryString = pathComponents.count > 1 ? String(pathComponents[1]) : ""
         let queryParams = parseQueryString(queryString)
 
-        // Require auth token for state-changing methods
-        if method == "POST" || method == "DELETE" {
-            guard let token = requestToken, token == self.authToken else {
-                return httpResponse(status: 401, body: ["error": "Unauthorized. Provide X-Chowser-Token header with the server auth token."])
-            }
+        guard isAuthorized(requestToken) else {
+            return unauthorizedResponse()
         }
 
         // Extract body (after empty line)
@@ -231,6 +242,19 @@ final class MCPServer {
         }
 
         return routeRequest(method: method, path: path, queryParams: queryParams, body: body)
+    }
+
+    private func isAuthorized(_ requestToken: String?) -> Bool {
+        guard isRunning, !authToken.isEmpty, let requestToken else {
+            return false
+        }
+        return requestToken == authToken
+    }
+
+    private nonisolated func unauthorizedResponse() -> Data {
+        httpResponse(status: 401, body: [
+            "error": "Unauthorized. Provide Authorization: Bearer <token> with the current local API token.",
+        ])
     }
 
     private nonisolated func parseQueryString(_ query: String) -> [String: String] {
@@ -258,13 +282,13 @@ final class MCPServer {
             let endpoints: [[String: Any]] = [
                 [
                     "method": "GET", "path": "/status",
-                    "auth": false,
-                    "description": "Server health check, app version, and full API schema.",
+                    "auth": true,
+                    "description": "Server health check, app version, and full API schema. Requires Authorization: Bearer <token>.",
                 ],
                 [
                     "method": "GET", "path": "/browsers",
-                    "auth": false,
-                    "description": "List all configured browsers.",
+                    "auth": true,
+                    "description": "List all configured browsers. Requires Authorization: Bearer <token>.",
                     "response_fields": ["id", "name", "bundleId", "shortcutKey", "profile?", "customArguments?"],
                 ],
                 [
@@ -281,8 +305,8 @@ final class MCPServer {
                 ],
                 [
                     "method": "GET", "path": "/rules",
-                    "auth": false,
-                    "description": "List all routing rules.",
+                    "auth": true,
+                    "description": "List all routing rules. Requires Authorization: Bearer <token>.",
                     "response_fields": ["id", "name", "hostPattern", "browserBundleId", "isEnabled", "usePrivateMode", "useRegex", "pathPrefix?", "profile?", "sourceAppBundleId?"],
                 ],
                 [
@@ -304,7 +328,8 @@ final class MCPServer {
                 "version": version,
                 "browsers_count": manager.configuredBrowsers.count,
                 "rules_count": manager.routingRules.count,
-                "auth_header": "X-Chowser-Token",
+                "auth_header": "Authorization",
+                "auth_scheme": "Bearer",
                 "endpoints": endpoints,
             ] as [String: Any])
 
@@ -396,7 +421,7 @@ final class MCPServer {
             // Update existing browser
             manager.configuredBrowsers[existingIndex].name = name
             if let args = customArguments {
-                manager.configuredBrowsers[existingIndex].customArguments = args.isEmpty ? nil : args
+                manager.updateBrowserCustomArguments(id: manager.configuredBrowsers[existingIndex].id, to: args)
             }
             if let key = shortcutKey {
                 manager.updateShortcutKey(id: manager.configuredBrowsers[existingIndex].id, to: key)
@@ -404,6 +429,7 @@ final class MCPServer {
             return httpResponse(status: 200, body: [
                 "status": "updated",
                 "id": manager.configuredBrowsers[existingIndex].id.uuidString,
+                "launchArgumentsSupported": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild,
             ])
         } else {
             // Add new browser
@@ -412,7 +438,11 @@ final class MCPServer {
                 manager.updateBrowserCustomArguments(id: newBrowser.id, to: args)
             }
             let addedId = manager.configuredBrowsers.last?.id.uuidString ?? "unknown"
-            return httpResponse(status: 201, body: ["status": "created", "id": addedId])
+            return httpResponse(status: 201, body: [
+                "status": "created",
+                "id": addedId,
+                "launchArgumentsSupported": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild,
+            ])
         }
     }
 
@@ -432,8 +462,14 @@ final class MCPServer {
         let isEnabled = json["isEnabled"] as? Bool ?? true
 
         // If an ID is provided, try to update an existing rule
-        if let idStr = json["id"] as? String, let uuid = UUID(uuidString: idStr),
-           let existingIndex = manager.routingRules.firstIndex(where: { $0.id == uuid }) {
+        if let idStr = json["id"] as? String {
+            guard let uuid = UUID(uuidString: idStr) else {
+                return httpResponse(status: 400, body: ["error": "Invalid rule id", "id": idStr])
+            }
+            guard let existingIndex = manager.routingRules.firstIndex(where: { $0.id == uuid }) else {
+                return httpResponse(status: 404, body: ["error": "Rule not found", "id": idStr])
+            }
+
             var updated = manager.routingRules[existingIndex]
             updated.name = name
             updated.hostPattern = hostPattern
@@ -444,18 +480,20 @@ final class MCPServer {
             updated.usePrivateMode = usePrivateMode
             updated.useRegex = useRegex
             updated.isEnabled = isEnabled
-            manager.updateRule(updated)
-            return httpResponse(status: 200, body: ["status": "updated", "id": idStr])
+
+            switch manager.updateRule(updated) {
+            case .success(let normalizedRule):
+                return httpResponse(status: 200, body: [
+                    "status": "updated",
+                    "id": normalizedRule.id.uuidString,
+                    "launchArgumentsSupported": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild,
+                ])
+            case .failure(let error):
+                return routingRuleValidationResponse(error, browserBundleId: browserBundleId)
+            }
         }
 
-        // Validate that the target browser exists before attempting to add
-        if !manager.configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) {
-            return httpResponse(status: 422, body: ["error": "Browser not found. Add the browser first.", "browserBundleId": browserBundleId])
-        }
-
-        // Add new rule — track count to detect silent validation failures
-        let countBefore = manager.routingRules.count
-        manager.addRoutingRule(
+        let result = manager.addRoutingRule(
             name: name,
             hostPattern: hostPattern,
             pathPrefix: pathPrefix,
@@ -466,12 +504,24 @@ final class MCPServer {
             useRegex: useRegex
         )
 
-        if manager.routingRules.count > countBefore {
-            let addedId = manager.routingRules.last?.id.uuidString ?? "unknown"
-            return httpResponse(status: 201, body: ["status": "created", "id": addedId])
-        } else {
-            return httpResponse(status: 422, body: ["error": "Rule was not created. Check that the host pattern is valid."])
+        switch result {
+        case .success(let addedRule):
+            return httpResponse(status: 201, body: [
+                "status": "created",
+                "id": addedRule.id.uuidString,
+                "launchArgumentsSupported": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild,
+            ])
+        case .failure(let error):
+            return routingRuleValidationResponse(error, browserBundleId: browserBundleId)
         }
+    }
+
+    private func routingRuleValidationResponse(_ error: BrowserManager.RoutingRuleValidationError, browserBundleId: String) -> Data {
+        var body: [String: Any] = ["error": error.message]
+        if case .browserNotFound = error {
+            body["browserBundleId"] = browserBundleId
+        }
+        return httpResponse(status: 422, body: body)
     }
 
     private nonisolated func httpResponse(status: Int, body: [String: Any]) -> Data {

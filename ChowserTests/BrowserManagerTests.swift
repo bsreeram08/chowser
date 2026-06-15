@@ -378,6 +378,254 @@ struct BrowserManagerTests {
         #expect(manager.resolvedRoute(for: url)?.rule?.sourceAppBundleId == "net.whatsapp.WhatsApp")
     }
 
+    @Test("Apple Event URL helper rejects invalid URL payloads")
+    func appleEventURLRejectsInvalidPayloads() {
+        #expect(AppDelegate.appleEventURL(from: nil) == nil)
+        #expect(AppDelegate.appleEventURL(from: "") == nil)
+        #expect(AppDelegate.appleEventURL(from: "github.com/path") == nil)
+        #expect(AppDelegate.appleEventURL(from: "https://github.com/path")?.absoluteString == "https://github.com/path")
+    }
+
+    @Test("Source app helper resolves PID before sender bundle and frontmost fallback")
+    func sourceAppResolutionPrefersPIDThenSenderThenFrontmost() {
+        var senderPID = pid_t(4242)
+        let senderPIDData = withUnsafeBytes(of: &senderPID) { Data($0) }
+
+        let pidResolved = AppDelegate.sourceAppBundleIdentifier(
+            senderPIDData: senderPIDData,
+            senderBundleIdentifier: "com.sender.bundle",
+            frontmostBundleIdentifier: "com.frontmost.bundle",
+            ownBundleIdentifier: "in.sreerams.Chowser",
+            runningApplicationBundleIdentifier: { pid in
+                #expect(pid == 4242)
+                return "com.pid.bundle"
+            }
+        )
+        #expect(pidResolved == "com.pid.bundle")
+
+        let senderResolved = AppDelegate.sourceAppBundleIdentifier(
+            senderPIDData: nil,
+            senderBundleIdentifier: "com.sender.bundle",
+            frontmostBundleIdentifier: "com.frontmost.bundle",
+            ownBundleIdentifier: "in.sreerams.Chowser",
+            runningApplicationBundleIdentifier: { _ in nil }
+        )
+        #expect(senderResolved == "com.sender.bundle")
+
+        let frontmostResolved = AppDelegate.sourceAppBundleIdentifier(
+            senderPIDData: nil,
+            senderBundleIdentifier: nil,
+            frontmostBundleIdentifier: "com.frontmost.bundle",
+            ownBundleIdentifier: "in.sreerams.Chowser",
+            runningApplicationBundleIdentifier: { _ in nil }
+        )
+        #expect(frontmostResolved == "com.frontmost.bundle")
+
+        let ownAppIgnored = AppDelegate.sourceAppBundleIdentifier(
+            senderPIDData: nil,
+            senderBundleIdentifier: nil,
+            frontmostBundleIdentifier: "in.sreerams.Chowser",
+            ownBundleIdentifier: "in.sreerams.Chowser",
+            runningApplicationBundleIdentifier: { _ in nil }
+        )
+        #expect(ownAppIgnored == nil)
+    }
+
+    @Test("Incoming URL route uses source app and clears routing context")
+    @MainActor
+    func incomingURLRouteUsesSourceAppAndClearsContext() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+        manager.addRoutingRule(
+            name: "Slack GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+        )
+
+        manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://github.com/org/repo")!,
+            using: manager,
+            forceShowPicker: false
+        )
+
+        #expect(route?.browser.bundleId == "com.google.Chrome")
+        #expect(route?.rule?.sourceAppBundleId == "com.tinyspeck.slackmacgap")
+        #expect(manager.currentSourceAppBundleId == nil)
+    }
+
+    @Test("Incoming URL route falls back to picker when source app does not match")
+    @MainActor
+    func incomingURLRouteFallsBackWhenSourceAppDoesNotMatch() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+        manager.addRoutingRule(
+            name: "Slack GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+        )
+
+        manager.currentSourceAppBundleId = "com.apple.mail"
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://github.com/org/repo")!,
+            using: manager,
+            forceShowPicker: false
+        )
+
+        #expect(route == nil)
+        #expect(manager.currentSourceAppBundleId == nil)
+    }
+
+    @Test("Temporary focus route takes precedence over matching source app rule")
+    @MainActor
+    func temporaryFocusRoutePrecedesSourceAppRule() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "2"),
+        ]
+        manager.addRoutingRule(
+            name: "Slack GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+        )
+        manager.setTemporaryRoute(browserBundleId: "org.mozilla.firefox", profile: nil, duration: 60)
+        manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
+
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://github.com/org/repo")!,
+            using: manager,
+            forceShowPicker: false
+        )
+
+        #expect(route?.rule == nil)
+        #expect(route?.browser.bundleId == "org.mozilla.firefox")
+        #expect(manager.currentSourceAppBundleId == nil)
+    }
+
+    @Test("Forced picker bypasses matching rules and clears source app context")
+    @MainActor
+    func forcedPickerBypassesMatchingRules() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome"
+        )
+        manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
+
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://github.com/org/repo")!,
+            using: manager,
+            forceShowPicker: true
+        )
+
+        #expect(route == nil)
+        #expect(manager.currentSourceAppBundleId == nil)
+    }
+
+    @Test("Private clipboard action arms private mode for the next URL open")
+    @MainActor
+    func privateClipboardActionArmsPrivateModeForNextURLOpen() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        let url = URL(string: "https://example.com")!
+        var openedURL: URL?
+
+        AppDelegate.prepareClipboardURLOpen(url, using: manager, usePrivateMode: true) { url in
+            openedURL = url
+        }
+
+        #expect(openedURL == url)
+        #expect(manager.consumeClipboardPrivateModeRequest(for: url) == BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
+        #expect(manager.consumeClipboardPrivateModeRequest(for: url) == false)
+    }
+
+    @Test("Normal clipboard action clears private mode for the next URL open")
+    @MainActor
+    func normalClipboardActionClearsPrivateModeForNextURLOpen() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        let url = URL(string: "https://example.com")!
+        manager.currentURLPrivateModeRequested = true
+
+        AppDelegate.prepareClipboardURLOpen(url, using: manager, usePrivateMode: false) { _ in }
+
+        #expect(manager.currentURLPrivateModeRequested == false)
+        #expect(manager.consumeClipboardPrivateModeRequest(for: url) == false)
+    }
+
+    @Test("Private clipboard request only applies to the exact URL and is one-shot")
+    @MainActor
+    func privateClipboardRequestIsURLScopedAndOneShot() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        let privateURL = URL(string: "https://example.com/private")!
+        let otherURL = URL(string: "https://example.com/other")!
+
+        AppDelegate.prepareClipboardURLOpen(privateURL, using: manager, usePrivateMode: true) { _ in }
+
+        #expect(manager.consumeClipboardPrivateModeRequest(for: otherURL) == false)
+        #expect(manager.consumeClipboardPrivateModeRequest(for: privateURL) == BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
+        #expect(manager.consumeClipboardPrivateModeRequest(for: privateURL) == false)
+    }
+
+    @Test("Forced private clipboard request overrides non-private routing rule")
+    @MainActor
+    func forcedPrivateClipboardRequestOverridesNonPrivateRoutingRule() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        let rule = BrowserRoutingRule(
+            name: "Example",
+            hostPattern: "example.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            usePrivateMode: false
+        )
+
+        manager.currentURLPrivateModeRequested = true
+
+        #expect(AppDelegate.requestedPrivateModeForIncomingURL(rule: rule, forcedPrivateMode: true) == BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
+    }
+
+    @Test("Picker fallback private request state is explicit per consumed URL")
+    @MainActor
+    func pickerFallbackPrivateRequestStateIsExplicitPerConsumedURL() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        let url = URL(string: "https://example.com/picker")!
+
+        AppDelegate.prepareClipboardURLOpen(url, using: manager, usePrivateMode: true) { _ in }
+        let consumedPrivateMode = manager.consumeClipboardPrivateModeRequest(for: url)
+        manager.currentURLPrivateModeRequested = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild && consumedPrivateMode
+
+        #expect(manager.currentURLPrivateModeRequested == BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
+
+        manager.currentURLPrivateModeRequested = false
+        #expect(manager.currentURLPrivateModeRequested == false)
+    }
+
     @Test("Routing rules persist across manager instances")
     @MainActor
     func routingRulesPersist() {
@@ -901,6 +1149,159 @@ struct BrowserManagerTests {
         #expect(manager.routingRules[1].name == "Google")
 
         try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Rule edits use validation and preserve existing rule on invalid update")
+    @MainActor
+    func invalidRuleEditPreservesExistingRule() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: "orgs",
+            browserBundleId: "com.apple.Safari"
+        )
+
+        let original = manager.routingRules[0]
+        #expect(original.pathPrefix == "/orgs")
+
+        var invalidHostUpdate = original
+        invalidHostUpdate.hostPattern = "bad host pattern"
+        let invalidHostResult = manager.updateRule(invalidHostUpdate)
+        if case .failure(let error) = invalidHostResult {
+            #expect(error == .invalidHostPattern)
+        } else {
+            Issue.record("Invalid host update unexpectedly succeeded")
+        }
+        #expect(manager.routingRules[0].hostPattern == "github.com")
+
+        var invalidRegexUpdate = original
+        invalidRegexUpdate.useRegex = true
+        invalidRegexUpdate.hostPattern = "[invalid"
+        let invalidRegexResult = manager.updateRule(invalidRegexUpdate)
+        if case .failure(let error) = invalidRegexResult {
+            #expect(error == .invalidRegexPattern)
+        } else {
+            Issue.record("Invalid regex update unexpectedly succeeded")
+        }
+        #expect(manager.routingRules[0].useRegex == false)
+        #expect(manager.routingRules[0].hostPattern == "github.com")
+
+        var missingBrowserUpdate = original
+        missingBrowserUpdate.browserBundleId = "com.missing.Browser"
+        let missingBrowserResult = manager.updateRule(missingBrowserUpdate)
+        if case .failure(let error) = missingBrowserResult {
+            #expect(error == .browserNotFound(bundleId: "com.missing.Browser", profile: nil))
+        } else {
+            Issue.record("Missing-browser update unexpectedly succeeded")
+        }
+        #expect(manager.routingRules[0].browserBundleId == "com.apple.Safari")
+
+        var invalidPathUpdate = original
+        invalidPathUpdate.pathPrefix = "https://github.com/orgs"
+        let invalidPathResult = manager.updateRule(invalidPathUpdate)
+        if case .failure(let error) = invalidPathResult {
+            #expect(error == .invalidPathPrefix)
+        } else {
+            Issue.record("Invalid path update unexpectedly succeeded")
+        }
+        #expect(manager.routingRules[0].pathPrefix == "/orgs")
+    }
+
+    @Test("Rule validation normalizes paths and validates source app matching")
+    @MainActor
+    func ruleValidationNormalizesPathAndSourceApp() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+
+        let invalidSourceResult = manager.addRoutingRule(
+            name: "Bad Source",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleId: "not a bundle"
+        )
+        if case .failure(let error) = invalidSourceResult {
+            #expect(error == .invalidSourceAppBundleId)
+        } else {
+            Issue.record("Invalid source app bundle ID unexpectedly succeeded")
+        }
+        #expect(manager.routingRules.isEmpty)
+
+        manager.addRoutingRule(
+            name: "Slack GitHub",
+            hostPattern: "github.com",
+            pathPrefix: "orgs",
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+        )
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].pathPrefix == "/orgs")
+        #expect(manager.routingRules[0].sourceAppBundleId == "com.tinyspeck.slackmacgap")
+
+        let matchingURL = URL(string: "https://github.com/orgs/chowser")!
+        manager.currentSourceAppBundleId = nil
+        #expect(manager.resolvedRoute(for: matchingURL) == nil)
+        manager.currentSourceAppBundleId = "com.apple.mail"
+        #expect(manager.resolvedRoute(for: matchingURL) == nil)
+        manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
+        #expect(manager.resolvedRoute(for: matchingURL)?.browser.bundleId == "com.google.Chrome")
+    }
+
+    @Test("Rule import skips invalid rules and keeps valid existing rules loadable")
+    @MainActor
+    func importSkipsInvalidRulesAndPreservesExistingRules() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        manager.addRoutingRule(
+            name: "Existing GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.apple.Safari"
+        )
+
+        let existingRule = manager.routingRules[0]
+        let validImportedRule = BrowserRoutingRule(
+            name: "Docs",
+            hostPattern: "docs.example.com",
+            pathPrefix: "guide",
+            browserBundleId: "com.apple.Safari"
+        )
+        var invalidExistingUpdate = existingRule
+        invalidExistingUpdate.hostPattern = "bad host"
+        let missingBrowserRule = BrowserRoutingRule(
+            name: "Missing Browser",
+            hostPattern: "missing.example.com",
+            browserBundleId: "com.missing.Browser"
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_validation_import_\(UUID().uuidString).json")
+        try JSONEncoder().encode([invalidExistingUpdate, validImportedRule, missingBrowserRule]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        try manager.importRules(from: tempURL)
+
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.routingRules[0].id == existingRule.id)
+        #expect(manager.routingRules[0].hostPattern == "github.com")
+        #expect(manager.routingRules[1].hostPattern == "docs.example.com")
+        #expect(manager.routingRules[1].pathPrefix == "/guide")
+        #expect(manager.resolvedRoute(for: URL(string: "https://github.com")!)?.browser.bundleId == "com.apple.Safari")
+        #expect(manager.resolvedRoute(for: URL(string: "https://docs.example.com/guide/setup")!)?.browser.bundleId == "com.apple.Safari")
     }
 
     @Test("Installed browsers list includes profile info when profiles exist")

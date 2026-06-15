@@ -40,6 +40,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if AppEnvironment.shouldBypassOnboardingForRequestedUITestSurface {
+            OnboardingManager.shared.hasCompletedOnboarding = true
+            generateStateAndSetupSystem()
+            return
+        }
+
         if !OnboardingManager.shared.hasCompletedOnboarding {
             // First time launch: show onboarding
             OnboardingManager.shared.showOnboardingWindow {
@@ -87,59 +93,127 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
     
     @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
-        // Extract the source application's bundle ID from the Apple Event sender.
-        var resolved = false
-
-        // Approach 1: Extract PID via typeKernelProcessID coercion
-        if let pidDescriptor = event.attributeDescriptor(forKeyword: AEKeyword(keyAddressAttr))?
-                .coerce(toDescriptorType: typeKernelProcessID) {
-            let pidData = pidDescriptor.data
-            if pidData.count >= MemoryLayout<pid_t>.size {
-                let pid = pidData.withUnsafeBytes { $0.load(as: pid_t.self) }
-                if pid > 0, let app = NSRunningApplication(processIdentifier: pid) {
-                    BrowserManager.shared.currentSourceAppBundleId = app.bundleIdentifier
-                    resolved = true
-                }
-            }
+        guard let url = Self.appleEventURL(from: event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue) else {
+            return
         }
 
-        // Approach 2: Try extracting the sender's process serial number (legacy path)
-        if !resolved,
-           let senderDesc = event.attributeDescriptor(forKeyword: AEKeyword(keyAddressAttr)) {
-            // Some apps send typeApplSignature or typeProcessSerialNumber descriptors.
-            // Try coercing to typeApplicationBundleID directly (macOS 10.15+)
-            if let bundleDesc = senderDesc.coerce(toDescriptorType: typeApplicationBundleID),
-               let bundleId = bundleDesc.stringValue, !bundleId.isEmpty {
-                BrowserManager.shared.currentSourceAppBundleId = bundleId
-                resolved = true
-            }
+        let senderDescriptor = event.attributeDescriptor(forKeyword: AEKeyword(keyAddressAttr))
+        let senderPIDData = senderDescriptor?.coerce(toDescriptorType: typeKernelProcessID)?.data
+        let senderBundleIdentifier = senderDescriptor?.coerce(toDescriptorType: typeApplicationBundleID)?.stringValue
+        let frontmostBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+
+        BrowserManager.shared.currentSourceAppBundleId = Self.sourceAppBundleIdentifier(
+            senderPIDData: senderPIDData,
+            senderBundleIdentifier: senderBundleIdentifier,
+            frontmostBundleIdentifier: frontmostBundleIdentifier
+        )
+
+        application(NSApp, open: [url])
+    }
+
+    static func appleEventURL(from string: String?) -> URL? {
+        guard let string,
+              let url = URL(string: string),
+              let scheme = url.scheme,
+              !scheme.isEmpty else {
+            return nil
         }
 
-        // Approach 3: Fall back to the frontmost application (heuristic)
-        if !resolved {
-            if let frontApp = NSWorkspace.shared.frontmostApplication,
-               frontApp.bundleIdentifier != Bundle.main.bundleIdentifier {
-                BrowserManager.shared.currentSourceAppBundleId = frontApp.bundleIdentifier
-            }
+        return url
+    }
+
+    @MainActor
+    static func prepareClipboardURLOpen(
+        _ url: URL,
+        using manager: BrowserManager,
+        usePrivateMode: Bool,
+        openURL: (URL) -> Void
+    ) {
+        manager.prepareClipboardPrivateModeRequest(for: url, usePrivateMode: usePrivateMode)
+        openURL(url)
+    }
+
+    @MainActor
+    static func requestedPrivateModeForIncomingURL(
+        rule: BrowserRoutingRule?,
+        forcedPrivateMode: Bool
+    ) -> Bool {
+        guard BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild else { return false }
+        return forcedPrivateMode || (rule?.usePrivateMode ?? false)
+    }
+
+    static func sourceAppBundleIdentifier(
+        senderPIDData: Data?,
+        senderBundleIdentifier: String?,
+        frontmostBundleIdentifier: String?,
+        ownBundleIdentifier: String? = Bundle.main.bundleIdentifier,
+        runningApplicationBundleIdentifier: (pid_t) -> String? = { pid in
+            NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        }
+    ) -> String? {
+        if let pid = senderPID(from: senderPIDData),
+           let bundleIdentifier = runningApplicationBundleIdentifier(pid),
+           !bundleIdentifier.isEmpty {
+            return bundleIdentifier
         }
 
-        guard let urlStr = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
-              let url = URL(string: urlStr) else { return }
-        self.application(NSApp, open: [url])
+        if let senderBundleIdentifier,
+           !senderBundleIdentifier.isEmpty {
+            return senderBundleIdentifier
+        }
+
+        guard let frontmostBundleIdentifier,
+              !frontmostBundleIdentifier.isEmpty,
+              frontmostBundleIdentifier != ownBundleIdentifier else {
+            return nil
+        }
+
+        return frontmostBundleIdentifier
+    }
+
+    @MainActor
+    static func resolveIncomingURLRoute(
+        for url: URL,
+        using manager: BrowserManager,
+        forceShowPicker: Bool
+    ) -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
+        defer {
+            manager.currentSourceAppBundleId = nil
+        }
+
+        guard !forceShowPicker else { return nil }
+        return manager.resolvedRoute(for: url)
+    }
+
+    private static func senderPID(from data: Data?) -> pid_t? {
+        guard let data,
+              data.count >= MemoryLayout<pid_t>.size else {
+            return nil
+        }
+
+        var pid: pid_t = 0
+        _ = withUnsafeMutableBytes(of: &pid) { buffer in
+            data.copyBytes(to: buffer)
+        }
+
+        return pid > 0 ? pid : nil
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
         isHandlingURL = true
+        let manager = BrowserManager.shared
         defer {
             // Delay resetting the isHandlingURL flag slightly to catch trailing reopen events.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.isHandlingURL = false
             }
-            // Clear source app tracking immediately after routing logic completes.
-            BrowserManager.shared.currentSourceAppBundleId = nil
         }
 
-        guard let url = urls.first else { return }
+        guard let url = urls.first else {
+            manager.currentSourceAppBundleId = nil
+            return
+        }
+        let clipboardPrivateModeRequested = manager.consumeClipboardPrivateModeRequest(for: url)
 
         // Feature 4: Handle chowser://internal scheme (from Share Extension).
         if url.scheme == "chowser", url.host == "open",
@@ -158,8 +232,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
         // The `return` statement was removed as part of the legacy functionality removal.
 
-        let manager = BrowserManager.shared
-        
         Task {
             // 1. Unshorten the URL if it's from a known shortener
             let unshortenedURL = await manager.unshortenURL(url)
@@ -171,15 +243,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 manager.addRecentURL(cleanedURL)
                 manager.currentURL = cleanedURL
 
-                // Hold Shift (⇧) while clicking a link to bypass auto-rules and force the picker
+                // Hold Shift (⇧) while clicking a link to bypass auto-rules and force the picker.
                 let forceShowPicker = NSEvent.modifierFlags.contains(.shift)
+                let route = Self.resolveIncomingURLRoute(for: cleanedURL, using: manager, forceShowPicker: forceShowPicker)
 
-                if !forceShowPicker, let route = manager.resolvedRoute(for: cleanedURL) {
+                if let route {
                     manager.currentURL = nil
-                    manager.open(url: cleanedURL, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: route.rule?.usePrivateMode ?? false)
+                    let usePrivateMode = Self.requestedPrivateModeForIncomingURL(rule: route.rule, forcedPrivateMode: clipboardPrivateModeRequested)
+                    manager.currentURLPrivateModeRequested = false
+                    manager.open(url: cleanedURL, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: usePrivateMode)
                     return
                 }
 
+                manager.currentURLPrivateModeRequested = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild && clipboardPrivateModeRequested
                 showPicker()
             }
         }
@@ -269,9 +345,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         clipboardItem.target = self
         clipboardMenu.addItem(clipboardItem)
 
-        let clipboardPrivateItem = NSMenuItem(title: "Open in Private...", action: #selector(openClipboardURLPrivate), keyEquivalent: "")
-        clipboardPrivateItem.target = self
-        clipboardMenu.addItem(clipboardPrivateItem)
+        if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+            let clipboardPrivateItem = NSMenuItem(title: "Open in Private...", action: #selector(openClipboardURLPrivate), keyEquivalent: "")
+            clipboardPrivateItem.target = self
+            clipboardMenu.addItem(clipboardPrivateItem)
+        }
         
         clipboardTitleItem.submenu = clipboardMenu
         menu.addItem(clipboardTitleItem)
@@ -539,8 +617,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func revealSettingsWindow(retries: Int) {
         // Used only in UI testing via AppEnvironment.shouldOpenSettingsOnLaunch.
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        openSettings()
     }
     
     @objc private func setDefaultBrowser() {
@@ -549,13 +626,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func openClipboardURL() {
         guard let url = clipboardURL() else { NSSound.beep(); return }
-        application(NSApp, open: [url])
+        Self.prepareClipboardURLOpen(url, using: BrowserManager.shared, usePrivateMode: false) { url in
+            application(NSApp, open: [url])
+        }
     }
 
     @objc private func openClipboardURLPrivate() {
         guard let url = clipboardURL() else { NSSound.beep(); return }
-        application(NSApp, open: [url])
-        // User holds ⌥ in the picker to activate private mode.
+        Self.prepareClipboardURLOpen(url, using: BrowserManager.shared, usePrivateMode: true) { url in
+            application(NSApp, open: [url])
+        }
     }
 
     private func clipboardURL() -> URL? {

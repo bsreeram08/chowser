@@ -54,6 +54,7 @@ struct AddRuleSheet: View {
                             .font(.system(size: 14))
                             .padding(12)
                             .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                            .accessibilityIdentifier("settings.addRule.nameField")
                     }
 
                     // Matching logic
@@ -64,6 +65,7 @@ struct AddRuleSheet: View {
                                     .textFieldStyle(.plain)
                                     .font(.system(size: 12, design: .monospaced))
                                     .onChange(of: hostPattern) { _, _ in updateRuleNameIfNeeded() }
+                                    .accessibilityIdentifier("settings.addRule.hostField")
                             }
                             
                             HStack {
@@ -102,10 +104,19 @@ struct AddRuleSheet: View {
                                 }
                                 .pickerStyle(.menu)
                                 .labelsHidden()
+                                .accessibilityIdentifier("settings.addRule.browserPicker")
                             }
                             
                             Toggle("Use Private Mode", isOn: $usePrivateMode)
                                 .toggleStyle(.checkbox)
+                                .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
+
+                            if !BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                                Text("Private-mode launch arguments are unavailable in App Store builds.")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
                     
@@ -142,11 +153,14 @@ struct AddRuleSheet: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSave)
+                .accessibilityIdentifier("settings.addRule.confirmButton")
+                .keyboardShortcut(.defaultAction)
             }
             .padding(20)
             .background(Color.primary.opacity(0.01))
         }
         .frame(width: 500, height: 620)
+        .accessibilityIdentifier("settings.addRule.root")
         .onAppear {
             if let prefillURL = prefillURL, hostPattern.isEmpty {
                 hostPattern = prefillURL.host ?? ""
@@ -197,7 +211,7 @@ struct AddRuleSheet: View {
             browserBundleId: browserBundleId,
             profile: profile,
             sourceAppBundleId: sourceAppBundleId,
-            usePrivateMode: usePrivateMode,
+            usePrivateMode: BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild ? usePrivateMode : false,
             useRegex: useRegex
         )
         isPresented = false

@@ -91,34 +91,54 @@ Sandboxed build without browser profile support (uses `NSWorkspace` for all laun
 
 ### Release Flow
 
+Current TestFlight uploads are manual through Xcode Organizer. There is no `pre-release` branch workflow in `.github/workflows/` that uploads to App Store Connect.
+
 ```
-pre-release branch → push → GitHub Actions → App Store Connect → TestFlight
-pre-release branch → merge to main → tag → App Store submission
+feature branch → archive in Xcode or xcodebuild → Xcode Organizer → Distribute App → App Store Connect → TestFlight
 ```
+
+The public Mac App Store listing currently resolves at:
+
+- `https://apps.apple.com/in/app/chowser/id6760034779`
+
+### App Store Archive Command
+
+Use the Release configuration so the project applies the App Store sandbox entitlements and `APP_STORE` compilation condition:
+
+```bash
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
+  -archivePath release/Chowser.xcarchive \
+  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE'
+```
+
+### TestFlight Beta
+
+1. Create an archive from Xcode or with the archive command above.
+2. Open Xcode → Window → Organizer.
+3. Select the Chowser archive.
+4. Click **Distribute App** → **App Store Connect** → **Upload**.
+5. Go to [App Store Connect → TestFlight](https://appstoreconnect.apple.com) to manage beta testers.
+6. Add internal testers or create public beta links after Apple processing completes.
+7. Beta testers install via the TestFlight app on macOS.
+
+### Required Local Signing Setup (App Store)
+
+The current TestFlight path uses local Xcode signing, not GitHub Secrets. Make sure this machine has:
+
+| Item | Value |
+|------|-------|
+| Apple Distribution certificate | Installed in Keychain |
+| App Store provisioning profile | Installed in Xcode or downloaded from Apple Developer |
+| Team ID | `TH2VPAUX6Y` |
+| Bundle ID | `in.sreerams.Chowser` |
+| Entitlements | `Chowser/ChowserAppStore.entitlements` |
 
 ### Pricing & Promo Codes
 
 - **Price**: ₹500 (set in App Store Connect → Pricing and Availability)
 - **Promo Codes**: Generate up to 100 promo codes per version in App Store Connect → Marketing → Promo Codes
 - Promo codes allow free downloads for reviewers, friends, and beta testers
-
-### TestFlight Beta
-
-1. Push to `pre-release` branch — CI automatically builds and uploads to App Store Connect
-2. Go to [App Store Connect → TestFlight](https://appstoreconnect.apple.com) to manage beta testers
-3. Add internal testers (up to 100) or create public beta links
-4. Beta testers install via TestFlight app on macOS
-
-### Required GitHub Secrets (App Store)
-
-| Secret | Description |
-|--------|-------------|
-| `APPLE_DISTRIBUTION_P12` | Base64-encoded Apple Distribution .p12 certificate |
-| `APPLE_DISTRIBUTION_PASSWORD` | Password for the distribution .p12 |
-| `MAC_PROVISIONING_PROFILE` | Base64-encoded Mac App Store provisioning profile |
-| `APPLE_ID` | Apple ID email |
-| `APPLE_ID_PASSWORD` | App-specific password |
-| `APPLE_TEAM_ID` | `TH2VPAUX6Y` |
 
 ---
 

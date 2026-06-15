@@ -49,9 +49,34 @@ extension BrowserRoutingRule {
 
 @MainActor
 @Observable final class BrowserManager {
+    enum RoutingRuleValidationError: Error, Equatable {
+        case browserNotFound(bundleId: String, profile: String?)
+        case invalidHostPattern
+        case invalidRegexPattern
+        case invalidPathPrefix
+        case invalidSourceAppBundleId
+        case ruleNotFound
+
+        var message: String {
+            switch self {
+            case .browserNotFound:
+                return "Browser not found. Add the browser first."
+            case .invalidHostPattern:
+                return "Host pattern is invalid."
+            case .invalidRegexPattern:
+                return "Regex host pattern is invalid."
+            case .invalidPathPrefix:
+                return "Path prefix is invalid. Use a path such as /docs or docs."
+            case .invalidSourceAppBundleId:
+                return "Source app bundle ID is invalid."
+            case .ruleNotFound:
+                return "Rule not found."
+            }
+        }
+    }
+
     private enum Constants {
         static let defaultsKey = "configuredBrowsers"
-        static let onboardingCompletedKey = "onboardingCompleted"
         static let routingRulesKey = "routingRules"
         static let hiddenBundleIDsKey = "hiddenBundleIDs"
         static let pickerIconSizeKey = "pickerIconSize"
@@ -94,15 +119,16 @@ extension BrowserRoutingRule {
         }
     }
 
-    var hasCompletedOnboarding: Bool = false {
-        didSet {
-            defaults.set(hasCompletedOnboarding, forKey: Constants.onboardingCompletedKey)
-        }
+    var hasCompletedOnboarding: Bool {
+        get { OnboardingManager.hasCompletedOnboarding(in: defaults) }
+        set { OnboardingManager.setHasCompletedOnboarding(newValue, in: defaults) }
     }
 
     var currentURL: URL?
+    var currentURLPrivateModeRequested = false
     var currentSourceAppBundleId: String? = nil
     var lastOpenedBrowserBundleIDForTesting: String?
+    @ObservationIgnored private var pendingPrivateModeURL: URL?
 
     /// Picker icon size: "small", "medium" (default), "large"
     var pickerIconSize: String = "medium" {
@@ -169,11 +195,10 @@ extension BrowserRoutingRule {
     @ObservationIgnored private var pendingRecentURLsSave: DispatchWorkItem?
     @ObservationIgnored private var temporaryRouteExpirationTimer: Timer?
 
-    init(defaults: UserDefaults = .standard, defaultsKey: String = "configuredBrowsers", immediateWrite: Bool = true) {
+    init(defaults: UserDefaults = AppEnvironment.makeDefaultStore(), defaultsKey: String = "configuredBrowsers", immediateWrite: Bool = true) {
         self.defaults = defaults
         self.defaultsKey = defaultsKey
         self.immediateWrite = immediateWrite
-        self.hasCompletedOnboarding = defaults.bool(forKey: Constants.onboardingCompletedKey)
 
         if AppEnvironment.shouldClearDataOnLaunch {
             clearPersistedBrowserList()
@@ -198,21 +223,57 @@ extension BrowserRoutingRule {
     }
 
     static func makeDefaultStore() -> UserDefaults {
-        guard let suiteName = AppEnvironment.defaultsSuiteName else {
-            return .standard
+        AppEnvironment.makeDefaultStore()
+    }
+
+    func prepareClipboardPrivateModeRequest(for url: URL, usePrivateMode: Bool) {
+        pendingPrivateModeURL = Self.supportsApplicationLaunchArgumentsInCurrentBuild && usePrivateMode ? url : nil
+        currentURLPrivateModeRequested = false
+    }
+
+    func consumeClipboardPrivateModeRequest(for url: URL) -> Bool {
+        guard Self.supportsApplicationLaunchArgumentsInCurrentBuild,
+              pendingPrivateModeURL == url else {
+            return false
         }
 
-        return UserDefaults(suiteName: suiteName) ?? .standard
+        pendingPrivateModeURL = nil
+        return true
     }
 
     static func freshSetupBrowsers() -> [BrowserConfig] {
         [BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1")]
     }
 
+    static var supportsApplicationLaunchArgumentsInCurrentBuild: Bool {
+        #if APP_STORE
+        false
+        #else
+        true
+        #endif
+    }
+
+    private static func normalizedProfileForCurrentBuild(_ profile: String?) -> String? {
+        supportsApplicationLaunchArgumentsInCurrentBuild ? profile : nil
+    }
+
+    private static func normalizedCustomArgumentsForCurrentBuild(_ customArguments: String?) -> String? {
+        supportsApplicationLaunchArgumentsInCurrentBuild ? customArguments : nil
+    }
+
+    private static func normalizedPrivateModeForCurrentBuild(_ usePrivateMode: Bool) -> Bool {
+        supportsApplicationLaunchArgumentsInCurrentBuild ? usePrivateMode : false
+    }
+
     func load() {
         if let data = defaults.data(forKey: defaultsKey),
            let decoded = try? JSONDecoder().decode([BrowserConfig].self, from: data) {
-            configuredBrowsers = decoded
+            configuredBrowsers = decoded.map { browser in
+                var normalizedBrowser = browser
+                normalizedBrowser.profile = Self.normalizedProfileForCurrentBuild(browser.profile)
+                normalizedBrowser.customArguments = Self.normalizedCustomArgumentsForCurrentBuild(browser.customArguments)
+                return normalizedBrowser
+            }
         } else {
             configuredBrowsers = Self.freshSetupBrowsers()
         }
@@ -314,7 +375,12 @@ extension BrowserRoutingRule {
     func loadRoutingRules() {
         if let data = defaults.data(forKey: Constants.routingRulesKey),
            let decoded = try? JSONDecoder().decode([BrowserRoutingRule].self, from: data) {
-            routingRules = decoded
+            routingRules = decoded.map { rule in
+                var normalizedRule = rule
+                normalizedRule.profile = Self.normalizedProfileForCurrentBuild(rule.profile)
+                normalizedRule.usePrivateMode = Self.normalizedPrivateModeForCurrentBuild(rule.usePrivateMode)
+                return normalizedRule
+            }
         } else {
             routingRules = []
         }
@@ -357,12 +423,13 @@ extension BrowserRoutingRule {
     }
 
     func addBrowser(name: String, bundleId: String, shortcutKey: String? = nil, profile: String? = nil) {
-        guard !configuredBrowsers.contains(where: { $0.bundleId == bundleId && $0.profile == profile }) else {
+        let launchProfile = Self.normalizedProfileForCurrentBuild(profile)
+        guard !configuredBrowsers.contains(where: { $0.bundleId == bundleId && $0.profile == launchProfile }) else {
             return
         }
 
         let key = shortcutKey.flatMap { normalizedShortcut($0) } ?? nextAvailableShortcutKey()
-        configuredBrowsers.append(BrowserConfig(name: name, bundleId: bundleId, shortcutKey: key, profile: profile))
+        configuredBrowsers.append(BrowserConfig(name: name, bundleId: bundleId, shortcutKey: key, profile: launchProfile))
     }
 
     func removeBrowser(id: UUID) {
@@ -393,6 +460,7 @@ extension BrowserRoutingRule {
     }
 
     func updateBrowserCustomArguments(id: UUID, to args: String) {
+        guard Self.supportsApplicationLaunchArgumentsInCurrentBuild else { return }
         guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = args.isEmpty ? nil : args
         if configuredBrowsers[index].customArguments != trimmed {
@@ -443,12 +511,16 @@ extension BrowserRoutingRule {
         var updatedRules = routingRules
         
         for rule in decoded {
+            guard case .success(let normalizedRule) = validatedRoutingRule(rule) else {
+                continue
+            }
+
             if let existingIndex = updatedRules.firstIndex(where: { $0.id == rule.id }) {
                 // Update existing rule in place
-                updatedRules[existingIndex] = rule
+                updatedRules[existingIndex] = normalizedRule
             } else {
                 // Append new rule
-                updatedRules.append(rule)
+                updatedRules.append(normalizedRule)
             }
         }
         
@@ -470,6 +542,8 @@ extension BrowserRoutingRule {
         var updatedBrowsers = configuredBrowsers
         
         for var browser in decoded {
+            browser.profile = Self.normalizedProfileForCurrentBuild(browser.profile)
+            browser.customArguments = Self.normalizedCustomArgumentsForCurrentBuild(browser.customArguments)
             if let existingIndex = updatedBrowsers.firstIndex(where: { $0.identity == browser.identity }) {
                 // Update existing browser in place, preserving its id and shortcut key
                 let existingId = updatedBrowsers[existingIndex].id
@@ -497,43 +571,28 @@ extension BrowserRoutingRule {
 
     // MARK: - Routing Rules
 
-    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false, useRegex: Bool = false) {
-        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
-
-        let normalizedSourceAppBundleId = sourceAppBundleId.flatMap { $0.isEmpty ? nil : $0 }
-
-        let normalizedHost: String
-        let ruleName: String
-
-        if useRegex {
-            // For regex patterns, skip host normalization — store as-is
-            let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, trimmed.count <= 500 else { return }
-            // Validate regex compiles
-            guard (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
-            normalizedHost = trimmed
-            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
-        } else {
-            let normalizedHosts = normalizedHostPatterns(hostPattern)
-            guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedSourceAppBundleId) else { return }
-            normalizedHost = normalizedHosts.joined(separator: ", ")
-            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            ruleName = trimmedName.isEmpty ? normalizedHost : trimmedName
-        }
-
-        routingRules.append(
-            BrowserRoutingRule(
-                name: ruleName,
-                hostPattern: normalizedHost,
-                pathPrefix: normalizedPathPrefix(pathPrefix),
-                browserBundleId: browserBundleId,
-                profile: profile,
-                sourceAppBundleId: normalizedSourceAppBundleId,
-                usePrivateMode: usePrivateMode,
-                useRegex: useRegex
-            )
+    @discardableResult
+    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false, useRegex: Bool = false) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        let rule = BrowserRoutingRule(
+            name: name,
+            hostPattern: hostPattern,
+            pathPrefix: pathPrefix,
+            browserBundleId: browserBundleId,
+            profile: profile,
+            sourceAppBundleId: sourceAppBundleId,
+            usePrivateMode: usePrivateMode,
+            useRegex: useRegex
         )
+        return addRoutingRule(rule)
+    }
+
+    @discardableResult
+    func addRoutingRule(_ rule: BrowserRoutingRule) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        let result = validatedRoutingRule(rule)
+        if case .success(let normalizedRule) = result {
+            routingRules.append(normalizedRule)
+        }
+        return result
     }
 
     func removeRoutingRule(id: UUID) {
@@ -563,7 +622,8 @@ extension BrowserRoutingRule {
             usePrivateMode: original.usePrivateMode,
             useRegex: original.useRegex
         )
-        routingRules.insert(duplicate, at: index + 1)
+        guard case .success(let normalizedDuplicate) = validatedRoutingRule(duplicate) else { return }
+        routingRules.insert(normalizedDuplicate, at: index + 1)
     }
 
     func routingRuleName(for id: UUID) -> String {
@@ -592,72 +652,64 @@ extension BrowserRoutingRule {
 
     func updateRoutingRuleName(id: UUID, to name: String) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        routingRules[index].name = trimmedName.isEmpty ? routingRules[index].hostPattern : trimmedName
+        var updated = routingRules[index]
+        updated.name = name
+        updateRule(updated)
     }
 
     func updateRoutingRuleHostPattern(id: UUID, to hostPattern: String) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-
-        if routingRules[index].useRegex {
-            let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, trimmed.count <= 500, (try? NSRegularExpression(pattern: trimmed)) != nil else { return }
-            routingRules[index].hostPattern = trimmed
-            if routingRules[index].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                routingRules[index].name = trimmed
-            }
-            return
-        }
-
-        let normalizedHosts = normalizedHostPatterns(hostPattern)
-        guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: routingRules[index].sourceAppBundleId) else { return }
-
-        let normalizedHost = normalizedHosts.joined(separator: ", ")
-        routingRules[index].hostPattern = normalizedHost
-
-        if routingRules[index].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            routingRules[index].name = normalizedHost
-        }
+        var updated = routingRules[index]
+        updated.hostPattern = hostPattern
+        updateRule(updated)
     }
 
     func updateRoutingRulePathPrefix(id: UUID, to pathPrefix: String) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        routingRules[index].pathPrefix = normalizedPathPrefix(pathPrefix)
+        var updated = routingRules[index]
+        updated.pathPrefix = pathPrefix
+        updateRule(updated)
     }
 
     func updateRoutingRuleBrowser(id: UUID, to browserBundleId: String, profile: String? = nil) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        guard configuredBrowsers.contains(where: { $0.bundleId == browserBundleId && $0.profile == profile }) else { return }
-        routingRules[index].browserBundleId = browserBundleId
-        routingRules[index].profile = profile
+        var updated = routingRules[index]
+        updated.browserBundleId = browserBundleId
+        updated.profile = profile
+        updateRule(updated)
     }
 
     func updateRoutingRuleIsEnabled(id: UUID, to isEnabled: Bool) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        routingRules[index].isEnabled = isEnabled
+        var updated = routingRules[index]
+        updated.isEnabled = isEnabled
+        updateRule(updated)
     }
 
     func updateRoutingRuleSourceApp(id: UUID, to bundleId: String?) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-
-        let normalizedBundleId = bundleId.flatMap { $0.isEmpty ? nil : $0 }
-
-        if !routingRules[index].useRegex {
-            let normalizedHosts = normalizedHostPatterns(routingRules[index].hostPattern)
-            guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedBundleId) else { return }
-        }
-
-        routingRules[index].sourceAppBundleId = normalizedBundleId
+        var updated = routingRules[index]
+        updated.sourceAppBundleId = bundleId
+        updateRule(updated)
     }
 
     func updateRoutingRuleUsePrivateMode(id: UUID, to usePrivateMode: Bool) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
-        routingRules[index].usePrivateMode = usePrivateMode
+        var updated = routingRules[index]
+        updated.usePrivateMode = usePrivateMode
+        updateRule(updated)
     }
 
-    func updateRule(_ updated: BrowserRoutingRule) {
-        guard let index = routingRules.firstIndex(where: { $0.id == updated.id }) else { return }
-        routingRules[index] = updated
+    @discardableResult
+    func updateRule(_ updated: BrowserRoutingRule) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        guard let index = routingRules.firstIndex(where: { $0.id == updated.id }) else {
+            return .failure(.ruleNotFound)
+        }
+        let result = validatedRoutingRule(updated)
+        if case .success(let normalizedRule) = result {
+            routingRules[index] = normalizedRule
+        }
+        return result
     }
 
     func resolvedRoute(for url: URL) -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
@@ -1045,6 +1097,41 @@ extension BrowserRoutingRule {
         return .other
     }
 
+    enum BrowserLaunchMode: Equatable {
+        case directDownload
+        case appStoreSandbox
+    }
+
+    struct BrowserLaunchPlan: Equatable {
+        let mode: BrowserLaunchMode
+        let bundleId: String
+        let appURL: URL
+        let documentURLs: [URL]
+        let requestedApplicationArguments: [String]
+        let deliveredApplicationArguments: [String]
+        let argumentType: String?
+        let applicationArgumentsSupported: Bool
+        let createsNewApplicationInstance: Bool
+
+        var usesDirectOpenTool: Bool {
+            mode == .directDownload && !deliveredApplicationArguments.isEmpty
+        }
+
+        var directOpenArguments: [String] {
+            var arguments: [String] = []
+            if createsNewApplicationInstance {
+                arguments.append("-n")
+            }
+            arguments += ["-a", appURL.path]
+            arguments += documentURLs.map(\.absoluteString)
+            if !deliveredApplicationArguments.isEmpty {
+                arguments.append("--args")
+                arguments += deliveredApplicationArguments
+            }
+            return arguments
+        }
+    }
+
     func open(url: URL, withBrowserBundleID bundleId: String, profile: String? = nil, usePrivateMode: Bool = false) {
         if AppEnvironment.shouldDisableExternalURLOpen {
             lastOpenedBrowserBundleIDForTesting = bundleId
@@ -1059,50 +1146,46 @@ extension BrowserRoutingRule {
         let browser = configuredBrowsers.first(where: { $0.bundleId.lowercased() == bundleId.lowercased() && $0.profile == profile })
         let customArgs = browser?.customArguments
 
-        let info = Self.launchInfo(forBundleID: bundleId, profile: profile, customArguments: customArgs, url: url, usePrivateMode: usePrivateMode)
-        let isSingleInstance = Self.singleInstanceBrowsers.contains(bundleId.lowercased())
+        #if APP_STORE
+        let launchMode = BrowserLaunchMode.appStoreSandbox
+        #else
+        let launchMode = BrowserLaunchMode.directDownload
+        #endif
+
+        let plan = Self.launchPlan(
+            forBundleID: bundleId,
+            appURL: appURL,
+            url: url,
+            profile: profile,
+            customArguments: customArgs,
+            usePrivateMode: usePrivateMode,
+            mode: launchMode
+        )
 
         #if APP_STORE
-        // In the App Store sandbox, we MUST use NSWorkspace.
-        // We can still pass arguments via OpenConfiguration.
+        // Sandboxed callers cannot reliably deliver OpenConfiguration.arguments.
+        // Use NSWorkspace only for reliable app-bundle selection and document delivery.
         let configuration = NSWorkspace.OpenConfiguration()
-        if let info = info {
-            // Filter out the URL from arguments because NSWorkspace.open([url], ...) 
-            // will pass it as the last argument automatically.
-            configuration.arguments = info.arguments.filter { $0 != url.absoluteString }
-        }
-        
-        // Match the -n behavior using createsNewApplicationInstance.
-        // Single-instance browsers (like Dia) must have this as false.
-        configuration.createsNewApplicationInstance = !isSingleInstance
-        
-        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
+        configuration.createsNewApplicationInstance = plan.createsNewApplicationInstance
+        NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
             if let error = error {
                 print("Chowser: Failed to open URL (Sandboxed): \(error)")
             }
         }
         #else
-        // In Debug/Non-Sandboxed builds, we use /usr/bin/open for maximum reliability
-        // with complex handoffs (like Chrome profile switching).
-        if let info = info {
+        if plan.usesDirectOpenTool {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            
-            let openArgs = (isSingleInstance ? [] : ["-n"]) + 
-                          ["-a", appURL.path, url.absoluteString, "--args"] + 
-                          info.arguments.filter { $0 != url.absoluteString }
-            
-            process.arguments = openArgs
+            process.arguments = plan.directOpenArguments
             do {
                 try process.run()
             } catch {
-                print("Chowser: Failed to launch browser with profile: \(error)")
+                print("Chowser: Failed to launch browser with profile/private arguments: \(error)")
             }
         } else {
-            // Default launch for Safari or browsers without profiles
             let configuration = NSWorkspace.OpenConfiguration()
-            configuration.createsNewApplicationInstance = !isSingleInstance
-            NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
+            configuration.createsNewApplicationInstance = plan.createsNewApplicationInstance
+            NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
                 if let error = error {
                     print("Chowser: Failed to open URL: \(error)")
                 }
@@ -1116,21 +1199,58 @@ extension BrowserRoutingRule {
         }
     }
 
-    /// Generates the appropriate command line arguments for a browser launch.
+    static func launchPlan(
+        forBundleID bundleId: String,
+        appURL: URL,
+        url: URL,
+        profile: String?,
+        customArguments: String?,
+        usePrivateMode: Bool = false,
+        mode: BrowserLaunchMode
+    ) -> BrowserLaunchPlan {
+        let launchInfo = launchInfo(
+            forBundleID: bundleId,
+            profile: profile,
+            customArguments: customArguments,
+            url: url,
+            usePrivateMode: usePrivateMode
+        )
+        let documentURLs = [url]
+        let requestedArguments = launchInfo?.arguments ?? []
+        let filteredArguments = requestedArguments.filter { argument in
+            !documentURLs.contains { $0.absoluteString == argument }
+        }
+        let appArgumentsSupported = mode == .directDownload
+        let deliveredArguments = appArgumentsSupported ? filteredArguments : []
+
+        return BrowserLaunchPlan(
+            mode: mode,
+            bundleId: bundleId,
+            appURL: appURL,
+            documentURLs: documentURLs,
+            requestedApplicationArguments: requestedArguments,
+            deliveredApplicationArguments: deliveredArguments,
+            argumentType: launchInfo?.type,
+            applicationArgumentsSupported: appArgumentsSupported,
+            createsNewApplicationInstance: !singleInstanceBrowsers.contains(bundleId.lowercased())
+        )
+    }
+
+    /// Generates the appropriate application arguments for a browser launch.
     /// Supports {profile} and {url} placeholders in customArguments.
     static func launchInfo(forBundleID bundleId: String, profile: String?, customArguments: String?, url: URL, usePrivateMode: Bool = false) -> (arguments: [String], type: String)? {
-        // 1. Check for custom arguments first (user controls args; private mode not injected)
+        // Custom arguments override defaults. Tokenize before placeholder replacement so
+        // common templates like --profile-directory={profile} keep profile names with spaces intact.
         if let custom = customArguments, !custom.isEmpty {
-            let processed = custom
-                .replacingOccurrences(of: "{profile}", with: profile ?? "")
-                .replacingOccurrences(of: "{url}", with: url.absoluteString)
-            let args = processed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            let args = tokenizeCustomArguments(custom).map {
+                $0.replacingOccurrences(of: "{profile}", with: profile ?? "")
+                    .replacingOccurrences(of: "{url}", with: url.absoluteString)
+            }
             return (arguments: args, type: "custom")
         }
 
         let family = browserFamily(for: bundleId)
 
-        // 2. Private mode with no profile — force Process launch with private flag
         if usePrivateMode && profile == nil {
             switch family {
             case .chromium:
@@ -1138,11 +1258,10 @@ extension BrowserRoutingRule {
             case .firefox:
                 return (arguments: ["-private"], type: "firefox-private")
             case .other:
-                return nil // Falls back to NSWorkspace; no private mode supported
+                return nil
             }
         }
 
-        // 3. Fall back to smart defaults when we have a profile
         guard let profile = profile else { return nil }
 
         switch family {
@@ -1161,6 +1280,55 @@ extension BrowserRoutingRule {
         }
     }
 
+    private static func tokenizeCustomArguments(_ arguments: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var quote: Character?
+        var isEscaping = false
+
+        for character in arguments {
+            if isEscaping {
+                current.append(character)
+                isEscaping = false
+                continue
+            }
+
+            if character == "\\" {
+                isEscaping = true
+                continue
+            }
+
+            if character == "\"" || character == "'" {
+                if quote == character {
+                    quote = nil
+                    continue
+                }
+                if quote == nil {
+                    quote = character
+                    continue
+                }
+            }
+
+            if quote == nil && character.isWhitespace {
+                if !current.isEmpty {
+                    tokens.append(current)
+                    current = ""
+                }
+                continue
+            }
+
+            current.append(character)
+        }
+
+        if isEscaping {
+            current.append("\\")
+        }
+        if !current.isEmpty {
+            tokens.append(current)
+        }
+        return tokens
+    }
+
     func isValidRoutingHostPattern(_ hostPattern: String, useRegex: Bool = false) -> Bool {
         if useRegex {
             let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1177,9 +1345,9 @@ extension BrowserRoutingRule {
     }
 
     /// Replaces an existing routing rule (matched by ID) with an updated value.
-    func updateRoutingRule(_ rule: BrowserRoutingRule) {
-        guard let index = routingRules.firstIndex(where: { $0.id == rule.id }) else { return }
-        routingRules[index] = rule
+    @discardableResult
+    func updateRoutingRule(_ rule: BrowserRoutingRule) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        updateRule(rule)
     }
 
     private func clearPersistedBrowserList() {
@@ -1260,6 +1428,56 @@ extension BrowserRoutingRule {
         return patterns.components(separatedBy: ",")
             .map { normalizedHostPattern(String($0)) }
             .filter { !$0.isEmpty }
+    }
+
+    private func validatedRoutingRule(_ rule: BrowserRoutingRule) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        let launchProfile = Self.normalizedProfileForCurrentBuild(rule.profile)
+        let launchPrivateMode = Self.normalizedPrivateModeForCurrentBuild(rule.usePrivateMode)
+        guard configuredBrowsers.contains(where: { $0.bundleId == rule.browserBundleId && $0.profile == launchProfile }) else {
+            return .failure(.browserNotFound(bundleId: rule.browserBundleId, profile: launchProfile))
+        }
+
+        let normalizedSourceBundleId: String?
+        switch normalizedSourceAppBundleId(rule.sourceAppBundleId) {
+        case .success(let value):
+            normalizedSourceBundleId = value
+        case .failure(let error):
+            return .failure(error)
+        }
+
+        let normalizedPathPrefix: String?
+        switch normalizedPathPrefixForStorage(rule.pathPrefix) {
+        case .success(let value):
+            normalizedPathPrefix = value
+        case .failure(let error):
+            return .failure(error)
+        }
+
+        let normalizedHost: String
+        if rule.useRegex {
+            let trimmed = rule.hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed.count <= 500, (try? NSRegularExpression(pattern: trimmed)) != nil else {
+                return .failure(.invalidRegexPattern)
+            }
+            normalizedHost = trimmed
+        } else {
+            let normalizedHosts = normalizedHostPatterns(rule.hostPattern)
+            guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedSourceBundleId) else {
+                return .failure(.invalidHostPattern)
+            }
+            normalizedHost = normalizedHosts.joined(separator: ", ")
+        }
+
+        let trimmedName = rule.name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var normalizedRule = rule
+        normalizedRule.name = trimmedName.isEmpty ? normalizedHost : trimmedName
+        normalizedRule.hostPattern = normalizedHost
+        normalizedRule.pathPrefix = normalizedPathPrefix
+        normalizedRule.profile = launchProfile
+        normalizedRule.sourceAppBundleId = normalizedSourceBundleId
+        normalizedRule.usePrivateMode = launchPrivateMode
+        return .success(normalizedRule)
     }
 
     private func isValidHostPatterns(_ patterns: [String], sourceAppBundleId: String? = nil) -> Bool {
@@ -1345,16 +1563,44 @@ extension BrowserRoutingRule {
     }
 
     private func normalizedPathPrefix(_ pathPrefix: String?) -> String? {
-        guard let pathPrefix else { return nil }
+        (try? normalizedPathPrefixForStorage(pathPrefix).get()) ?? nil
+    }
+
+    private func normalizedPathPrefixForStorage(_ pathPrefix: String?) -> Result<String?, RoutingRuleValidationError> {
+        guard let pathPrefix else { return .success(nil) }
 
         let trimmed = pathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.isEmpty else { return .success(nil) }
 
-        if trimmed.hasPrefix("/") {
-            return trimmed
+        guard trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              !trimmed.contains("://"),
+              !trimmed.hasPrefix("//") else {
+            return .failure(.invalidPathPrefix)
         }
 
-        return "/\(trimmed)"
+        if trimmed.hasPrefix("/") {
+            return .success(trimmed)
+        }
+
+        return .success("/\(trimmed)")
+    }
+
+    private func normalizedSourceAppBundleId(_ bundleId: String?) -> Result<String?, RoutingRuleValidationError> {
+        guard let bundleId else { return .success(nil) }
+
+        let trimmed = bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .success(nil) }
+        guard isValidBundleId(trimmed) else { return .failure(.invalidSourceAppBundleId) }
+        return .success(trimmed)
+    }
+
+    private func isValidBundleId(_ bundleId: String) -> Bool {
+        let labels = bundleId.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2 else { return false }
+
+        return labels.allSatisfy { label in
+            !label.isEmpty && label.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" }
+        }
     }
 
     private func hostMatches(_ host: String, pattern: String, useRegex: Bool = false) -> Bool {

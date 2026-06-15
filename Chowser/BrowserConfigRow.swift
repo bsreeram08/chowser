@@ -82,6 +82,8 @@ struct BrowserConfigRow: View {
             }
             .buttonStyle(.plain)
             .help("Remove browser")
+            .accessibilityIdentifier("settings.browser.deleteButton")
+            .accessibilityLabel("Remove \(browser.name)")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -150,6 +152,7 @@ struct BrowserConfigRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(browser.name)
                     .font(.system(size: 13, weight: .semibold))
+                    .accessibilityIdentifier("settings.browser.nameText")
                 
                 if let args = browser.customArguments, !args.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Image(systemName: "slider.horizontal.3")

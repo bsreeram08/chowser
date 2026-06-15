@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const APP_STORE_URL = "https://apps.apple.com/app/chowser/id6741527291";
+const APP_STORE_URL = "https://apps.apple.com/in/app/chowser/id6760034779";
 
 export const Navbar = () => {
     return (

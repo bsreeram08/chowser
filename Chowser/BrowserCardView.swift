@@ -45,6 +45,7 @@ struct BrowserCardView: View {
                     Text(browser.name)
                         .font(.system(size: fontSize, weight: .semibold))
                         .lineLimit(1)
+                        .accessibilityIdentifier("settings.browser.nameText")
                     
                     if let profile = browser.profile {
                         ProfileBadge(profile: profile, densityPreference: densityPreference)
@@ -121,15 +122,18 @@ struct BrowserCardView: View {
                 .buttonStyle(.bordered)
                 .tint(.red)
                 .controlSize(densityPreference == "compact" ? .small : .regular)
+                .accessibilityIdentifier("settings.browser.deleteButton")
+                .accessibilityLabel("Remove \(browser.name)")
             }
             .padding(.horizontal, basePadding)
             .padding(.bottom, basePadding)
         }
         .frame(minWidth: cardMinWidth, maxWidth: cardMaxWidth, minHeight: cardMinHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(isHovering ? 0.12 : 0.06), radius: isHovering ? 8 : 4, y: isHovering ? 4 : 2)
+        .customCardSurface(
+            cornerRadius: 12,
+            shadowOpacity: isHovering ? 0.12 : 0.06,
+            shadowRadius: isHovering ? 8 : 4,
+            shadowYOffset: isHovering ? 4 : 2
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

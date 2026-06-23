@@ -83,6 +83,8 @@ extension BrowserRoutingRule {
         static let pickerShowLabelsKey = "pickerShowLabels"
         static let pickerLayoutModeKey = "pickerLayoutMode"
         static let densityPreferenceKey = "densityPreference"
+        static let skipExistingImportedRulesKey = "skipExistingImportedRules"
+        static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -100,6 +102,16 @@ extension BrowserRoutingRule {
 
     static let shared = BrowserManager(defaults: makeDefaultStore(), immediateWrite: false)
 
+    struct ImportSummary: Equatable {
+        var added: Int = 0
+        var updated: Int = 0
+        var skipped: Int = 0
+        var invalid: Int = 0
+
+        var changedCount: Int { added + updated }
+        var totalProcessed: Int { added + updated + skipped + invalid }
+    }
+
     var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
             scheduleSaveBrowsers()
@@ -116,6 +128,16 @@ extension BrowserRoutingRule {
         didSet {
             guard launchAtLogin != oldValue else { return }
             updateLaunchAtLogin()
+        }
+    }
+    var skipExistingImportedRules: Bool = true {
+        didSet {
+            defaults.set(skipExistingImportedRules, forKey: Constants.skipExistingImportedRulesKey)
+        }
+    }
+    var skipExistingImportedBrowsers: Bool = true {
+        didSet {
+            defaults.set(skipExistingImportedBrowsers, forKey: Constants.skipExistingImportedBrowsersKey)
         }
     }
 
@@ -211,6 +233,7 @@ extension BrowserRoutingRule {
         loadHiddenBundleIDs()
         loadRecentURLs()
         loadPickerPreferences()
+        loadImportPreferences()
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {
@@ -503,28 +526,37 @@ extension BrowserRoutingRule {
         try data.write(to: url)
     }
 
-    func importRules(from url: URL) throws {
+    func importRules(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserRoutingRule].self, from: data)
-        
+
+        var summary = ImportSummary()
         var updatedRules = routingRules
         
         for rule in decoded {
             guard case .success(let normalizedRule) = validatedRoutingRule(rule) else {
+                summary.invalid += 1
                 continue
             }
 
             if let existingIndex = updatedRules.firstIndex(where: { $0.id == rule.id }) {
+                if skipExisting {
+                    summary.skipped += 1
+                    continue
+                }
                 // Update existing rule in place
                 updatedRules[existingIndex] = normalizedRule
+                summary.updated += 1
             } else {
                 // Append new rule
                 updatedRules.append(normalizedRule)
+                summary.added += 1
             }
         }
         
         routingRules = updatedRules
+        return summary
     }
 
     func exportBrowsers(to url: URL) throws {
@@ -534,32 +566,40 @@ extension BrowserRoutingRule {
         try data.write(to: url)
     }
 
-    func importBrowsers(from url: URL) throws {
+    func importBrowsers(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserConfig].self, from: data)
-        
+
+        var summary = ImportSummary()
         var updatedBrowsers = configuredBrowsers
         
         for var browser in decoded {
             browser.profile = Self.normalizedProfileForCurrentBuild(browser.profile)
             browser.customArguments = Self.normalizedCustomArgumentsForCurrentBuild(browser.customArguments)
             if let existingIndex = updatedBrowsers.firstIndex(where: { $0.identity == browser.identity }) {
+                if skipExisting {
+                    summary.skipped += 1
+                    continue
+                }
                 // Update existing browser in place, preserving its id and shortcut key
                 let existingId = updatedBrowsers[existingIndex].id
                 let existingKey = updatedBrowsers[existingIndex].shortcutKey
                 browser.id = existingId
                 browser.shortcutKey = existingKey
                 updatedBrowsers[existingIndex] = browser
+                summary.updated += 1
             } else {
                 // Ensure shortcuts don't conflict for new browsers
                 if updatedBrowsers.contains(where: { $0.shortcutKey == browser.shortcutKey }) {
                     browser.shortcutKey = nextAvailableShortcutKey(excluding: updatedBrowsers)
                 }
                 updatedBrowsers.append(browser)
+                summary.added += 1
             }
         }
         configuredBrowsers = updatedBrowsers
+        return summary
     }
 
     private func nextAvailableShortcutKey(excluding: [BrowserConfig]) -> String {
@@ -1413,6 +1453,15 @@ extension BrowserRoutingRule {
                 densityPreference = density
             }
         }
+    }
+
+    private func loadImportPreferences() {
+        skipExistingImportedRules = defaults.object(forKey: Constants.skipExistingImportedRulesKey) == nil
+            ? true
+            : defaults.bool(forKey: Constants.skipExistingImportedRulesKey)
+        skipExistingImportedBrowsers = defaults.object(forKey: Constants.skipExistingImportedBrowsersKey) == nil
+            ? true
+            : defaults.bool(forKey: Constants.skipExistingImportedBrowsersKey)
     }
 
     private func normalizedShortcut(_ key: String) -> String? {

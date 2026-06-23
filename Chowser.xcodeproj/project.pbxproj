@@ -26,6 +26,13 @@
 			remoteGlobalIDString = 30E5E9EE2F4847CD00E18455;
 			remoteInfo = Chowser;
 		};
+		D4B7A1012F59100100ABCDEF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 30E5E9E72F4847CD00E18455 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 30E5E9EE2F4847CD00E18455;
+			remoteInfo = Chowser;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -228,6 +235,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				D4B7A1022F59100100ABCDEF /* PBXTargetDependency */,
 			);
 			name = ChowserUITests;
 			productName = ChowserUITests;
@@ -242,7 +250,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					3032E9DC2F58AB500027E23B = {
 						CreatedOnToolsVersion = 26.2;
@@ -351,6 +359,11 @@
 			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
 			targetProxy = CFC3E7415FCB405E9A35AE14 /* PBXContainerItemProxy */;
 		};
+		D4B7A1022F59100100ABCDEF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
+			targetProxy = D4B7A1012F59100100ABCDEF /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -358,11 +371,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151656;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 3.6.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 3.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserScreenshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -378,11 +392,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151656;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 3.6.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 3.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserScreenshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -428,6 +443,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -453,6 +469,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -492,6 +509,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -510,6 +528,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -524,7 +543,8 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151725;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -539,7 +559,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 3.6.0;
+				MARKETING_VERSION = 3.6.2;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -561,7 +581,8 @@
 				CODE_SIGN_ENTITLEMENTS = Chowser/ChowserAppStore.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151725;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -576,7 +597,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 3.6.0;
+				MARKETING_VERSION = 3.6.2;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -594,6 +615,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserUITests;
@@ -608,10 +630,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151656;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 3.6.0;
+				MARKETING_VERSION = 3.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -626,6 +649,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserUITests;
@@ -640,10 +664,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202606151405;
+				CURRENT_PROJECT_VERSION = 202606151656;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = TH2VPAUX6Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 3.6.0;
+				MARKETING_VERSION = 3.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.ChowserTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

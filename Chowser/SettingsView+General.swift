@@ -2,220 +2,195 @@ import SwiftUI
 import AppKit
 
 extension SettingsView {
-
     var appsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Apps")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                Text("Apps registered as URL handlers that you don't want in the browser list.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
-
-            Divider()
-                .padding(.horizontal, 20)
-
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
+        SettingsDetailScaffold(
+            title: "Apps",
+            subtitle: "Hide URL handlers that should not appear as browser choices.",
+            systemImage: "app.badge",
+            content: {
+                VStack(alignment: .leading, spacing: 16) {
+                    SettingsGroup("Hidden Apps", subtitle: "Bundle IDs in this list are excluded from browser discovery.") {
                         if browserManager.hiddenBundleIDs.isEmpty {
-                            Text("No hidden apps.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                                .padding(.vertical, 4)
+                            SettingsRow(title: "No hidden apps", subtitle: "All discovered URL handlers are currently eligible.") {
+                                EmptyView()
+                            }
                         } else {
                             ForEach(Array(browserManager.hiddenBundleIDs.sorted()), id: \.self) { bundleId in
-                                HStack {
-                                    Text(bundleId)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    Button {
-                                        browserManager.removeHiddenBundleID(bundleId)
-                                    } label: {
-                                        Image(systemName: "eye")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help("Show this app in the browser list")
+                                SettingsHiddenAppRow(bundleId: bundleId) {
+                                    browserManager.removeHiddenBundleID(bundleId)
+                                }
+                                if bundleId != browserManager.hiddenBundleIDs.sorted().last {
+                                    SettingsDivider()
                                 }
                             }
                         }
+                    }
 
-                        Divider()
-
-                        HStack(spacing: 8) {
-                            TextField("Bundle ID (e.g. com.example.app)", text: $newHiddenBundleId)
+                    SettingsGroup("Add Bundle ID", subtitle: "Use this when an app registers as a browser but should stay hidden.") {
+                        HStack(spacing: 10) {
+                            TextField("com.example.app", text: $newHiddenBundleId)
                                 .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: 12, design: .monospaced))
 
                             Button("Hide") {
-                                let trimmed = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
-                                guard !trimmed.isEmpty else { return }
-                                browserManager.addHiddenBundleID(trimmed)
-                                newHiddenBundleId = ""
+                                addHiddenBundleIDFromField()
                             }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                             .disabled(newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
 
-                        Button("Reset to Defaults") {
-                            browserManager.resetHiddenBundleIDs()
+                            Button("Reset Defaults") {
+                                browserManager.resetHiddenBundleIDs()
+                            }
+                            .controlSize(.small)
                         }
-                        .font(.system(size: 11))
+                        .padding(14)
                     }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Hidden Apps")
                 }
             }
-            .formStyle(.grouped)
-        }
+        )
     }
 
     var generalSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("General")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                Text("App behavior and system integration.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+        @Bindable var manager = browserManager
 
-            Divider()
-                .padding(.horizontal, 20)
-
-            Form {
-                @Bindable var manager = browserManager
-
-                Section {
-                    Toggle("Launch Chowser at login", isOn: $manager.launchAtLogin)
-                        .accessibilityHint("When enabled, Chowser starts automatically when you log in")
-                } header: {
-                    Text("Startup")
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("Layout", selection: $manager.pickerLayoutMode) {
-                            Text("Icons").tag("icons")
-                            Text("List").tag("list")
+        return SettingsDetailScaffold(
+            title: "General",
+            subtitle: "Startup, picker appearance, imports, system integration, and maintenance.",
+            systemImage: "gearshape",
+            content: {
+                VStack(alignment: .leading, spacing: 16) {
+                    SettingsGroup("Startup") {
+                        SettingsRow(
+                            title: "Launch Chowser at login",
+                            subtitle: "Start automatically when you sign in."
+                        ) {
+                            Toggle("", isOn: $manager.launchAtLogin)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
                         }
-                        .pickerStyle(.segmented)
+                    }
 
-                        if manager.pickerLayoutMode == "icons" {
+                    SettingsGroup("Picker Appearance", subtitle: "Controls the link picker shown when no rule matches.") {
+                        SettingsRow(title: "Layout", subtitle: "Use an icon strip or a denser list.") {
+                            Picker("Layout", selection: $manager.pickerLayoutMode) {
+                                Text("Icons").tag("icons")
+                                Text("List").tag("list")
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 180)
+                            .labelsHidden()
+                        }
+
+                        SettingsDivider()
+
+                        SettingsRow(title: "Icon Size", subtitle: "Applies when the picker is using icon layout.") {
                             Picker("Icon Size", selection: $manager.pickerIconSize) {
                                 Text("Small").tag("small")
                                 Text("Medium").tag("medium")
                                 Text("Large").tag("large")
                             }
                             .pickerStyle(.segmented)
-
-                            Toggle("Show browser name labels", isOn: $manager.pickerShowLabels)
+                            .frame(width: 220)
+                            .labelsHidden()
+                            .disabled(manager.pickerLayoutMode != "icons")
                         }
-                    }
-                    .padding(.vertical, 4)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("Density", selection: $manager.densityPreference) {
-                            Text("Compact").tag("compact")
-                            Text("Default").tag("default")
-                            Text("Comfortable").tag("comfortable")
+
+                        SettingsDivider()
+
+                        SettingsRow(title: "Show Labels", subtitle: "Display browser names under picker icons.") {
+                            Toggle("", isOn: $manager.pickerShowLabels)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .disabled(manager.pickerLayoutMode != "icons")
                         }
-                        .pickerStyle(.segmented)
-                        
-                        Text("Compact shows more items with less spacing. Comfortable adds extra space and larger text.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.top, 4)
-                } header: {
-                    Text("Picker Appearance")
-                }
 
-                Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Default Browser")
-                                .font(.system(size: 13))
+                        SettingsDivider()
 
-                            if BrowserManager.isDefaultBrowser() {
-                                Text("Chowser is your default browser ✓")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.green)
-                            } else {
-                                Text("Another app is set as default")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
+                        SettingsRow(title: "Settings Density", subtitle: "Adjust spacing and text scale in configuration lists.") {
+                            Picker("Density", selection: $manager.densityPreference) {
+                                Text("Compact").tag("compact")
+                                Text("Default").tag("default")
+                                Text("Comfortable").tag("comfortable")
                             }
-                        }
-
-                        Spacer()
-
-                        Button("Set as Default") {
-                            BrowserManager.setAsDefaultBrowser()
-                        }
-                        .disabled(BrowserManager.isDefaultBrowser())
-                        .accessibilityLabel("Set Chowser as the default browser")
-                    }
-                } header: {
-                    Text("System")
-                }
-
-
-
-
-                Section {
-                    MCPServerSettingsRow()
-                } header: {
-                    Text("API Server")
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Reset Chowser setup to a clean state.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-
-                        Button("Reset to Fresh Setup…", role: .destructive) {
-                            showingResetConfirmation = true
-                        }
-                        .accessibilityIdentifier("settings.resetButton")
-                        
-                        Divider()
-                            .padding(.vertical, 4)
-                            
-                        Text("Replay the Welcome & Setup experience.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            
-                        Button("Replay Onboarding") {
-                            OnboardingManager.shared.resetOnboarding()
-                            OnboardingManager.shared.showOnboardingWindow {}
+                            .pickerStyle(.segmented)
+                            .frame(width: 260)
+                            .labelsHidden()
                         }
                     }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Maintenance")
-                }
 
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 10) {
+                    SettingsGroup("Import Behavior") {
+                        SettingsRow(title: "Skip existing rules", subtitle: "Ignore imported rules that already exist.") {
+                            Toggle("", isOn: $manager.skipExistingImportedRules)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.importRulesSkipExisting")
+                        }
+
+                        SettingsDivider()
+
+                        SettingsRow(title: "Skip existing browsers", subtitle: "Ignore imported browsers that already exist.") {
+                            Toggle("", isOn: $manager.skipExistingImportedBrowsers)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.importBrowsersSkipExisting")
+                        }
+                    }
+
+                    SettingsGroup("System") {
+                        SettingsRow(
+                            title: "Default Browser",
+                            subtitle: BrowserManager.isDefaultBrowser()
+                                ? "Chowser is currently the default browser."
+                                : "Set Chowser as the default handler for HTTP and HTTPS links."
+                        ) {
+                            Button("Set as Default") {
+                                BrowserManager.setAsDefaultBrowser()
+                            }
+                            .disabled(BrowserManager.isDefaultBrowser())
+                            .controlSize(.small)
+                            .accessibilityLabel("Set Chowser as the default browser")
+                        }
+
+                        SettingsDivider()
+
+                        MCPServerSettingsRow()
+                    }
+
+                    SettingsGroup("Maintenance") {
+                        SettingsRow(
+                            title: "Reset Setup",
+                            subtitle: "Restore the first-launch state with Safari as option 1."
+                        ) {
+                            Button("Reset to Fresh Setup…", role: .destructive) {
+                                showingResetConfirmation = true
+                            }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("settings.resetButton")
+                        }
+
+                        SettingsDivider()
+
+                        SettingsRow(
+                            title: "Replay Onboarding",
+                            subtitle: "Open the Welcome and Setup flow again."
+                        ) {
+                            Button("Replay") {
+                                OnboardingManager.shared.resetOnboarding()
+                                OnboardingManager.shared.showOnboardingWindow {}
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+
+                    SettingsGroup("About") {
+                        HStack(spacing: 12) {
                             Image(nsImage: BrowserManager.currentAppIcon())
                                 .resizable()
                                 .interpolation(.high)
-                                .frame(width: 32, height: 32)
+                                .frame(width: 36, height: 36)
 
-                            VStack(alignment: .leading, spacing: 3) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text("Chowser")
                                     .font(.system(size: 13, weight: .semibold))
                                 Text("A browser chooser for macOS")
@@ -225,15 +200,14 @@ extension SettingsView {
                                     .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(.tertiary)
                             }
+
+                            Spacer()
                         }
+                        .padding(14)
                     }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("About")
                 }
             }
-            .formStyle(.grouped)
-        }
+        )
     }
 
     var appVersion: String {
@@ -241,9 +215,44 @@ extension SettingsView {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(shortVersion) (\(build))"
     }
+
+    private func addHiddenBundleIDFromField() {
+        let trimmed = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        browserManager.addHiddenBundleID(trimmed)
+        newHiddenBundleId = ""
+    }
 }
 
-// MARK: - MCP Server Settings Row
+private struct SettingsHiddenAppRow: View {
+    let bundleId: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "eye.slash")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+
+            Text(bundleId)
+                .font(.system(size: 11, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            Button("Show", systemImage: "eye") {
+                onRemove()
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .help("Show this app in the browser list")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
 
 struct MCPServerSettingsRow: View {
     @State private var tokenCopied = false
@@ -252,17 +261,17 @@ struct MCPServerSettingsRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Circle()
-                    .fill(server.isRunning ? Color.green : Color.secondary.opacity(0.4))
+                    .fill(server.isRunning ? Color.green : Color.secondary.opacity(0.45))
                     .frame(width: 8, height: 8)
 
-                if server.isRunning {
-                    Text("Running on port \(server.port)")
-                        .font(.system(size: 13))
-                } else {
-                    Text("Stopped")
-                        .font(.system(size: 13))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Local API Server")
+                        .font(.system(size: 13, weight: .medium))
+
+                    Text(server.isRunning ? "Running on port \(server.port)" : "Stopped")
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
 
@@ -275,46 +284,35 @@ struct MCPServerSettingsRow: View {
                         server.start()
                     }
                 }
-                .font(.system(size: 11))
+                .controlSize(.small)
             }
 
             if server.isRunning {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Auth Token")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Text(server.authToken)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
 
-                    HStack(spacing: 8) {
-                        Text(server.authToken)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-
-                        Button(action: copyToken) {
-                            Image(systemName: tokenCopied ? "checkmark" : "doc.on.clipboard")
-                                .font(.system(size: 11))
-                                .foregroundStyle(tokenCopied ? Color.green : Color.secondary)
-                                .contentTransition(.symbolEffect(.replace))
-                        }
-                        .buttonStyle(.plain)
+                    Button(tokenCopied ? "Copied" : "Copy", systemImage: tokenCopied ? "checkmark" : "doc.on.clipboard") {
+                        copyToken()
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.05)))
-
-                    Text("Send it as `Authorization: Bearer <token>` for every API request, including status and read calls.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(tokenCopied ? .green : .secondary)
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .padding(10)
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
 
-            Text("The local API server is off by default, listens only on this Mac, and lets AI assistants configure browsers and rules only after you start it and share the token.")
+            Text("The server listens only on this Mac and requires the generated bearer token.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: server.isRunning)
     }
 

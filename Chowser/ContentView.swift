@@ -30,6 +30,12 @@ struct ContentView: View {
         supportsPrivateLaunchMode && privateMode
     }
 
+    private var privateModeHelpText: String {
+        supportsPrivateLaunchMode
+            ? "Toggle private mode for the next launch (P)"
+            : "Private mode is unavailable in App Store/TestFlight builds."
+    }
+
     @ViewBuilder
     private var panelContent: some View {
         if showingConfigureRule, let url = browserManager.currentURL {
@@ -539,9 +545,14 @@ struct ContentView: View {
 
     private var keyboardHintsRow: some View {
         HStack(spacing: 6) {
-            if supportsPrivateLaunchMode {
-                keyHintChip(keys: ["P"], label: "Private", isActive: effectivePrivateMode)
-            }
+            keyHintChip(
+                keys: ["P"],
+                label: "Private",
+                isActive: effectivePrivateMode,
+                isDisabled: !supportsPrivateLaunchMode
+            )
+            .help(privateModeHelpText)
+            .accessibilityIdentifier("picker.privateModeHint")
             keyHintChip(keys: ["H"], label: "Resolve", isDisabled: browserManager.currentURL == nil || isUnshortening)
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
             keyHintChip(keys: ["Esc"], label: "Close")

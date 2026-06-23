@@ -292,18 +292,38 @@ struct ContentView: View {
             AsyncImage(url: image) { phase in
                 if let img = phase.image {
                     img.resizable().aspectRatio(contentMode: .fill)
+                } else if let favicon = meta.faviconURL {
+                    faviconImage(favicon)
                 } else {
-                    Color.primary.opacity(0.06)
+                    faviconFallback
                 }
             }
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        } else if let favicon = meta.faviconURL {
-            AsyncImage(url: favicon) { phase in
-                phase.image?.resizable().aspectRatio(contentMode: .fit)
-            }
-            .frame(width: 18, height: 18)
+        } else {
+            faviconImage(meta.faviconURL)
+                .frame(width: 22, height: 22)
         }
+    }
+
+    @ViewBuilder
+    private func faviconImage(_ url: URL?) -> some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                if let img = phase.image {
+                    img.resizable().aspectRatio(contentMode: .fit)
+                } else {
+                    faviconFallback
+                }
+            }
+        } else {
+            faviconFallback
+        }
+    }
+
+    private var faviconFallback: some View {
+        Image(systemName: "globe")
+            .foregroundStyle(.secondary)
     }
 
     private func loadLinkPreview(for url: URL?) {

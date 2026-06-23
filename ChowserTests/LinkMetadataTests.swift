@@ -30,3 +30,18 @@ struct LinkMetadataTests {
         #expect(meta.title == "Just A Title")
     }
 }
+
+extension LinkMetadataTests {
+    @Test("Prefers a raster favicon (apple-touch-icon) over SVG")
+    func prefersRasterFavicon() {
+        let html = """
+        <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        </head>
+        """
+        let meta = LinkMetadataFetcher.parse(html: html, finalURL: URL(string: "https://sreerams.in")!)
+        #expect(meta.faviconURL?.absoluteString == "https://sreerams.in/apple-touch-icon.png")
+    }
+}

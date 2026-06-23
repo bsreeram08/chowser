@@ -84,13 +84,40 @@ enum LinkMetadataFetcher {
     }
 
     private static func faviconURL(_ html: String, base: URL) -> URL? {
-        if let href = firstCapture(html, "<link[^>]+rel=[\"'][^\"']*icon[^\"']*[\"'][^>]+href=[\"']([^\"']*)[\"']")
-            ?? firstCapture(html, "<link[^>]+href=[\"']([^\"']*)[\"'][^>]+rel=[\"'][^\"']*icon[^\"']*[\"']"),
-           let url = URL(string: href.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: base)?.absoluteURL {
+        // Collect every <link rel="...icon..."> with its rel + href.
+        let icons = iconLinks(html)
+        func resolve(_ href: String) -> URL? {
+            URL(string: href.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: base)?.absoluteURL
+        }
+        // NSImage/AsyncImage can't render SVG, so prefer raster icons:
+        // apple-touch-icon (PNG) → any non-SVG icon → conventional /favicon.ico.
+        if let apple = icons.first(where: { $0.rel.contains("apple-touch-icon") }), let url = resolve(apple.href) {
             return url
         }
-        // Fallback to the conventional /favicon.ico.
+        if let raster = icons.first(where: { $0.rel.contains("icon") && !$0.href.lowercased().hasSuffix(".svg") }),
+           let url = resolve(raster.href) {
+            return url
+        }
         return URL(string: "/favicon.ico", relativeTo: base)?.absoluteURL
+    }
+
+    /// All <link rel="..." href="..."> pairs whose rel mentions an icon.
+    private static func iconLinks(_ html: String) -> [(rel: String, href: String)] {
+        guard let regex = try? NSRegularExpression(pattern: "<link\\b[^>]*>", options: [.caseInsensitive, .dotMatchesLineSeparators]) else { return [] }
+        let range = NSRange(html.startIndex..., in: html)
+        var result: [(String, String)] = []
+        for match in regex.matches(in: html, range: range) {
+            guard let r = Range(match.range, in: html) else { continue }
+            let tag = String(html[r])
+            guard let rel = attribute(tag, "rel")?.lowercased(), rel.contains("icon"),
+                  let href = attribute(tag, "href") else { continue }
+            result.append((rel, href))
+        }
+        return result
+    }
+
+    private static func attribute(_ tag: String, _ name: String) -> String? {
+        firstCapture(tag, "\\b\(name)=[\"']([^\"']*)[\"']")
     }
 
     private static func firstCapture(_ text: String, _ pattern: String) -> String? {

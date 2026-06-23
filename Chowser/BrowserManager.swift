@@ -90,6 +90,7 @@ extension BrowserRoutingRule {
         static let pickerAccentHexKey = "pickerAccentHex"
         static let pickerDimInactiveKey = "pickerDimInactive"
         static let pickerColorSchemeKey = "pickerColorScheme"
+        static let showLinkPreviewKey = "showLinkPreview"
         static let densityPreferenceKey = "densityPreference"
         static let skipExistingImportedRulesKey = "skipExistingImportedRules"
         static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
@@ -227,6 +228,14 @@ extension BrowserRoutingRule {
     var pickerColorScheme: String = "system" {
         didSet {
             defaults.set(pickerColorScheme, forKey: Constants.pickerColorSchemeKey)
+        }
+    }
+
+    /// Fetch + show a metadata preview (title/description/image) for the clicked link
+    /// in the picker. Also resolves shortlinks via the fetch's redirect chain.
+    var showLinkPreview: Bool = true {
+        didSet {
+            defaults.set(showLinkPreview, forKey: Constants.showLinkPreviewKey)
         }
     }
 
@@ -1591,6 +1600,9 @@ extension BrowserRoutingRule {
         if let scheme = defaults.string(forKey: Constants.pickerColorSchemeKey),
            ["system", "light", "dark"].contains(scheme) {
             pickerColorScheme = scheme
+        }
+        if defaults.object(forKey: Constants.showLinkPreviewKey) != nil {
+            showLinkPreview = defaults.bool(forKey: Constants.showLinkPreviewKey)
         }
     }
 

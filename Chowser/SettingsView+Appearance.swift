@@ -54,6 +54,14 @@ extension SettingsView {
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                         }
+
+                        SettingsDivider()
+
+                        SettingsRow(title: "Link Preview", subtitle: "Fetch the link's title, description, and image in the picker. Also resolves shortlinks.") {
+                            Toggle("", isOn: $manager.showLinkPreview)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
                     }
 
                     SettingsGroup("Surface", subtitle: "Auto uses the native macOS material. Custom unlocks tint and opacity.") {

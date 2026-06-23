@@ -2,7 +2,7 @@
 
 All notable changes to Chowser are documented here.
 
-## [3.7.0] - 2026-06-23
+## [3.7.1] - 2026-06-24
 
 ### Added
 - **Appearance settings page** — a dedicated Appearance section in Settings gathers all picker-look controls in one place with a **live preview that embeds the real picker** (clicking a browser in the preview opens a sample URL for real).

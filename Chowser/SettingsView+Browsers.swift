@@ -21,23 +21,11 @@ extension SettingsView {
     }
 
     var browsersSection: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: "globe")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.accent)
-                    .frame(width: 30)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Browsers")
-                        .font(.system(size: 22, weight: .semibold))
-                    Text("Choose the browsers and profiles that appear in the picker.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 16)
-
+        SettingsDetailScaffold(
+            title: "Browsers",
+            subtitle: "Choose the browsers and profiles that appear in the picker.",
+            systemImage: "globe",
+            actions: {
                 HStack(spacing: 8) {
                     Menu {
                         Button(action: exportBrowsers) {
@@ -65,36 +53,30 @@ extension SettingsView {
                     .keyboardShortcut("n", modifiers: .command)
                     .accessibilityIdentifier("settings.addBrowserButton")
                 }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
-            .background(.bar)
+            },
+            content: {
+                VStack(alignment: .leading, spacing: 14) {
+                    if profileAccessStatus.needsRecovery {
+                        profileAccessBanner
+                    }
 
-            Divider()
+                    HStack(spacing: 12) {
+                        sectionSearchField(
+                            placeholder: "Filter browsers by name, bundle ID, or profile",
+                            text: $browserSearchText,
+                            accessibilityIdentifier: "settings.browser.searchField"
+                        )
 
-            VStack(alignment: .leading, spacing: 14) {
-                if profileAccessStatus.needsRecovery {
-                    profileAccessBanner
+                        Text("\(browserManager.configuredBrowsers.count) configured")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    browserListContent
                 }
-
-                HStack(spacing: 12) {
-                    sectionSearchField(
-                        placeholder: "Filter browsers by name, bundle ID, or profile",
-                        text: $browserSearchText,
-                        accessibilityIdentifier: "settings.browser.searchField"
-                    )
-
-                    Text("\(browserManager.configuredBrowsers.count) configured")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-
-                browserListContent
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
+        )
     }
 
     @ViewBuilder
@@ -116,15 +98,21 @@ extension SettingsView {
                 message: "Clear the filter to show all configured browsers."
             )
         } else {
-            List {
-                ForEach(filteredBrowsers) { browser in
+            // Plain VStack of rows (not a List): a List nested in this NavigationSplitView
+            // detail mis-lays-out until a window resize. Scaffold supplies the ScrollView.
+            VStack(spacing: 0) {
+                ForEach(Array(filteredBrowsers.enumerated()), id: \.element.id) { index, browser in
                     browserRow(for: browser, hasSearchQuery: hasBrowserSearchQuery)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                    if index < filteredBrowsers.count - 1 {
+                        SettingsDivider()
+                    }
                 }
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
-            .environment(\.defaultMinListRowHeight, 62)
-            .frame(minHeight: 220)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(.separator.opacity(0.35), lineWidth: 1)
+            )
             .accessibilityIdentifier("settings.browserList")
         }
     }
@@ -486,6 +474,15 @@ private struct SettingsBrowserRow: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+
+                    if let engine = BrowserManager.browserEngineLabel(forBundleID: browser.bundleId) {
+                        Text(engine)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.secondary.opacity(0.12), in: Capsule())
+                    }
 
                     if let profile = browser.profile {
                         Text(profile)

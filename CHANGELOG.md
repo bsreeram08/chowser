@@ -9,6 +9,7 @@ All notable changes to Chowser are documented here.
 - Picker customization: **tint color**, **transparency**, **corner radius**, and an **accent color override**, plus the existing layout / icon-size / label controls. A backdrop switcher (Light / Dark / Color / Checker) shows how the picker looks over different backgrounds.
 - **Running-state dimming** — browsers that aren't currently open are faded in the picker so you see what's already running at a glance (toggle in Appearance).
 - **Color scheme override** — force the picker to Light or Dark, or follow the system.
+- **Route links to native apps** — quick-add popular apps (Slack, Zoom, Figma, Notion, Linear, Spotify, Discord, Telegram, Teams, WhatsApp…) from Add Browser; one click adds the app and a rule sending its links straight to it instead of a browser.
 - **Clickable picker footer actions** — the P / H / R / Esc / ↵ hints are now real buttons, not just labels.
 - **Browser engine badge** — browser rows show whether each browser is Chromium- or Firefox-based.
 - Expanded browser detection to current-market browsers (Comet, Thorium, Helium, Wavebox, Sidekick, Whale, Yandex, Floorp, Mullvad, Basilisk, Pale Moon, Tor, and more).

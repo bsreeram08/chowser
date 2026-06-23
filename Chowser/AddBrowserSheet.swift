@@ -362,9 +362,65 @@ struct CustomAppForm: View {
         !customBundleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var suggestions: [NativeAppSuggestion] {
+        let configured = Set(manager.configuredBrowsers.map { $0.bundleId.lowercased() })
+        return NativeAppCatalog.installedSuggestions(excludingBundleIDs: configured)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+
+                // Quick-add: popular native apps that handle their own links.
+                if !suggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Route links to an app")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text("One click adds the app and a rule sending its links to it instead of a browser.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        VStack(spacing: 0) {
+                            ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, app in
+                                Button {
+                                    addSuggestedApp(app)
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        if let icon = BrowserManager.icon(forBrowserBundleID: app.bundleId) {
+                                            Image(nsImage: icon).resizable().interpolation(.high)
+                                                .frame(width: 24, height: 24)
+                                        }
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(app.name).font(.system(size: 12, weight: .medium))
+                                            if let domain = app.domains.first {
+                                                Text(domain).font(.system(size: 10, design: .monospaced))
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        Spacer()
+                                        Image(systemName: "plus.circle.fill")
+                                            .foregroundStyle(.tint)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                if index < suggestions.count - 1 {
+                                    Divider().padding(.leading, 12)
+                                }
+                            }
+                        }
+                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.separator.opacity(0.35), lineWidth: 1))
+                    }
+
+                    HStack(spacing: 8) {
+                        Rectangle().fill(.separator.opacity(0.4)).frame(height: 1)
+                        Text("or add manually").font(.system(size: 10)).foregroundStyle(.tertiary).fixedSize()
+                        Rectangle().fill(.separator.opacity(0.4)).frame(height: 1)
+                    }
+                }
 
                 // App picker row
                 HStack(spacing: 12) {
@@ -497,6 +553,19 @@ struct CustomAppForm: View {
             customBundleId = bundle.bundleIdentifier ?? customBundleId
             pickedAppIcon = NSWorkspace.shared.icon(forFile: url.path)
         }
+    }
+
+    private func addSuggestedApp(_ app: NativeAppSuggestion) {
+        manager.addBrowser(name: app.name, bundleId: app.bundleId)
+        for domain in app.domains {
+            _ = manager.addRoutingRule(
+                name: "\(app.name) — \(domain)",
+                hostPattern: domain,
+                pathPrefix: nil,
+                browserBundleId: app.bundleId
+            )
+        }
+        isPresented = false
     }
 }
 

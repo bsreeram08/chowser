@@ -46,9 +46,30 @@ extension SettingsView {
                                 .toggleStyle(.switch)
                                 .disabled(manager.pickerLayoutMode != "icons")
                         }
+
+                        SettingsDivider()
+
+                        SettingsRow(title: "Dim Inactive Browsers", subtitle: "Fade browsers that aren't currently running.") {
+                            Toggle("", isOn: $manager.pickerDimInactiveBrowsers)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
                     }
 
                     SettingsGroup("Surface", subtitle: "Auto uses the native macOS material. Custom unlocks tint and opacity.") {
+                        SettingsRow(title: "Color Scheme", subtitle: "Force the picker to light or dark, or follow the system.") {
+                            Picker("Color Scheme", selection: $manager.pickerColorScheme) {
+                                Text("System").tag("system")
+                                Text("Light").tag("light")
+                                Text("Dark").tag("dark")
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 220)
+                            .labelsHidden()
+                        }
+
+                        SettingsDivider()
+
                         SettingsRow(title: "Style", subtitle: "Auto follows the system glass effect.") {
                             Picker("Style", selection: $manager.pickerAppearanceMode) {
                                 Text("Auto").tag("auto")

@@ -24,6 +24,24 @@ struct ContentView: View {
     @State private var privateMode = false
     @State private var isUnshortening = false
     @State private var unshorteningError: String? = nil
+    @State private var runningBundleIDs: Set<String> = []
+
+    private var pickerColorSchemeOverride: ColorScheme? {
+        switch browserManager.pickerColorScheme {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
+    private func isBrowserRunning(_ browser: BrowserConfig) -> Bool {
+        runningBundleIDs.contains(browser.bundleId.lowercased())
+    }
+
+    private func browserDimOpacity(_ browser: BrowserConfig) -> Double {
+        guard browserManager.pickerDimInactiveBrowsers, !isPreview else { return 1.0 }
+        return isBrowserRunning(browser) ? 1.0 : 0.4
+    }
 
     private var supportsPrivateLaunchMode: Bool {
         BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
@@ -104,10 +122,12 @@ struct ContentView: View {
             .onChange(of: browserManager.configuredBrowsers) {
                 syncKeyboardSelection(with: browserManager.configuredBrowsers)
             }
+            .preferredColorScheme(pickerColorSchemeOverride)
     }
 
     private func handleAppear() {
         syncPrivateModeRequest()
+        runningBundleIDs = BrowserManager.runningBrowserBundleIDs()
 
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
             appeared = true
@@ -355,18 +375,22 @@ struct ContentView: View {
             openUrl(with: browser, usePrivateMode: usePrivate)
         }) {
             HStack(spacing: 10) {
-                if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 28, height: 28)
-                        .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
-                } else {
-                    Image(systemName: "globe")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.secondary)
-                        .frame(width: 28, height: 28)
+                Group {
+                    if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: 28, height: 28)
+                            .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+                    } else {
+                        Image(systemName: "globe")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 28, height: 28)
+                    }
                 }
+                .opacity(browserDimOpacity(browser))
+                .help(isBrowserRunning(browser) ? "" : "\(browser.name) is not running")
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(browser.name)
@@ -439,18 +463,22 @@ struct ContentView: View {
                         iconDimensions: iconDimensions
                     )
 
-                    if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: iconDimensions.icon, height: iconDimensions.icon)
-                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                    } else {
-                        Image(systemName: "globe")
-                            .font(.system(size: iconDimensions.icon * 0.53))
-                            .foregroundStyle(Color.secondary)
-                            .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                    Group {
+                        if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                        } else {
+                            Image(systemName: "globe")
+                                .font(.system(size: iconDimensions.icon * 0.53))
+                                .foregroundStyle(Color.secondary)
+                                .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                        }
                     }
+                    .opacity(browserDimOpacity(browser))
+                    .help(isBrowserRunning(browser) ? "" : "\(browser.name) is not running")
                 }
                 .overlay(alignment: .topLeading) {
                     // Small suggested star badge

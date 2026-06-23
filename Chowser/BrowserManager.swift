@@ -88,6 +88,8 @@ extension BrowserRoutingRule {
         static let pickerBackgroundOpacityKey = "pickerBackgroundOpacity"
         static let pickerCornerRadiusKey = "pickerCornerRadius"
         static let pickerAccentHexKey = "pickerAccentHex"
+        static let pickerDimInactiveKey = "pickerDimInactive"
+        static let pickerColorSchemeKey = "pickerColorScheme"
         static let densityPreferenceKey = "densityPreference"
         static let skipExistingImportedRulesKey = "skipExistingImportedRules"
         static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
@@ -211,6 +213,20 @@ extension BrowserRoutingRule {
     var pickerAccentHex: String = "" {
         didSet {
             defaults.set(pickerAccentHex, forKey: Constants.pickerAccentHexKey)
+        }
+    }
+
+    /// Dim browsers that aren't currently running in the picker.
+    var pickerDimInactiveBrowsers: Bool = true {
+        didSet {
+            defaults.set(pickerDimInactiveBrowsers, forKey: Constants.pickerDimInactiveKey)
+        }
+    }
+
+    /// Picker color scheme override: "system" (default), "light", or "dark".
+    var pickerColorScheme: String = "system" {
+        didSet {
+            defaults.set(pickerColorScheme, forKey: Constants.pickerColorSchemeKey)
         }
     }
 
@@ -1569,6 +1585,18 @@ extension BrowserRoutingRule {
         if let accent = defaults.string(forKey: Constants.pickerAccentHexKey) {
             pickerAccentHex = accent
         }
+        if defaults.object(forKey: Constants.pickerDimInactiveKey) != nil {
+            pickerDimInactiveBrowsers = defaults.bool(forKey: Constants.pickerDimInactiveKey)
+        }
+        if let scheme = defaults.string(forKey: Constants.pickerColorSchemeKey),
+           ["system", "light", "dark"].contains(scheme) {
+            pickerColorScheme = scheme
+        }
+    }
+
+    /// Bundle IDs of browsers currently running, lowercased — for picker running-state dimming.
+    static func runningBrowserBundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier?.lowercased() })
     }
 
     private func loadImportPreferences() {

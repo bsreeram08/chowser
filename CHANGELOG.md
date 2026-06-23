@@ -7,6 +7,8 @@ All notable changes to Chowser are documented here.
 ### Added
 - **Appearance settings page** — a dedicated Appearance section in Settings gathers all picker-look controls in one place with a **live preview that embeds the real picker** (clicking a browser in the preview opens a sample URL for real).
 - Picker customization: **tint color**, **transparency**, **corner radius**, and an **accent color override**, plus the existing layout / icon-size / label controls. A backdrop switcher (Light / Dark / Color / Checker) shows how the picker looks over different backgrounds.
+- **Running-state dimming** — browsers that aren't currently open are faded in the picker so you see what's already running at a glance (toggle in Appearance).
+- **Color scheme override** — force the picker to Light or Dark, or follow the system.
 - **Clickable picker footer actions** — the P / H / R / Esc / ↵ hints are now real buttons, not just labels.
 - **Browser engine badge** — browser rows show whether each browser is Chromium- or Firefox-based.
 - Expanded browser detection to current-market browsers (Comet, Thorium, Helium, Wavebox, Sidekick, Whale, Yandex, Floorp, Mullvad, Basilisk, Pale Moon, Tor, and more).

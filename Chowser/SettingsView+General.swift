@@ -71,6 +71,17 @@ extension SettingsView {
                         }
                     }
 
+                    SettingsGroup("Routing", subtitle: "How links are sent to apps and browsers.") {
+                        SettingsRow(
+                            title: "Open links in their app automatically",
+                            subtitle: "When a link belongs to an installed app (Slack, Zoom, Figma…), send it straight there without showing the picker."
+                        ) {
+                            Toggle("", isOn: $manager.autoNativeAppRouting)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
+                    }
+
                     SettingsGroup("Import Behavior") {
                         SettingsRow(title: "Skip existing rules", subtitle: "Ignore imported rules that already exist.") {
                             Toggle("", isOn: $manager.skipExistingImportedRules)

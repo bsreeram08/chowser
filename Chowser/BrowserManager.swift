@@ -91,6 +91,7 @@ extension BrowserRoutingRule {
         static let pickerDimInactiveKey = "pickerDimInactive"
         static let pickerColorSchemeKey = "pickerColorScheme"
         static let showLinkPreviewKey = "showLinkPreview"
+        static let autoNativeAppRoutingKey = "autoNativeAppRouting"
         static let densityPreferenceKey = "densityPreference"
         static let skipExistingImportedRulesKey = "skipExistingImportedRules"
         static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
@@ -236,6 +237,14 @@ extension BrowserRoutingRule {
     var showLinkPreview: Bool = true {
         didSet {
             defaults.set(showLinkPreview, forKey: Constants.showLinkPreviewKey)
+        }
+    }
+
+    /// Automatically route links whose domain belongs to a known installed app
+    /// (Slack, Zoom, Figma…) straight to that app, without an explicit rule. Opt-in.
+    var autoNativeAppRouting: Bool = false {
+        didSet {
+            defaults.set(autoNativeAppRouting, forKey: Constants.autoNativeAppRoutingKey)
         }
     }
 
@@ -872,6 +881,14 @@ extension BrowserRoutingRule {
             guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId && $0.profile == rule.profile }) else { continue }
 
             return (rule, browser)
+        }
+
+        // 3. Auto app-based selection (opt-in): route known app domains to the
+        // installed app, even if it isn't an explicitly configured target.
+        if autoNativeAppRouting, let app = NativeAppCatalog.appMatching(host: host) {
+            let target = configuredBrowsers.first(where: { $0.bundleId.lowercased() == app.bundleId.lowercased() })
+                ?? BrowserConfig(name: app.name, bundleId: app.bundleId, shortcutKey: "")
+            return (nil, target)
         }
 
         return nil
@@ -1603,6 +1620,9 @@ extension BrowserRoutingRule {
         }
         if defaults.object(forKey: Constants.showLinkPreviewKey) != nil {
             showLinkPreview = defaults.bool(forKey: Constants.showLinkPreviewKey)
+        }
+        if defaults.object(forKey: Constants.autoNativeAppRoutingKey) != nil {
+            autoNativeAppRouting = defaults.bool(forKey: Constants.autoNativeAppRoutingKey)
         }
     }
 

@@ -9,7 +9,8 @@ All notable changes to Chowser are documented here.
 - Picker customization: **tint color**, **transparency**, **corner radius**, and an **accent color override**, plus the existing layout / icon-size / label controls. A backdrop switcher (Light / Dark / Color / Checker) shows how the picker looks over different backgrounds.
 - **Running-state dimming** — browsers that aren't currently open are faded in the picker so you see what's already running at a glance (toggle in Appearance).
 - **Color scheme override** — force the picker to Light or Dark, or follow the system.
-- **Route links to native apps** — quick-add popular apps (Slack, Zoom, Figma, Notion, Linear, Spotify, Discord, Telegram, Teams, WhatsApp…) from Add Browser; one click adds the app and a rule sending its links straight to it instead of a browser.
+- **Route links to native apps** — quick-add popular apps (Slack, Zoom, Figma, Notion, Linear, Asana, ClickUp, Trello, Spotify, Apple Music, Discord, Telegram, Teams, WhatsApp, Signal…) from Add Browser; one click adds the app and a rule sending its links straight to it instead of a browser.
+- **Open links in their app automatically** — opt-in toggle (General → Routing): links whose domain belongs to an installed known app skip the picker and open straight in the app. The AI assistant can configure additional/newer apps via the local API.
 - **Link preview** — the picker shows the clicked link's title, description, and image (loaded async with a spinner) so you know what you're opening before you choose. Following redirects also **resolves shortlinks** to the real destination. Toggle in Appearance.
 - **Clickable picker footer actions** — the P / H / R / Esc / ↵ hints are now real buttons, not just labels.
 - **Browser engine badge** — browser rows show whether each browser is Chromium- or Firefox-based.

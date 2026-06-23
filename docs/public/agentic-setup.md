@@ -44,9 +44,21 @@ Profiles and private windows are driven by per-browser launch arguments. For eac
 - **App Store build**: macOS sandboxing may strip launch arguments, so profiles/args are stored but may not apply at launch (`launchArgumentsSupported:false` in responses). They apply reliably in the direct-download build.
 - **Arc & Dia**: single-instance browsers that often ignore profile flags on an already-running instance — verify via `POST /browsers/preview` and a real test before relying on them.
 
+## Step 4b: Route links to native apps (any app, even brand-new ones)
+
+Many links are better opened in a desktop app than a browser (Slack, Zoom, Figma, Notion, Linear, and **newer apps released after this prompt was written**). You are not limited to a built-in list — configure ANY app:
+
+1. **Identify the app**: find its bundle ID. On disk: `mdls -name kMDItemCFBundleIdentifier /Applications/<App>.app`. If I name an app you don't recognize, **web-search** "<app name> macOS bundle identifier" and the domains it owns.
+2. **Find its domains**: web-search the web domains the app handles (e.g. a new chat app "Acme" → `acme.com`, `app.acme.com`). These become the routing rules.
+3. **Add the app as a target**: `POST /browsers` with `name` + `bundleId` (no profile needed for most apps).
+4. **Add the routing rules**: `POST /rules` with `hostPattern` = each domain and `browserBundleId` = the app's bundle ID.
+5. **Verify**: `POST /browsers/preview` with the app's bundleId + a sample link to see the resolved launch command, then ask me to confirm and test one link.
+
+Launching uses macOS's universal-link handling, so this works for any app that registers its web domains (most modern apps do). If an app only opens via a custom URL scheme (e.g. `acme://`) and not its https links, tell me — that needs a per-app scheme rewrite Chowser doesn't do yet.
+
 ## Step 5: Confirmation
 
-Show me a summary table of detected browsers, the previewed launch commands, and intended rules. **Ask for my confirmation** before making any `POST` or `DELETE` requests.
+Show me a summary table of detected browsers, native-app routes, the previewed launch commands, and intended rules. **Ask for my confirmation** before making any `POST` or `DELETE` requests.
 
 ---
 [CONTEXT FOR AI]

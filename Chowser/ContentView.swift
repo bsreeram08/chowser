@@ -24,6 +24,27 @@ struct ContentView: View {
     @State private var privateMode = false
     @State private var isUnshortening = false
     @State private var unshorteningError: String? = nil
+    @State private var runningBundleIDs: Set<String> = []
+    @State private var linkMetadata: LinkMetadata?
+    @State private var loadingPreview = false
+    @State private var previewTask: Task<Void, Never>?
+
+    private var pickerColorSchemeOverride: ColorScheme? {
+        switch browserManager.pickerColorScheme {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
+    private func isBrowserRunning(_ browser: BrowserConfig) -> Bool {
+        runningBundleIDs.contains(browser.bundleId.lowercased())
+    }
+
+    private func browserDimOpacity(_ browser: BrowserConfig) -> Double {
+        guard browserManager.pickerDimInactiveBrowsers, !isPreview else { return 1.0 }
+        return isBrowserRunning(browser) ? 1.0 : 0.4
+    }
 
     private var supportsPrivateLaunchMode: Bool {
         BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
@@ -97,6 +118,7 @@ struct ContentView: View {
             .onDisappear(perform: handleDisappear)
             .onChange(of: browserManager.currentURL) {
                 syncPrivateModeRequest()
+                loadLinkPreview(for: browserManager.currentURL)
             }
             .onChange(of: browserManager.currentURLPrivateModeRequested) {
                 syncPrivateModeRequest()
@@ -104,10 +126,13 @@ struct ContentView: View {
             .onChange(of: browserManager.configuredBrowsers) {
                 syncKeyboardSelection(with: browserManager.configuredBrowsers)
             }
+            .preferredColorScheme(pickerColorSchemeOverride)
     }
 
     private func handleAppear() {
         syncPrivateModeRequest()
+        runningBundleIDs = BrowserManager.runningBrowserBundleIDs()
+        loadLinkPreview(for: browserManager.currentURL)
 
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
             appeared = true
@@ -150,6 +175,8 @@ struct ContentView: View {
         removeKeyEventMonitor()
         dismissTask?.cancel()
         dismissTask = nil
+        previewTask?.cancel()
+        previewTask = nil
     }
 
     private func syncPrivateModeRequest() {
@@ -159,12 +186,13 @@ struct ContentView: View {
     // MARK: - URL Bubble
 
     private func urlBubble(url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 8) {
             Image(systemName: "link")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Text(url.host ?? url.absoluteString)
+            Text(linkMetadata?.finalURL.host ?? url.host ?? url.absoluteString)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
@@ -212,9 +240,110 @@ struct ContentView: View {
                 .accessibilityLabel("Copy URL")
             }
         }
+
+            if browserManager.showLinkPreview {
+                previewRow
+            }
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .accessibilityIdentifier("picker.urlDisplay")
+    }
+
+    @ViewBuilder
+    private var previewRow: some View {
+        if loadingPreview {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Loading preview…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        } else if let meta = linkMetadata, meta.isMeaningful {
+            HStack(alignment: .top, spacing: 10) {
+                previewThumbnail(meta)
+                VStack(alignment: .leading, spacing: 2) {
+                    if let title = meta.title {
+                        Text(title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                    }
+                    if let description = meta.description {
+                        Text(description)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .pickerInlineCard()
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private func previewThumbnail(_ meta: LinkMetadata) -> some View {
+        if let image = meta.imageURL {
+            AsyncImage(url: image) { phase in
+                if let img = phase.image {
+                    img.resizable().aspectRatio(contentMode: .fill)
+                } else if let favicon = meta.faviconURL {
+                    faviconImage(favicon)
+                } else {
+                    faviconFallback
+                }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        } else {
+            faviconImage(meta.faviconURL)
+                .frame(width: 22, height: 22)
+        }
+    }
+
+    @ViewBuilder
+    private func faviconImage(_ url: URL?) -> some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                if let img = phase.image {
+                    img.resizable().aspectRatio(contentMode: .fit)
+                } else {
+                    faviconFallback
+                }
+            }
+        } else {
+            faviconFallback
+        }
+    }
+
+    private var faviconFallback: some View {
+        Image(systemName: "globe")
+            .foregroundStyle(.secondary)
+    }
+
+    private func loadLinkPreview(for url: URL?) {
+        previewTask?.cancel()
+        loadingPreview = false
+        withAnimation(.easeOut(duration: 0.2)) { linkMetadata = nil }
+        guard browserManager.showLinkPreview, let url else { return }
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
+        loadingPreview = true
+        previewTask = Task {
+            let meta = await LinkMetadataFetcher.fetch(url)
+            if Task.isCancelled { return }
+            await MainActor.run {
+                guard browserManager.currentURL == url else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    linkMetadata = meta
+                    loadingPreview = false
+                }
+            }
+        }
     }
 
     // MARK: - Browser Bar Pill
@@ -355,18 +484,22 @@ struct ContentView: View {
             openUrl(with: browser, usePrivateMode: usePrivate)
         }) {
             HStack(spacing: 10) {
-                if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 28, height: 28)
-                        .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
-                } else {
-                    Image(systemName: "globe")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.secondary)
-                        .frame(width: 28, height: 28)
+                Group {
+                    if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: 28, height: 28)
+                            .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+                    } else {
+                        Image(systemName: "globe")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 28, height: 28)
+                    }
                 }
+                .opacity(browserDimOpacity(browser))
+                .help(isBrowserRunning(browser) ? "" : "\(browser.name) is not running")
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(browser.name)
@@ -439,18 +572,22 @@ struct ContentView: View {
                         iconDimensions: iconDimensions
                     )
 
-                    if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: iconDimensions.icon, height: iconDimensions.icon)
-                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                    } else {
-                        Image(systemName: "globe")
-                            .font(.system(size: iconDimensions.icon * 0.53))
-                            .foregroundStyle(Color.secondary)
-                            .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                    Group {
+                        if let icon = BrowserManager.icon(forBrowserBundleID: browser.bundleId) {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                        } else {
+                            Image(systemName: "globe")
+                                .font(.system(size: iconDimensions.icon * 0.53))
+                                .foregroundStyle(Color.secondary)
+                                .frame(width: iconDimensions.icon, height: iconDimensions.icon)
+                        }
                     }
+                    .opacity(browserDimOpacity(browser))
+                    .help(isBrowserRunning(browser) ? "" : "\(browser.name) is not running")
                 }
                 .overlay(alignment: .topLeading) {
                     // Small suggested star badge

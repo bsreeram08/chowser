@@ -57,42 +57,25 @@ extension SettingsView {
 
     @ViewBuilder
     private func appRoutingRow(_ app: NativeAppSuggestion) -> some View {
-        let isConfigured = browserManager.routingRules.contains { $0.browserBundleId.lowercased() == app.bundleId.lowercased() }
-
-        let inPicker = browserManager.configuredBrowsers.contains { $0.bundleId.lowercased() == app.bundleId.lowercased() }
+        let isRouting = browserManager.routingRules.contains { $0.browserBundleId.lowercased() == app.bundleId.lowercased() }
 
         SettingsRow(title: app.name, subtitle: app.domains.joined(separator: ", ")) {
             HStack(spacing: 10) {
                 if let icon = BrowserManager.icon(forBrowserBundleID: app.bundleId) {
                     Image(nsImage: icon).resizable().interpolation(.high).frame(width: 22, height: 22)
                 }
-                if inPicker {
-                    // Added as a picker choice (likely by the old behavior) — offer to
-                    // convert it to routing-only so it stops cluttering the picker.
-                    Button("Use for routing only") {
-                        moveToRoutingOnly(app)
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.bordered)
-                    .help("Remove \(app.name) from the picker and just route its links to it")
-                } else if isConfigured {
-                    Label("Routing", systemImage: "checkmark.circle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.green)
-                } else {
-                    Button("Route") {
-                        addRoutingApp(app)
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                }
+                Toggle("", isOn: Binding(
+                    get: { isRouting },
+                    set: { on in on ? enableRouting(app) : disableRouting(app) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
             }
         }
     }
 
-    private func addRoutingApp(_ app: NativeAppSuggestion) {
-        // Rules only — the app routes its own domains but never becomes a picker choice.
+    /// Route the app's domains to it, and make sure it isn't also a picker choice.
+    private func enableRouting(_ app: NativeAppSuggestion) {
         for domain in app.domains {
             let exists = browserManager.routingRules.contains {
                 $0.hostPattern == domain && $0.browserBundleId.lowercased() == app.bundleId.lowercased()
@@ -105,12 +88,16 @@ extension SettingsView {
                 browserBundleId: app.bundleId
             )
         }
+        // Clean up any leftover picker entry from the old behavior.
+        let ids = browserManager.configuredBrowsers
+            .filter { $0.bundleId.lowercased() == app.bundleId.lowercased() }
+            .map(\.id)
+        for id in ids { browserManager.removeBrowser(id: id) }
     }
 
-    /// Removes the app from the picker (configured browsers) and ensures its domain
-    /// rules exist, so it becomes a pure routing target.
-    private func moveToRoutingOnly(_ app: NativeAppSuggestion) {
-        addRoutingApp(app)
+    /// Stop routing the app: remove its rules (and any leftover picker entry).
+    private func disableRouting(_ app: NativeAppSuggestion) {
+        browserManager.routingRules.removeAll { $0.browserBundleId.lowercased() == app.bundleId.lowercased() }
         let ids = browserManager.configuredBrowsers
             .filter { $0.bundleId.lowercased() == app.bundleId.lowercased() }
             .map(\.id)

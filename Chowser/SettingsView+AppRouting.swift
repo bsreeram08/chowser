@@ -59,13 +59,24 @@ extension SettingsView {
     private func appRoutingRow(_ app: NativeAppSuggestion) -> some View {
         let isConfigured = browserManager.routingRules.contains { $0.browserBundleId.lowercased() == app.bundleId.lowercased() }
 
+        let inPicker = browserManager.configuredBrowsers.contains { $0.bundleId.lowercased() == app.bundleId.lowercased() }
+
         SettingsRow(title: app.name, subtitle: app.domains.joined(separator: ", ")) {
             HStack(spacing: 10) {
                 if let icon = BrowserManager.icon(forBrowserBundleID: app.bundleId) {
                     Image(nsImage: icon).resizable().interpolation(.high).frame(width: 22, height: 22)
                 }
-                if isConfigured {
-                    Label("Added", systemImage: "checkmark.circle.fill")
+                if inPicker {
+                    // Added as a picker choice (likely by the old behavior) — offer to
+                    // convert it to routing-only so it stops cluttering the picker.
+                    Button("Use for routing only") {
+                        moveToRoutingOnly(app)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .help("Remove \(app.name) from the picker and just route its links to it")
+                } else if isConfigured {
+                    Label("Routing", systemImage: "checkmark.circle.fill")
                         .labelStyle(.titleAndIcon)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.green)
@@ -83,6 +94,10 @@ extension SettingsView {
     private func addRoutingApp(_ app: NativeAppSuggestion) {
         // Rules only — the app routes its own domains but never becomes a picker choice.
         for domain in app.domains {
+            let exists = browserManager.routingRules.contains {
+                $0.hostPattern == domain && $0.browserBundleId.lowercased() == app.bundleId.lowercased()
+            }
+            guard !exists else { continue }
             _ = browserManager.addRoutingRule(
                 name: "\(app.name) — \(domain)",
                 hostPattern: domain,
@@ -90,5 +105,15 @@ extension SettingsView {
                 browserBundleId: app.bundleId
             )
         }
+    }
+
+    /// Removes the app from the picker (configured browsers) and ensures its domain
+    /// rules exist, so it becomes a pure routing target.
+    private func moveToRoutingOnly(_ app: NativeAppSuggestion) {
+        addRoutingApp(app)
+        let ids = browserManager.configuredBrowsers
+            .filter { $0.bundleId.lowercased() == app.bundleId.lowercased() }
+            .map(\.id)
+        for id in ids { browserManager.removeBrowser(id: id) }
     }
 }

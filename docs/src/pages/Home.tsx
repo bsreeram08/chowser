@@ -520,8 +520,10 @@ export const Home: React.FC = () => {
                 Profile Support
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Professional support for Multi-Profile across Chrome, Brave,
-                Arc, and Firefox. Keep work and personal separate.
+                Multi-profile routing across Chrome, Brave, Edge, Firefox and
+                more — keep work and personal separate. Full per-profile launch
+                works in the direct-download build (macOS sandboxing limits the
+                App Store build).
               </p>
             </Card>
             <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
@@ -600,6 +602,22 @@ export const Home: React.FC = () => {
                 Recent URLs can be converted into permanent rules instantly with pre-filled patterns.
               </p>
             </Card>
+            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
+              <Badge
+                variant="outline"
+                className="mb-4 border-pink-500/20 text-pink-500"
+              >
+                Personal
+              </Badge>
+              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+                Make It Yours
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Tune the picker's tint, transparency, corner radius, and accent
+                color, with a live preview of the real picker over any
+                background. Icons or list layout, your call.
+              </p>
+            </Card>
           </div>
         </section>
 
@@ -620,8 +638,10 @@ export const Home: React.FC = () => {
               Let AI Configure Chowser
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Automate your browser profile discovery and rule generation. Paste
-              the prompt into your favorate AI Agent to get started.
+              Automate browser profile discovery and rule generation — your AI
+              agent can even research each browser's profile and private-window
+              launch arguments, preview the exact command, and set them for you.
+              Paste the prompt into your favorite AI agent to get started.
             </p>
           </header>
 

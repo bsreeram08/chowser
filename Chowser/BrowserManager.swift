@@ -9,7 +9,8 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var bundleId: String // e.g. "com.apple.Safari"
     var shortcutKey: String // "1", "2", etc
     var profile: String? // Optional profile argument for browsers that support it
-    var customArguments: String? // User-defined command line arguments (e.g. "--profile-directory={profile}")
+    var customArguments: String? // Normal-launch arg template (e.g. "--profile-directory={profile}")
+    var privateArguments: String? // Private/incognito-launch arg template (e.g. "--incognito --profile-directory={profile}")
 
     var identity: String { "\(bundleId)|\(profile ?? "")" }
 }
@@ -316,21 +317,22 @@ extension BrowserRoutingRule {
         #endif
     }
 
-    /// Browser profiles & custom launch arguments only work in the direct-download build.
-    /// The App Store build is sandboxed, and macOS *silently ignores* launch arguments
-    /// (including `--profile-directory`) from a sandboxed caller — see
-    /// developer.apple.com/forums/thread/657252. So profiles cannot be delivered at all
-    /// in the App Store build; we gate the feature off there rather than fail silently.
-    static var supportsBrowserProfilesInCurrentBuild: Bool {
-        supportsApplicationLaunchArgumentsInCurrentBuild
-    }
+    /// Profiles & custom launch args can be ENTERED in every build (UI + local API) and
+    /// are stored/portable. Auto-detection (reading the browser's Local State) only works
+    /// in the direct build. They are APPLIED at launch reliably in the direct build; the
+    /// App Store build attempts delivery via NSWorkspace, but macOS sandboxing may ignore
+    /// launch arguments (developer.apple.com/forums/thread/657252).
+    static var supportsBrowserProfilesInCurrentBuild: Bool { true }
 
+    // Profiles & custom args are always STORED (so configs set via the local API /
+    // import survive, and stay portable to the direct-download build). They are only
+    // APPLIED at launch in the direct build — the App Store sandbox can't pass them.
     private static func normalizedProfileForCurrentBuild(_ profile: String?) -> String? {
-        supportsBrowserProfilesInCurrentBuild ? profile : nil
+        profile
     }
 
     private static func normalizedCustomArgumentsForCurrentBuild(_ customArguments: String?) -> String? {
-        supportsBrowserProfilesInCurrentBuild ? customArguments : nil
+        customArguments
     }
 
     private static func normalizedPrivateModeForCurrentBuild(_ usePrivateMode: Bool) -> Bool {
@@ -537,6 +539,15 @@ extension BrowserRoutingRule {
         let trimmed = args.isEmpty ? nil : args
         if configuredBrowsers[index].customArguments != trimmed {
             configuredBrowsers[index].customArguments = trimmed
+        }
+    }
+
+    func updateBrowserPrivateArguments(id: UUID, to args: String) {
+        guard Self.supportsBrowserProfilesInCurrentBuild else { return }
+        guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = args.isEmpty ? nil : args
+        if configuredBrowsers[index].privateArguments != trimmed {
+            configuredBrowsers[index].privateArguments = trimmed
         }
     }
 
@@ -1258,6 +1269,7 @@ extension BrowserRoutingRule {
 
         let browser = configuredBrowsers.first(where: { $0.bundleId.lowercased() == bundleId.lowercased() && $0.profile == profile })
         let customArgs = browser?.customArguments
+        let privateArgs = browser?.privateArguments
 
         #if APP_STORE
         let launchMode = BrowserLaunchMode.appStoreSandbox
@@ -1271,15 +1283,17 @@ extension BrowserRoutingRule {
             url: url,
             profile: profile,
             customArguments: customArgs,
-            usePrivateMode: Self.normalizedPrivateModeForCurrentBuild(usePrivateMode),
+            privateArguments: privateArgs,
+            usePrivateMode: usePrivateMode,
             mode: launchMode
         )
 
         #if APP_STORE
-        // Sandboxed: macOS ignores OpenConfiguration.arguments, so we cannot deliver
-        // --profile-directory. Open the app + document only (default profile).
+        // Sandboxed: attempt to pass launch args via OpenConfiguration (macOS may ignore
+        // them). Direct build below delivers them reliably via /usr/bin/open --args.
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = plan.createsNewApplicationInstance
+        configuration.arguments = plan.deliveredApplicationArguments
         NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
             if let error = error {
                 print("Chowser: Failed to open URL (Sandboxed): \(error)")
@@ -1318,6 +1332,7 @@ extension BrowserRoutingRule {
         url: URL,
         profile: String?,
         customArguments: String?,
+        privateArguments: String? = nil,
         usePrivateMode: Bool = false,
         mode: BrowserLaunchMode
     ) -> BrowserLaunchPlan {
@@ -1325,6 +1340,7 @@ extension BrowserRoutingRule {
             forBundleID: bundleId,
             profile: profile,
             customArguments: customArguments,
+            privateArguments: privateArguments,
             url: url,
             usePrivateMode: usePrivateMode
         )
@@ -1333,10 +1349,10 @@ extension BrowserRoutingRule {
         let filteredArguments = requestedArguments.filter { argument in
             !documentURLs.contains { $0.absoluteString == argument }
         }
-        // Only the direct build can deliver launch arguments (via `/usr/bin/open --args`).
-        // macOS ignores OpenConfiguration.arguments for sandboxed callers, so the App
-        // Store build delivers none — profiles/custom args are gated off there.
-        let appArgumentsSupported = mode == .directDownload
+        // Both builds attempt argument delivery: the direct build via
+        // `/usr/bin/open --args` (reliable), the App Store build via
+        // NSWorkspace.OpenConfiguration.arguments (macOS may drop them when sandboxed).
+        let appArgumentsSupported = true
         let deliveredArguments = appArgumentsSupported ? filteredArguments : []
 
         return BrowserLaunchPlan(
@@ -1353,16 +1369,24 @@ extension BrowserRoutingRule {
     }
 
     /// Generates the appropriate application arguments for a browser launch.
-    /// Supports {profile} and {url} placeholders in customArguments.
-    static func launchInfo(forBundleID bundleId: String, profile: String?, customArguments: String?, url: URL, usePrivateMode: Bool = false) -> (arguments: [String], type: String)? {
-        // Custom arguments override defaults. Tokenize before placeholder replacement so
-        // common templates like --profile-directory={profile} keep profile names with spaces intact.
-        if let custom = customArguments, !custom.isEmpty {
-            let args = tokenizeCustomArguments(custom).map {
+    /// Supports {profile} and {url} placeholders. Per-browser templates
+    /// (customArguments for normal, privateArguments for private) take precedence over
+    /// the built-in Chromium/Firefox defaults, so AI-researched flags work for any browser.
+    static func launchInfo(forBundleID bundleId: String, profile: String?, customArguments: String?, privateArguments: String? = nil, url: URL, usePrivateMode: Bool = false) -> (arguments: [String], type: String)? {
+        func expand(_ template: String) -> [String] {
+            tokenizeCustomArguments(template).map {
                 $0.replacingOccurrences(of: "{profile}", with: profile ?? "")
                     .replacingOccurrences(of: "{url}", with: url.absoluteString)
             }
-            return (arguments: args, type: "custom")
+        }
+
+        // Explicit per-browser private template wins for private launches.
+        if usePrivateMode, let custom = privateArguments, !custom.isEmpty {
+            return (arguments: expand(custom), type: "custom-private")
+        }
+        // Explicit per-browser normal template (also used for private if no private template).
+        if let custom = customArguments, !custom.isEmpty {
+            return (arguments: expand(custom), type: "custom")
         }
 
         let family = browserFamily(for: bundleId)

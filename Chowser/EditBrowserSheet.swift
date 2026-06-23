@@ -8,6 +8,7 @@ struct EditBrowserSheet: View {
     @State private var editingName: String
     @State private var editingProfile: String
     @State private var editingCustomArgs: String
+    @State private var editingPrivateArgs: String
 
     init(browser: BrowserConfig, manager: BrowserManager, isPresented: Binding<Bool>) {
         self.browser = browser
@@ -16,6 +17,7 @@ struct EditBrowserSheet: View {
         self._editingName = State(initialValue: browser.name)
         self._editingProfile = State(initialValue: browser.profile ?? "")
         self._editingCustomArgs = State(initialValue: browser.customArguments ?? "")
+        self._editingPrivateArgs = State(initialValue: browser.privateArguments ?? "")
     }
 
     private var canSave: Bool {
@@ -68,9 +70,8 @@ struct EditBrowserSheet: View {
                             .textSelection(.enabled)
                     }
 
-                    // Profile — editable for manual entry. Disabled in the App Store
-                    // build: macOS strips launch arguments from sandboxed apps, so
-                    // profiles cannot be delivered there.
+                    // Profile — manual entry (auto-detection isn't available in the
+                    // sandboxed App Store build).
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Profile")
                             .font(.system(size: 11, weight: .semibold))
@@ -78,30 +79,45 @@ struct EditBrowserSheet: View {
                         TextField("Optional — e.g. Default, Profile 1, Work", text: $editingProfile)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
-                            .disabled(!BrowserManager.supportsBrowserProfilesInCurrentBuild)
                             .accessibilityIdentifier("settings.editBrowser.profileField")
-                        Text(BrowserManager.supportsBrowserProfilesInCurrentBuild
-                             ? "Chromium profile directory name (\"Default\", \"Profile 1\", …) or a Firefox profile name. Leave blank for the default profile."
-                             : "Profiles are unavailable in the App Store build — macOS sandboxing prevents passing a profile to the browser. Use the direct-download build for per-profile routing.")
+                        Text("Chromium profile directory name (\"Default\", \"Profile 1\", …) or a Firefox profile name. Leave blank for the default profile.")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
 
-                    // Custom Args
+                    // Normal-launch arguments
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Custom Launch Arguments")
+                        Text("Launch Arguments")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
-                        TextField("Optional — e.g. --profile-directory={profile} {url}", text: $editingCustomArgs)
+                        TextField("Optional — e.g. --profile-directory={profile}", text: $editingCustomArgs)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
-                            .disabled(!BrowserManager.supportsBrowserProfilesInCurrentBuild)
                             .accessibilityIdentifier("settings.editBrowser.argsField")
-                        Text(BrowserManager.supportsBrowserProfilesInCurrentBuild
-                             ? "Placeholders: {url}, {profile}. If omitted, URL is appended at the end."
-                             : "Custom launch arguments are unavailable in the App Store build (macOS sandboxing).")
+                        Text("Placeholders: {profile}, {url}. If {url} is omitted it's appended at the end. Tip: ask the Chowser AI assistant to research and fill these for your browser.")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
+                    }
+
+                    // Private-launch arguments
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Private Window Arguments")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        TextField("Optional — e.g. --incognito --profile-directory={profile}", text: $editingPrivateArgs)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11, design: .monospaced))
+                            .accessibilityIdentifier("settings.editBrowser.privateArgsField")
+                        Text("Used when opening in private/incognito mode. Same {profile}/{url} placeholders.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    if !BrowserManager.supportsBrowserProfilesInCurrentBuild {
+                        Text("Note: the App Store build is sandboxed and macOS may not pass these arguments to the browser at launch. They still save and work in the direct-download build.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(20)
@@ -130,6 +146,7 @@ struct EditBrowserSheet: View {
                     manager.updateBrowserName(id: browser.id, to: editingName.trimmingCharacters(in: .whitespacesAndNewlines))
                     manager.updateBrowserProfile(id: browser.id, to: editingProfile)
                     manager.updateBrowserCustomArguments(id: browser.id, to: editingCustomArgs.trimmingCharacters(in: .whitespacesAndNewlines))
+                    manager.updateBrowserPrivateArguments(id: browser.id, to: editingPrivateArgs.trimmingCharacters(in: .whitespacesAndNewlines))
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)
@@ -140,7 +157,7 @@ struct EditBrowserSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .frame(width: 440, height: 440)
+        .frame(width: 440, height: 540)
         .accessibilityIdentifier("settings.editBrowser.root")
     }
 }

@@ -10,6 +10,9 @@ import AppKit
 
 struct ContentView: View {
     var browserManager = BrowserManager.shared
+    /// When true the view is embedded in Settings as a live preview: no key monitor,
+    /// no focus-dismiss, and clicks open the browser without tearing the preview down.
+    var isPreview = false
     @State private var hoveredBrowserId: UUID?
     @State private var keyboardSelectedBrowserId: UUID?
     @State private var appeared = false
@@ -85,7 +88,7 @@ struct ContentView: View {
         panelContent
             .fixedSize(horizontal: false, vertical: true)
             .pickerPanelSurface()
-            .padding(64) // Increased room for softer, wider glowing shadows
+            .padding(isPreview ? 24 : 64) // glow-shadow room; tighter in the Settings preview so the footer fits
             .scaleEffect(appeared ? 1.0 : 0.96)
             .opacity(appeared ? 1.0 : 0.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: effectivePrivateMode)
@@ -110,6 +113,7 @@ struct ContentView: View {
             appeared = true
         }
         syncKeyboardSelection(with: browserManager.configuredBrowsers)
+        guard !isPreview else { return }
         installKeyEventMonitor()
 
         if !AppEnvironment.isUITesting {
@@ -262,7 +266,7 @@ struct ContentView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "wand.and.stars")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.pickerAccentText)
                         Text("Always open \(domain) in \(browser.name)?")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
@@ -383,7 +387,7 @@ struct ContentView: View {
                 if isSuggested {
                     Image(systemName: "wand.and.stars")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.pickerAccentText)
                 }
 
                 Text(browser.shortcutKey)
@@ -453,10 +457,10 @@ struct ContentView: View {
                     if isSuggested {
                         Image(systemName: "wand.and.stars")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.pickerAccent)
                             .padding(3)
                             .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.95)))
-                            .shadow(color: Color.accentColor.opacity(0.3), radius: 2)
+                            .shadow(color: Color.pickerAccent.opacity(0.3), radius: 2)
                             .offset(x: -2, y: -2)
                     }
                 }
@@ -535,8 +539,8 @@ struct ContentView: View {
                 .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(isSuggested ? 0.5 : 0), lineWidth: 1.5)
-                .shadow(color: Color.accentColor.opacity(isSuggested ? 0.3 : 0), radius: 4)
+                .strokeBorder(Color.pickerAccent.opacity(isSuggested ? 0.5 : 0), lineWidth: 1.5)
+                .shadow(color: Color.pickerAccent.opacity(isSuggested ? 0.3 : 0), radius: 4)
                 .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
         }
     }
@@ -549,15 +553,24 @@ struct ContentView: View {
                 keys: ["P"],
                 label: "Private",
                 isActive: effectivePrivateMode,
-                isDisabled: !supportsPrivateLaunchMode
+                isDisabled: !supportsPrivateLaunchMode,
+                action: { togglePrivateMode() }
             )
             .help(privateModeHelpText)
             .accessibilityIdentifier("picker.privateModeHint")
-            keyHintChip(keys: ["H"], label: "Resolve", isDisabled: browserManager.currentURL == nil || isUnshortening)
-            keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil)
-            keyHintChip(keys: ["Esc"], label: "Close")
+            keyHintChip(keys: ["H"], label: "Resolve", isDisabled: browserManager.currentURL == nil || isUnshortening) {
+                if !isUnshortening, browserManager.currentURL != nil { performManualUnshorten() }
+            }
+            keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil) {
+                if browserManager.currentURL != nil { showingConfigureRule = true }
+            }
+            keyHintChip(keys: ["Esc"], label: "Close") {
+                if showingConfigureRule { showingConfigureRule = false } else { dismissPicker() }
+            }
             Spacer()
-            keyHintChip(keys: ["↵"], label: "Launch", isAccent: true)
+            keyHintChip(keys: ["↵"], label: "Launch", isAccent: true) {
+                _ = openSelectedBrowser(usePrivateMode: effectivePrivateMode)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -565,13 +578,13 @@ struct ContentView: View {
         .animation(.easeIn(duration: 0.2).delay(0.3), value: appeared)
     }
 
-    private func keyHintChip(keys: [String], label: String, isActive: Bool = false, isAccent: Bool = false, isDisabled: Bool = false) -> some View {
-        let opacity: Double = isDisabled ? 0.3 : 1.0
-        return HStack(spacing: 3) {
+    @ViewBuilder
+    private func keyHintChip(keys: [String], label: String, isActive: Bool = false, isAccent: Bool = false, isDisabled: Bool = false, action: (() -> Void)? = nil) -> some View {
+        let chip = HStack(spacing: 3) {
             ForEach(keys, id: \.self) { key in
                 Text(key)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(isAccent ? Color.accentColor : (isActive ? Color.purple : Color.primary.opacity(0.6)))
+                    .foregroundStyle(isAccent ? Color.pickerAccentText : (isActive ? Color.purple : Color.primary.opacity(0.6)))
                     .fixedSize()
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
@@ -581,11 +594,20 @@ struct ContentView: View {
                 .font(.system(size: 9, weight: .semibold))
                 .fixedSize()
                 .foregroundStyle(
-                    isAccent ? Color.accentColor :
+                    isAccent ? Color.pickerAccentText :
                         (isActive ? Color.purple : Color.secondary)
                 )
         }
-        .opacity(opacity)
+        .opacity(isDisabled ? 0.3 : 1.0)
+
+        if let action {
+            Button(action: action) { chip }
+                .buttonStyle(.plain)
+                .disabled(isDisabled)
+                .help("\(label) (\(keys.joined()))")
+        } else {
+            chip
+        }
     }
 
     // MARK: - Empty State
@@ -684,12 +706,17 @@ struct ContentView: View {
     private func openUrl(with browser: BrowserConfig, usePrivateMode: Bool = false) {
         guard let url = browserManager.currentURL else { return }
         let effectiveUsePrivateMode = supportsPrivateLaunchMode && usePrivateMode
-        dismissPicker()
+        if !isPreview { dismissPicker() }
         browserManager.open(url: url, withBrowserBundleID: browser.bundleId, profile: browser.profile, usePrivateMode: effectiveUsePrivateMode)
     }
 
     private func requestedPrivateMode(modifierFlags: NSEvent.ModifierFlags) -> Bool {
         supportsPrivateLaunchMode && (privateMode || modifierFlags.contains(.option))
+    }
+
+    private func togglePrivateMode() {
+        guard supportsPrivateLaunchMode else { return }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) { privateMode.toggle() }
     }
 
     private func copyCurrentURL(_ url: URL) {

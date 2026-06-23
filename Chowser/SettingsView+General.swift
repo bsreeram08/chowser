@@ -56,7 +56,7 @@ extension SettingsView {
 
         return SettingsDetailScaffold(
             title: "General",
-            subtitle: "Startup, picker appearance, imports, system integration, and maintenance.",
+            subtitle: "Startup, imports, system integration, and maintenance.",
             systemImage: "gearshape",
             content: {
                 VStack(alignment: .leading, spacing: 16) {
@@ -68,54 +68,6 @@ extension SettingsView {
                             Toggle("", isOn: $manager.launchAtLogin)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                        }
-                    }
-
-                    SettingsGroup("Picker Appearance", subtitle: "Controls the link picker shown when no rule matches.") {
-                        SettingsRow(title: "Layout", subtitle: "Use an icon strip or a denser list.") {
-                            Picker("Layout", selection: $manager.pickerLayoutMode) {
-                                Text("Icons").tag("icons")
-                                Text("List").tag("list")
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 180)
-                            .labelsHidden()
-                        }
-
-                        SettingsDivider()
-
-                        SettingsRow(title: "Icon Size", subtitle: "Applies when the picker is using icon layout.") {
-                            Picker("Icon Size", selection: $manager.pickerIconSize) {
-                                Text("Small").tag("small")
-                                Text("Medium").tag("medium")
-                                Text("Large").tag("large")
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 220)
-                            .labelsHidden()
-                            .disabled(manager.pickerLayoutMode != "icons")
-                        }
-
-                        SettingsDivider()
-
-                        SettingsRow(title: "Show Labels", subtitle: "Display browser names under picker icons.") {
-                            Toggle("", isOn: $manager.pickerShowLabels)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .disabled(manager.pickerLayoutMode != "icons")
-                        }
-
-                        SettingsDivider()
-
-                        SettingsRow(title: "Settings Density", subtitle: "Adjust spacing and text scale in configuration lists.") {
-                            Picker("Density", selection: $manager.densityPreference) {
-                                Text("Compact").tag("compact")
-                                Text("Default").tag("default")
-                                Text("Comfortable").tag("comfortable")
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 260)
-                            .labelsHidden()
                         }
                     }
 

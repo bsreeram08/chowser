@@ -29,6 +29,7 @@ struct SettingsView: View {
     enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case browsers = "Browsers"
         case rules = "Rules"
+        case appearance = "Appearance"
         case apps = "Apps"
         case general = "General"
 
@@ -38,6 +39,7 @@ struct SettingsView: View {
             switch self {
             case .browsers: return "globe"
             case .rules: return "point.topleft.down.curvedto.point.bottomright.up"
+            case .appearance: return "paintpalette"
             case .apps: return "app.badge"
             case .general: return "gearshape"
             }
@@ -47,6 +49,7 @@ struct SettingsView: View {
             switch self {
             case .browsers: return "Picker options"
             case .rules: return "Automatic routing"
+            case .appearance: return "Picker look"
             case .apps: return "Hidden handlers"
             case .general: return "Behavior"
             }
@@ -56,6 +59,7 @@ struct SettingsView: View {
             switch self {
             case .browsers: return "settings.sidebar.browsers"
             case .rules: return "settings.sidebar.rules"
+            case .appearance: return "settings.sidebar.appearance"
             case .apps: return "settings.sidebar.apps"
             case .general: return "settings.sidebar.general"
             }
@@ -126,6 +130,7 @@ struct SettingsView: View {
             Section("Configuration") {
                 sidebarRow(for: .browsers)
                 sidebarRow(for: .rules)
+                sidebarRow(for: .appearance)
             }
 
             Section("System") {
@@ -144,6 +149,8 @@ struct SettingsView: View {
                 browsersSection
             case .rules:
                 rulesSection
+            case .appearance:
+                appearanceSection
             case .apps:
                 appsSection
             case .general:
@@ -220,6 +227,7 @@ struct SettingsView: View {
         switch section {
         case .browsers: return .blue
         case .rules: return .orange
+        case .appearance: return .pink
         case .apps: return .purple
         case .general: return .green
         }
@@ -233,7 +241,7 @@ struct SettingsView: View {
             return browserManager.routingRules.filter(\.isEnabled).count
         case .apps:
             return browserManager.hiddenBundleIDs.count
-        case .general:
+        case .appearance, .general:
             return 0
         }
     }

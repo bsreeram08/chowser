@@ -57,7 +57,7 @@ extension SettingsView {
 
     @ViewBuilder
     private func appRoutingRow(_ app: NativeAppSuggestion) -> some View {
-        let isConfigured = browserManager.configuredBrowsers.contains { $0.bundleId.lowercased() == app.bundleId.lowercased() }
+        let isConfigured = browserManager.routingRules.contains { $0.browserBundleId.lowercased() == app.bundleId.lowercased() }
 
         SettingsRow(title: app.name, subtitle: app.domains.joined(separator: ", ")) {
             HStack(spacing: 10) {
@@ -81,7 +81,7 @@ extension SettingsView {
     }
 
     private func addRoutingApp(_ app: NativeAppSuggestion) {
-        browserManager.addBrowser(name: app.name, bundleId: app.bundleId)
+        // Rules only — the app routes its own domains but never becomes a picker choice.
         for domain in app.domains {
             _ = browserManager.addRoutingRule(
                 name: "\(app.name) — \(domain)",

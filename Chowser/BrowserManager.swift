@@ -878,7 +878,11 @@ extension BrowserRoutingRule {
             if let ruleSource = rule.sourceAppBundleId, !ruleSource.isEmpty {
                 guard ruleSource == (currentSourceAppBundleId ?? "") else { continue }
             }
-            guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId && $0.profile == rule.profile }) else { continue }
+            // The target may be a configured browser, OR an app that only exists as a
+            // routing target (e.g. Slack) — synthesize it so it never has to appear in
+            // the picker's browser list.
+            let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId && $0.profile == rule.profile })
+                ?? BrowserConfig(name: rule.name, bundleId: rule.browserBundleId, shortcutKey: "", profile: rule.profile)
 
             return (rule, browser)
         }

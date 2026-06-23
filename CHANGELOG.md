@@ -12,8 +12,10 @@ All notable changes to Chowser are documented here.
 - Expanded browser detection to current-market browsers (Comet, Thorium, Helium, Wavebox, Sidekick, Whale, Yandex, Floorp, Mullvad, Basilisk, Pale Moon, Tor, and more).
 
 ### Fixed
-- **Browser profiles now work in the App Store (sandboxed) build** — profile launch arguments are delivered via `NSWorkspace.OpenConfiguration.arguments` instead of the sandbox-forbidden `Process`/`open` path, and profiles are no longer stripped at load. Profiles can be entered manually (Edit Browser) or set via the MCP agent.
 - **Browsers settings page renders reliably** — it used a SwiftUI `List` that mis-laid-out inside `NavigationSplitView` (blank rows / collapsed sidebar until a window resize). Now uses the same `ScrollView` scaffold as the other settings pages.
+
+### Notes
+- **Browser profiles remain a direct-download-build feature.** macOS silently strips launch arguments (including `--profile-directory`) from sandboxed apps, so the App Store build cannot route to a specific browser profile. The Edit Browser sheet now states this clearly instead of failing silently. Per-profile routing works in the direct-download build.
 - Accent-colored picker text (Launch, suggestions) stays legible — a brightness-aware accent prevents dark/black-on-dark.
 
 ### Changed

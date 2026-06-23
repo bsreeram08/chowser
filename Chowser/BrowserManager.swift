@@ -316,12 +316,14 @@ extension BrowserRoutingRule {
         #endif
     }
 
-    /// Browser profiles & custom launch arguments are supported in BOTH builds.
-    /// Direct build delivers them via `/usr/bin/open --args`; the sandboxed App Store
-    /// build delivers them via `NSWorkspace.OpenConfiguration.arguments` (sandbox-allowed).
-    /// Only private/incognito mode stays gated to direct builds (see the flag above),
-    /// because the App Store build intentionally avoids that launch path.
-    static var supportsBrowserProfilesInCurrentBuild: Bool { true }
+    /// Browser profiles & custom launch arguments only work in the direct-download build.
+    /// The App Store build is sandboxed, and macOS *silently ignores* launch arguments
+    /// (including `--profile-directory`) from a sandboxed caller — see
+    /// developer.apple.com/forums/thread/657252. So profiles cannot be delivered at all
+    /// in the App Store build; we gate the feature off there rather than fail silently.
+    static var supportsBrowserProfilesInCurrentBuild: Bool {
+        supportsApplicationLaunchArgumentsInCurrentBuild
+    }
 
     private static func normalizedProfileForCurrentBuild(_ profile: String?) -> String? {
         supportsBrowserProfilesInCurrentBuild ? profile : nil
@@ -1274,12 +1276,10 @@ extension BrowserRoutingRule {
         )
 
         #if APP_STORE
-        // Sandbox can pass launch arguments via OpenConfiguration.arguments (e.g.
-        // --profile-directory). Reliable for a fresh instance; Chromium handoff to an
-        // already-running instance may still ignore them — same ceiling as Velja.
+        // Sandboxed: macOS ignores OpenConfiguration.arguments, so we cannot deliver
+        // --profile-directory. Open the app + document only (default profile).
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = plan.createsNewApplicationInstance
-        configuration.arguments = plan.deliveredApplicationArguments
         NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
             if let error = error {
                 print("Chowser: Failed to open URL (Sandboxed): \(error)")
@@ -1333,10 +1333,10 @@ extension BrowserRoutingRule {
         let filteredArguments = requestedArguments.filter { argument in
             !documentURLs.contains { $0.absoluteString == argument }
         }
-        // Both builds can deliver launch arguments: the direct build via
-        // `/usr/bin/open --args`, the sandboxed App Store build via
-        // `NSWorkspace.OpenConfiguration.arguments`.
-        let appArgumentsSupported = true
+        // Only the direct build can deliver launch arguments (via `/usr/bin/open --args`).
+        // macOS ignores OpenConfiguration.arguments for sandboxed callers, so the App
+        // Store build delivers none — profiles/custom args are gated off there.
+        let appArgumentsSupported = mode == .directDownload
         let deliveredArguments = appArgumentsSupported ? filteredArguments : []
 
         return BrowserLaunchPlan(

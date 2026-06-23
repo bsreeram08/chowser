@@ -68,8 +68,9 @@ struct EditBrowserSheet: View {
                             .textSelection(.enabled)
                     }
 
-                    // Profile — editable so it can be set manually when auto-detection
-                    // is unavailable (e.g. the sandboxed App Store build).
+                    // Profile — editable for manual entry. Disabled in the App Store
+                    // build: macOS strips launch arguments from sandboxed apps, so
+                    // profiles cannot be delivered there.
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Profile")
                             .font(.system(size: 11, weight: .semibold))
@@ -77,8 +78,11 @@ struct EditBrowserSheet: View {
                         TextField("Optional — e.g. Default, Profile 1, Work", text: $editingProfile)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
+                            .disabled(!BrowserManager.supportsBrowserProfilesInCurrentBuild)
                             .accessibilityIdentifier("settings.editBrowser.profileField")
-                        Text("Chromium profile directory name (\"Default\", \"Profile 1\", …) or a Firefox profile name. Leave blank for the default profile.")
+                        Text(BrowserManager.supportsBrowserProfilesInCurrentBuild
+                             ? "Chromium profile directory name (\"Default\", \"Profile 1\", …) or a Firefox profile name. Leave blank for the default profile."
+                             : "Profiles are unavailable in the App Store build — macOS sandboxing prevents passing a profile to the browser. Use the direct-download build for per-profile routing.")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
@@ -91,8 +95,11 @@ struct EditBrowserSheet: View {
                         TextField("Optional — e.g. --profile-directory={profile} {url}", text: $editingCustomArgs)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
+                            .disabled(!BrowserManager.supportsBrowserProfilesInCurrentBuild)
                             .accessibilityIdentifier("settings.editBrowser.argsField")
-                        Text("Placeholders: {url}, {profile}. If omitted, URL is appended at the end.")
+                        Text(BrowserManager.supportsBrowserProfilesInCurrentBuild
+                             ? "Placeholders: {url}, {profile}. If omitted, URL is appended at the end."
+                             : "Custom launch arguments are unavailable in the App Store build (macOS sandboxing).")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }

@@ -102,6 +102,16 @@ extension BrowserRoutingRule {
 
     static let shared = BrowserManager(defaults: makeDefaultStore(), immediateWrite: false)
 
+    struct ImportSummary: Equatable {
+        var added: Int = 0
+        var updated: Int = 0
+        var skipped: Int = 0
+        var invalid: Int = 0
+
+        var changedCount: Int { added + updated }
+        var totalProcessed: Int { added + updated + skipped + invalid }
+    }
+
     var configuredBrowsers: [BrowserConfig] = [] {
         didSet {
             scheduleSaveBrowsers()
@@ -516,31 +526,37 @@ extension BrowserRoutingRule {
         try data.write(to: url)
     }
 
-    func importRules(from url: URL, skipExisting: Bool = false) throws {
+    func importRules(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserRoutingRule].self, from: data)
-        
+
+        var summary = ImportSummary()
         var updatedRules = routingRules
         
         for rule in decoded {
             guard case .success(let normalizedRule) = validatedRoutingRule(rule) else {
+                summary.invalid += 1
                 continue
             }
 
             if let existingIndex = updatedRules.firstIndex(where: { $0.id == rule.id }) {
                 if skipExisting {
+                    summary.skipped += 1
                     continue
                 }
                 // Update existing rule in place
                 updatedRules[existingIndex] = normalizedRule
+                summary.updated += 1
             } else {
                 // Append new rule
                 updatedRules.append(normalizedRule)
+                summary.added += 1
             }
         }
         
         routingRules = updatedRules
+        return summary
     }
 
     func exportBrowsers(to url: URL) throws {
@@ -550,11 +566,12 @@ extension BrowserRoutingRule {
         try data.write(to: url)
     }
 
-    func importBrowsers(from url: URL, skipExisting: Bool = false) throws {
+    func importBrowsers(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserConfig].self, from: data)
-        
+
+        var summary = ImportSummary()
         var updatedBrowsers = configuredBrowsers
         
         for var browser in decoded {
@@ -562,6 +579,7 @@ extension BrowserRoutingRule {
             browser.customArguments = Self.normalizedCustomArgumentsForCurrentBuild(browser.customArguments)
             if let existingIndex = updatedBrowsers.firstIndex(where: { $0.identity == browser.identity }) {
                 if skipExisting {
+                    summary.skipped += 1
                     continue
                 }
                 // Update existing browser in place, preserving its id and shortcut key
@@ -570,15 +588,18 @@ extension BrowserRoutingRule {
                 browser.id = existingId
                 browser.shortcutKey = existingKey
                 updatedBrowsers[existingIndex] = browser
+                summary.updated += 1
             } else {
                 // Ensure shortcuts don't conflict for new browsers
                 if updatedBrowsers.contains(where: { $0.shortcutKey == browser.shortcutKey }) {
                     browser.shortcutKey = nextAvailableShortcutKey(excluding: updatedBrowsers)
                 }
                 updatedBrowsers.append(browser)
+                summary.added += 1
             }
         }
         configuredBrowsers = updatedBrowsers
+        return summary
     }
 
     private func nextAvailableShortcutKey(excluding: [BrowserConfig]) -> String {

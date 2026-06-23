@@ -2,71 +2,7 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-// MARK: - Browser Grid Drop Delegate
-
-struct BrowserGridDropDelegate: DropDelegate {
-    let targetBrowser: BrowserConfig
-    let browsers: [BrowserConfig]
-    @Binding var draggedBrowserId: UUID?
-    @Binding var dropTargetBrowserId: UUID?
-    let onMove: (Int, Int) -> Void
-    
-    func dropEntered(info: DropInfo) {
-        dropTargetBrowserId = targetBrowser.id
-        
-        guard let draggedId = draggedBrowserId,
-              draggedId != targetBrowser.id,
-              let fromIndex = browsers.firstIndex(where: { $0.id == draggedId }),
-              let toIndex = browsers.firstIndex(where: { $0.id == targetBrowser.id }) else {
-            return
-        }
-        
-        // Only update if the indices are different
-        if fromIndex != toIndex {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                onMove(fromIndex, toIndex > fromIndex ? toIndex + 1 : toIndex)
-            }
-        }
-    }
-    
-    func dropExited(info: DropInfo) {
-        dropTargetBrowserId = nil
-    }
-    
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
-    }
-    
-    func performDrop(info: DropInfo) -> Bool {
-        draggedBrowserId = nil
-        dropTargetBrowserId = nil
-        return true
-    }
-    
-    func validateDrop(info: DropInfo) -> Bool {
-        return info.hasItemsConforming(to: [.plainText])
-    }
-}
-
 extension SettingsView {
-    
-    /// View mode for browser display
-    enum BrowserViewMode: String, CaseIterable, Identifiable {
-        case grid
-        case list
-        
-        var id: String { rawValue }
-        
-        var icon: String {
-            switch self {
-            case .grid: return "square.grid.2x2"
-            case .list: return "list.bullet"
-            }
-        }
-    }
-
-    
-
     var hasBrowserSearchQuery: Bool {
         !browserSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -75,40 +11,34 @@ extension SettingsView {
         guard hasBrowserSearchQuery else {
             return browserManager.configuredBrowsers
         }
+
         let query = browserSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return browserManager.configuredBrowsers.filter {
-            $0.name.localizedStandardContains(query) || $0.bundleId.localizedStandardContains(query)
+            $0.name.localizedStandardContains(query)
+                || $0.bundleId.localizedStandardContains(query)
+                || ($0.profile?.localizedStandardContains(query) ?? false)
         }
     }
 
     var browsersSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: "globe")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.accent)
+                    .frame(width: 30)
+
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Browsers")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    Text("Configure which browsers appear in the picker.")
+                        .font(.system(size: 22, weight: .semibold))
+                    Text("Choose the browsers and profiles that appear in the picker.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
-                    Text("Picker shortcuts use keys 1–9 and support Shift/Option variants. You can also type a browser initial, then press Return.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
                 }
 
-                Spacer()
+                Spacer(minLength: 16)
 
                 HStack(spacing: 8) {
-                    // View mode toggle
-                    Picker("View", selection: $browserViewMode) {
-                        ForEach(BrowserViewMode.allCases) { mode in
-                            Label(mode.rawValue.capitalized, systemImage: mode.icon)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 150)
-                    .accessibilityIdentifier("settings.browser.viewModeToggle")
-
                     Menu {
                         Button(action: exportBrowsers) {
                             Label("Export Browsers…", systemImage: "square.and.arrow.up")
@@ -121,109 +51,83 @@ extension SettingsView {
                         }
                         .accessibilityIdentifier("settings.importBrowsersButton")
                     } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 12, weight: .medium))
+                        Label("Browser Actions", systemImage: "ellipsis.circle")
+                            .labelStyle(.iconOnly)
                     }
                     .menuStyle(.borderlessButton)
-                    .frame(width: 28)
                     .accessibilityIdentifier("settings.browsersMenuButton")
 
-                    Button(action: { showingAddSheet = true }) {
-                        Label("Add Browser", systemImage: "plus")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .keyboardShortcut("n", modifiers: .command)
-                    .accessibilityIdentifier("settings.addBrowserButton")
-                    .accessibilityLabel("Add a new browser to the picker")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
-
-            Divider()
-                .padding(.horizontal, 20)
-
-            if profileAccessStatus.needsRecovery {
-                profileAccessBanner
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-            }
-
-            if !browserManager.configuredBrowsers.isEmpty {
-                HStack(spacing: 8) {
-                    sectionSearchField(
-                        placeholder: "Filter browsers by name or bundle ID",
-                        text: $browserSearchText,
-                        accessibilityIdentifier: "settings.browser.searchField"
-                    )
-                    
-                    Spacer()
-                    
-                    // Quick stats
-                    HStack(spacing: 6) {
-                        Label("\(browserManager.configuredBrowsers.count) browsers", systemImage: "globe")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-            }
-
-            if browserManager.configuredBrowsers.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "globe")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.quaternary)
-                    Text("No browsers configured")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                    Text("Add one manually or restore the default setup.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-
-                    Button("Restore Default Browser") {
-                        browserManager.restoreDefaultBrowserList()
+                    Button("Add Browser", systemImage: "plus") {
+                        showingAddSheet = true
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .accessibilityIdentifier("settings.restoreDefaultButton")
+                    .keyboardShortcut("n", modifiers: .command)
+                    .accessibilityIdentifier("settings.addBrowserButton")
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if browserViewMode == .grid {
-                // Grid view for browsers
-                browserGridView
-            } else {
-                // List view for browsers
-                browserListView
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+            .background(.bar)
 
-            HStack(spacing: 4) {
-                Image(systemName: hasBrowserSearchQuery
-                    ? "magnifyingglass"
-                    : (browserViewMode == .grid ? "square.grid.2x2" : "arrow.up.arrow.down")
-                )
-                    .font(.system(size: 9))
-                    .foregroundStyle(.quaternary)
+            Divider()
 
-                Text(hasBrowserSearchQuery
-                 ? "Clear search to drag and reorder browsers."
-                 : "Drag to reorder · Use 1–9, initials, or Tab/↑/↓ + Return in picker")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.quaternary)
+            VStack(alignment: .leading, spacing: 14) {
+                if profileAccessStatus.needsRecovery {
+                    profileAccessBanner
+                }
+
+                HStack(spacing: 12) {
+                    sectionSearchField(
+                        placeholder: "Filter browsers by name, bundle ID, or profile",
+                        text: $browserSearchText,
+                        accessibilityIdentifier: "settings.browser.searchField"
+                    )
+
+                    Text("\(browserManager.configuredBrowsers.count) configured")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                browserListContent
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
-        }
-        .sheet(item: $browserToEdit) { browser in
-            EditBrowserSheet(browser: browser, manager: browserManager, isPresented: Binding(
-                get: { browserToEdit != nil },
-                set: { if !$0 { browserToEdit = nil } }
-            ))
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
+    @ViewBuilder
+    private var browserListContent: some View {
+        if browserManager.configuredBrowsers.isEmpty {
+            SettingsEmptyContent(
+                systemImage: "globe",
+                title: "No browsers configured",
+                message: "Restore the default Safari setup or add an app manually.",
+                actionTitle: "Restore Default Browser"
+            ) {
+                browserManager.restoreDefaultBrowserList()
+            }
+            .accessibilityIdentifier("settings.restoreDefaultButton")
+        } else if filteredBrowsers.isEmpty {
+            SettingsEmptyContent(
+                systemImage: "magnifyingglass",
+                title: "No matching browsers",
+                message: "Clear the filter to show all configured browsers."
+            )
+        } else {
+            List {
+                ForEach(filteredBrowsers) { browser in
+                    browserRow(for: browser, hasSearchQuery: hasBrowserSearchQuery)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                }
+            }
+            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .environment(\.defaultMinListRowHeight, 62)
+            .frame(minHeight: 220)
+            .accessibilityIdentifier("settings.browserList")
+        }
+    }
 
     private var profileAccessBanner: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -258,13 +162,10 @@ extension SettingsView {
             }
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(profileAccessIconColor.opacity(0.10))
-        )
+        .background(profileAccessIconColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(profileAccessIconColor.opacity(0.18))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(profileAccessIconColor.opacity(0.18), lineWidth: 1)
         )
         .accessibilityIdentifier("settings.profileAccess.banner")
     }
@@ -308,9 +209,9 @@ extension SettingsView {
         switch profileAccessStatus {
         case .missing:
             if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
-                return "To discover Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles, allow read-only access to ~/Library/Application Support."
+                return "Allow read-only access to ~/Library/Application Support to discover Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles."
             }
-            return "App Store builds can read profile names after access, but macOS sandboxing opens only the selected browser app."
+            return "App Store builds can list profile names after access, but macOS sandboxing opens only the selected browser app."
         case .stale:
             return "The saved Application Support permission is stale. Grant access again to refresh browser profile discovery."
         case .invalid:
@@ -325,12 +226,9 @@ extension SettingsView {
 
     @MainActor
     private func grantProfileAccessFromSettings() {
-        if SandboxBookmarkManager.shared.requestApplicationSupportAccess() {
-            BrowserProfileDetector.clearCache()
-            profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
-        } else {
-            profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
-        }
+        _ = SandboxBookmarkManager.shared.requestApplicationSupportAccess()
+        BrowserProfileDetector.clearCache()
+        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     }
 
     private func resetProfileAccessFromSettings() {
@@ -339,112 +237,11 @@ extension SettingsView {
         profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     }
 
-    // MARK: - Browser Grid View
-    
-    private var browserGridView: some View {
-        let browsers = hasBrowserSearchQuery ? filteredBrowsers : browserManager.configuredBrowsers
-        let gridSpacing = dynamicPadding(16)
-        let cardMinWidth = max(180, 220 * densityMultiplier)
-        let cardMaxWidth = max(240, 280 * densityMultiplier)
-        
-        return ScrollView {
-            LazyVGrid(columns: [
-                GridItem(.adaptive(minimum: cardMinWidth, maximum: cardMaxWidth), spacing: gridSpacing)
-            ], spacing: gridSpacing) {
-                ForEach(browsers) { browser in
-                    BrowserCardView(
-                        browser: browser,
-                        currentShortcut: browserManager.shortcutKey(for: browser.id),
-                        shortcutOptions: shortcutOptions,
-                        densityPreference: browserManager.densityPreference,
-                        onEdit: {
-                            browserToEdit = browser
-                        },
-                        onUpdateShortcut: { newShortcut in
-                            browserManager.updateShortcutKey(id: browser.id, to: newShortcut)
-                        },
-                        onDelete: {
-                            browserManager.removeBrowser(id: browser.id)
-                        }
-                    )
-                    .equatable()
-                    .opacity(draggedBrowserId == browser.id ? 0.5 : 1.0)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(
-                                dropTargetBrowserId == browser.id ? Color.accentColor : Color.clear,
-                                lineWidth: 2
-                            )
-                    )
-                    .onDrag(
-                        {
-                            draggedBrowserId = browser.id
-                            return NSItemProvider(object: browser.id.uuidString as NSString)
-                        },
-                        preview: {
-                            BrowserCardView(
-                                browser: browser,
-                                currentShortcut: browserManager.shortcutKey(for: browser.id),
-                                shortcutOptions: shortcutOptions,
-                                densityPreference: browserManager.densityPreference,
-                                onEdit: {},
-                                onUpdateShortcut: { _ in },
-                                onDelete: {}
-                            )
-                            .frame(width: cardMinWidth)
-                        }
-                    )
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: BrowserGridDropDelegate(
-                            targetBrowser: browser,
-                            browsers: browserManager.configuredBrowsers,
-                            draggedBrowserId: $draggedBrowserId,
-                            dropTargetBrowserId: $dropTargetBrowserId,
-                            onMove: { from, to in
-                                browserManager.moveBrowsers(from: IndexSet(integer: from), to: to)
-                            }
-                        )
-                    )
-                    .animation(.easeInOut(duration: 0.2), value: draggedBrowserId)
-                }
-            }
-            .padding(dynamicPadding(20))
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-    
-    // MARK: - Browser List View
-    
-    private var browserListView: some View {
-        List {
-            if hasBrowserSearchQuery {
-                ForEach(filteredBrowsers) { browser in
-                    browserRow(for: browser, hasSearchQuery: true)
-                }
-                .onDelete(perform: removeFilteredBrowsers)
-            } else {
-                ForEach(browserManager.configuredBrowsers) { browser in
-                    browserRow(for: browser, hasSearchQuery: false)
-                }
-                .onMove { indices, destination in
-                    browserManager.moveBrowsers(from: indices, to: destination)
-                }
-                .onDelete { indices in
-                    browserManager.removeBrowsers(at: indices)
-                }
-            }
-        }
-        .id(UUID())
-        .listStyle(.inset(alternatesRowBackgrounds: true))
-        .accessibilityIdentifier("settings.browserList")
-    }
-
     func removeFilteredBrowsers(at offsets: IndexSet) {
-        var idsToRemove: [UUID] = []
-        for offset in offsets where filteredBrowsers.indices.contains(offset) {
-            idsToRemove.append(filteredBrowsers[offset].id)
+        let idsToRemove = offsets.compactMap { offset in
+            filteredBrowsers.indices.contains(offset) ? filteredBrowsers[offset].id : nil
         }
+
         for id in idsToRemove {
             browserManager.removeBrowser(id: id)
         }
@@ -460,8 +257,9 @@ extension SettingsView {
 
         do {
             try browserManager.exportBrowsers(to: url)
+            presentSettingsMessage("Export complete", "Browsers exported to \(url.lastPathComponent).")
         } catch {
-            print("Export failed: \(error.localizedDescription)")
+            presentSettingsMessage("Export failed", "Could not export browsers.\n\n\(error.localizedDescription)")
         }
     }
 
@@ -474,44 +272,249 @@ extension SettingsView {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            try browserManager.importBrowsers(from: url, skipExisting: browserManager.skipExistingImportedBrowsers)
+            let summary = try browserManager.importBrowsers(
+                from: url,
+                skipExisting: browserManager.skipExistingImportedBrowsers
+            )
+            presentImportSummary(for: "Browsers", summary: summary, successTitle: "Browsers import complete")
         } catch {
-            print("Import failed: \(error.localizedDescription)")
+            presentSettingsMessage("Import failed", "Could not import browsers.\n\n\(error.localizedDescription)")
         }
     }
-    
-    @ViewBuilder
+
     private func browserRow(for browser: BrowserConfig, hasSearchQuery: Bool) -> some View {
         let currentIndex = browserManager.configuredBrowsers.firstIndex(where: { $0.id == browser.id }) ?? 0
         let canMoveUp = currentIndex > 0
         let canMoveDown = currentIndex < browserManager.configuredBrowsers.count - 1
-        
-        BrowserConfigRow(
+
+        return SettingsBrowserRow(
             browser: browser,
             currentShortcut: browserManager.shortcutKey(for: browser.id),
             shortcutOptions: shortcutOptions,
             hasSearchQuery: hasSearchQuery,
-            onEdit: {
-                browserToEdit = browser
+            canMoveUp: canMoveUp,
+            canMoveDown: canMoveDown,
+            onRename: { newName in
+                browserManager.updateBrowserName(id: browser.id, to: newName)
             },
             onUpdateShortcut: { newShortcut in
                 browserManager.updateShortcutKey(id: browser.id, to: newShortcut)
             },
             onMoveUp: {
-                let dest = currentIndex - 1
-                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: dest)
+                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: currentIndex - 1)
             },
             onMoveDown: {
-                let dest = currentIndex + 1
-                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: dest + 1)
+                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: currentIndex + 2)
+            },
+            onEdit: {
+                browserToEdit = browser
             },
             onDelete: {
                 browserManager.removeBrowser(id: browser.id)
-            },
-            canMoveUp: canMoveUp,
-            canMoveDown: canMoveDown
+            }
         )
-        .equatable() // Uses Equatable conformance
-        .id(browser.id)
+    }
+}
+
+private struct BrowserListHeader: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Browser")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Shortcut")
+                .frame(width: 92, alignment: .leading)
+            Text("Order")
+                .frame(width: 84, alignment: .leading)
+            Text("Actions")
+                .frame(width: 112, alignment: .trailing)
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SettingsBrowserRow: View {
+    let browser: BrowserConfig
+    let currentShortcut: String
+    let shortcutOptions: [String]
+    let hasSearchQuery: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let onRename: (String) -> Void
+    let onUpdateShortcut: (String) -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var editingName: String
+    @FocusState private var isNameFocused: Bool
+
+    init(
+        browser: BrowserConfig,
+        currentShortcut: String,
+        shortcutOptions: [String],
+        hasSearchQuery: Bool,
+        canMoveUp: Bool,
+        canMoveDown: Bool,
+        onRename: @escaping (String) -> Void,
+        onUpdateShortcut: @escaping (String) -> Void,
+        onMoveUp: @escaping () -> Void,
+        onMoveDown: @escaping () -> Void,
+        onEdit: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.browser = browser
+        self.currentShortcut = currentShortcut
+        self.shortcutOptions = shortcutOptions
+        self.hasSearchQuery = hasSearchQuery
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
+        self.onRename = onRename
+        self.onUpdateShortcut = onUpdateShortcut
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
+        self.onEdit = onEdit
+        self.onDelete = onDelete
+        self._editingName = State(initialValue: browser.name)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            browserIdentityView
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Picker("Shortcut", selection: Binding(get: { currentShortcut }, set: onUpdateShortcut)) {
+                ForEach(shortcutOptions, id: \.self) { key in
+                    Text(key).tag(key)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 92, alignment: .leading)
+            .accessibilityIdentifier("settings.browser.shortcutPicker")
+            .accessibilityLabel("Shortcut key for \(browser.name)")
+
+            HStack(spacing: 4) {
+                Button("Move Up", systemImage: "arrow.up") {
+                    onMoveUp()
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .disabled(hasSearchQuery || !canMoveUp)
+                .help(hasSearchQuery ? "Clear search before reordering" : "Move up")
+
+                Button("Move Down", systemImage: "arrow.down") {
+                    onMoveDown()
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .disabled(hasSearchQuery || !canMoveDown)
+                .help(hasSearchQuery ? "Clear search before reordering" : "Move down")
+            }
+            .frame(width: 84, alignment: .leading)
+
+            HStack(spacing: 6) {
+                Button("Edit") {
+                    onEdit()
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.browser.editButton")
+                .accessibilityLabel("Edit \(browser.name)")
+
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Text("Remove")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.browser.deleteButton")
+                .accessibilityLabel("Remove \(browser.name)")
+            }
+            .frame(width: 112, alignment: .trailing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .onChange(of: browser.name) { _, newValue in
+            guard !isNameFocused else { return }
+            editingName = newValue
+        }
+        .onChange(of: isNameFocused) { _, focused in
+            guard !focused else { return }
+            commitName()
+        }
+        .contextMenu {
+            Button("Edit Browser…", action: onEdit)
+            Divider()
+            Button("Move Up", action: onMoveUp)
+                .disabled(hasSearchQuery || !canMoveUp)
+            Button("Move Down", action: onMoveDown)
+                .disabled(hasSearchQuery || !canMoveDown)
+            Divider()
+            Button("Remove Browser", role: .destructive, action: onDelete)
+        }
+    }
+
+    private var browserIdentityView: some View {
+        HStack(spacing: 12) {
+            if let icon = AppMetadataCache.shared.icon(for: browser.bundleId) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 30, height: 30)
+            } else {
+                Image(systemName: "globe")
+                    .font(.system(size: 17))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                TextField("Browser name", text: $editingName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .semibold))
+                    .focused($isNameFocused)
+                    .onSubmit(commitName)
+                    .accessibilityIdentifier("settings.browser.nameField")
+
+                HStack(spacing: 6) {
+                    Text(browser.bundleId)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    if let profile = browser.profile {
+                        Text(profile)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.secondary.opacity(0.12), in: Capsule())
+                    }
+
+                    if let args = browser.customArguments, !args.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                            .help("Has custom launch arguments")
+                    }
+                }
+            }
+        }
+    }
+
+    private func commitName() {
+        let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            editingName = browser.name
+            return
+        }
+
+        guard trimmed != browser.name else { return }
+        onRename(trimmed)
     }
 }

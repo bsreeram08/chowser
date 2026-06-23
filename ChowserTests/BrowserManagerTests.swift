@@ -1091,6 +1091,92 @@ struct BrowserManagerTests {
         try FileManager.default.removeItem(at: tempURL)
     }
 
+    @Test("Import rules returns summary for merge behavior")
+    @MainActor
+    func importRulesSummaryReturnsMergeCounts() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.apple.Safari"
+        )
+
+        let existingId = manager.routingRules[0].id
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_summary_test.json")
+
+        let updated = [
+            BrowserRoutingRule(
+                id: existingId,
+                name: "GitHub Updated",
+                hostPattern: "github.com",
+                pathPrefix: nil,
+                browserBundleId: "com.apple.Safari"
+            ),
+            BrowserRoutingRule(
+                name: "Google",
+                hostPattern: "google.com",
+                pathPrefix: nil,
+                browserBundleId: "com.apple.Safari"
+            )
+        ]
+        try JSONEncoder().encode(updated).write(to: tempURL)
+
+        let summary = try manager.importRules(from: tempURL, skipExisting: false)
+
+        #expect(summary.updated == 1)
+        #expect(summary.added == 1)
+        #expect(summary.skipped == 0)
+        #expect(summary.changedCount == 2)
+        #expect(summary.totalProcessed == 2)
+
+        let summarySkip = try manager.importRules(from: tempURL, skipExisting: true)
+        #expect(summarySkip.updated == 0)
+        #expect(summarySkip.added == 0)
+        #expect(summarySkip.skipped == 2)
+    }
+
+    @Test("Import rules summary reports invalid entries") @MainActor
+    func importRulesSummaryCountsInvalidRules() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("rules_invalid_summary_test.json")
+
+        let payload = [
+            BrowserRoutingRule(
+                name: "Invalid Host",
+                hostPattern: "bad host",
+                pathPrefix: nil,
+                browserBundleId: "com.apple.Safari"
+            ),
+            BrowserRoutingRule(
+                name: "Missing Browser",
+                hostPattern: "example.com",
+                pathPrefix: nil,
+                browserBundleId: "com.example.missing"
+            ),
+        ]
+        try JSONEncoder().encode(payload).write(to: tempURL)
+
+        let summary = try manager.importRules(from: tempURL)
+
+        #expect(summary.invalid == 2)
+        #expect(summary.added == 0)
+        #expect(summary.updated == 0)
+        #expect(summary.skipped == 0)
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
     @Test("Import updates existing browsers with matching identity")
     @MainActor
     func importUpdatesExistingBrowsers() throws {
@@ -1115,6 +1201,38 @@ struct BrowserManagerTests {
         #expect(manager.configuredBrowsers[0].name == "Safari (Updated)")
         #expect(manager.configuredBrowsers[0].bundleId == "com.apple.Safari")
         #expect(manager.configuredBrowsers[0].id == existingId)
+
+        try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Import browsers returns summary for merge behavior")
+    @MainActor
+    func importBrowsersSummaryReturnsMergeCounts() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        let existingId = manager.configuredBrowsers[0].id
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("browsers_summary_test.json")
+        let imported = [
+            BrowserConfig(id: existingId, name: "Safari (Updated)", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "2"),
+        ]
+        try JSONEncoder().encode(imported).write(to: tempURL)
+
+        let summary = try manager.importBrowsers(from: tempURL, skipExisting: false)
+        #expect(summary.updated == 1)
+        #expect(summary.added == 1)
+        #expect(summary.skipped == 0)
+        #expect(summary.totalProcessed == 2)
+        #expect(manager.configuredBrowsers.count == 2)
+
+        let summarySkip = try manager.importBrowsers(from: tempURL, skipExisting: true)
+        #expect(summarySkip.updated == 0)
+        #expect(summarySkip.added == 0)
+        #expect(summarySkip.skipped == 2)
 
         try FileManager.default.removeItem(at: tempURL)
     }

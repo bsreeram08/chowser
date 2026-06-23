@@ -2,11 +2,9 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   Download,
-  Eye,
   Link as LinkIcon,
   Plus,
   Copy,
@@ -133,33 +131,30 @@ export const Home: React.FC = () => {
       <Navbar />
 
       <main className="relative pt-28 sm:pt-40 pb-20 px-4 flex flex-col items-center">
-        {/* Background Blobs */}
-        <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-primary/10 to-transparent blur-3xl -z-10 opacity-50" />
+        {/* Faint amber key-glow, not a blurry blob */}
+        <div className="absolute top-24 inset-x-0 h-[420px] bg-[radial-gradient(ellipse_at_top,rgba(245,185,21,0.10),transparent_60%)] -z-10" />
 
-        <div className="text-center max-w-4xl mx-auto z-10 w-full flex flex-col items-center text-white">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border/50 bg-muted/40 text-[10px] sm:text-xs font-medium text-muted-foreground mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-            </span>
-            macOS 13.0+ · Professional Browser Chooser
+        <div className="text-center max-w-4xl mx-auto z-10 w-full flex flex-col items-center">
+          {/* Eyebrow — key legend */}
+          <div className="eyebrow mb-6 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal" />
+            macOS 13+ · keyboard-first link router
           </div>
 
-          {/* H1 */}
-          <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white via-zinc-200 to-zinc-500 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200 leading-[1.1]">
-            Take Control of
-            <br className="hidden sm:block" /> Your Links
+          {/* H1 — display face, no gradient text */}
+          <h1 className="font-display text-5xl sm:text-7xl font-bold tracking-tight text-foreground mb-6 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200 leading-[0.98]">
+            Pick the browser.
+            <br />
+            <span className="text-signal">Press the key.</span>
           </h1>
 
           {/* Subtext */}
-          <p className="text-base sm:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
-            A keyboard-first browser chooser with profiles, private mode,
-            app-based routing, and smart rules. Pick the right browser for every
-            link — automatically or in one keystroke.
+          <p className="text-base sm:text-xl text-muted-foreground mb-9 max-w-xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
+            Click a link anywhere and Chowser routes it to the right browser and
+            profile — automatically by rule, or in a single keystroke.
           </p>
 
-          {/* CTAs */}
+          {/* CTAs — one solid amber key, one ghost */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 w-full sm:w-auto px-4 sm:px-0">
             <a
               href={APP_STORE_URL}
@@ -170,9 +165,9 @@ export const Home: React.FC = () => {
               <Button
                 id="download"
                 size="lg"
-                className="w-full h-14 sm:h-16 px-8 bg-primary hover:bg-primary/90 text-white rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-[0_0_30px_-5px_var(--color-primary)]/40 gap-3 group"
+                className="w-full h-14 sm:h-15 px-8 bg-signal hover:bg-signal text-ink rounded-xl font-display font-bold text-base sm:text-lg transition-transform hover:-translate-y-0.5 shadow-[0_4px_0_0_var(--signal-deep)] active:translate-y-0 active:shadow-[0_2px_0_0_var(--signal-deep)] gap-3 group"
               >
-                <Download className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+                <Download className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
                 Download on the App Store
               </Button>
             </a>
@@ -180,29 +175,27 @@ export const Home: React.FC = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="w-full h-14 sm:h-16 px-8 bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur-md rounded-2xl font-bold text-base sm:text-lg transition-all text-white gap-2"
+                className="w-full h-14 sm:h-15 px-7 bg-transparent hover:bg-white/5 border-border rounded-xl font-mono text-sm transition-all text-foreground gap-2.5"
               >
-                <Zap className="w-4 h-4 text-primary" />
-                AI Setup
+                <span className="keycap h-6 px-2 text-xs">⌘</span>
+                curl AI setup
               </Button>
             </a>
           </div>
 
-          {/* Interactive Demo Toggle */}
-          <div className="mt-12 animate-in fade-in duration-1000 delay-500">
-            <button
-              onClick={() => setIsPrivate(!isPrivate)}
-              className={cn(
-                "flex items-center gap-2.5 px-5 py-2.5 rounded-full border transition-all duration-500 font-medium text-sm",
-                isPrivate
-                  ? "bg-purple-500/10 border-purple-500/30 text-purple-400 shadow-[0_0_20px_-5px_rgba(168,85,247,0.3)]"
-                  : "bg-muted/30 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
-              )}
-            >
-              <Eye className={cn("w-4 h-4", isPrivate && "animate-pulse")} />
-              {isPrivate ? "Private Mode Active" : "Try Private Mode"}
-            </button>
-          </div>
+          {/* Interactive Demo Toggle — a real key */}
+          <button
+            onClick={() => setIsPrivate(!isPrivate)}
+            className={cn(
+              "mt-11 flex items-center gap-3 px-4 py-2 rounded-lg border font-mono text-sm transition-all duration-300 animate-in fade-in duration-1000 delay-500",
+              isPrivate
+                ? "border-signal/40 text-signal bg-signal/5"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <span className={cn("keycap h-6 w-6 text-xs", isPrivate && "keycap-active")}>P</span>
+            {isPrivate ? "private mode on" : "try private mode"}
+          </button>
         </div>
 
         {/* Simulated Link Click & Unified Panel Mockup */}
@@ -509,14 +502,9 @@ export const Home: React.FC = () => {
         {/* Feature Grid */}
         <section className="container mx-auto px-4 mt-20 max-w-6xl z-10">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-primary/20 text-primary"
-              >
-                Powerful
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Profiles</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 Profile Support
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -526,14 +514,9 @@ export const Home: React.FC = () => {
                 App Store build).
               </p>
             </Card>
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-green-500/20 text-green-500"
-              >
-                Fast
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Speed</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 Keyboard First
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -541,14 +524,9 @@ export const Home: React.FC = () => {
                 for lightning-fast link routing.
               </p>
             </Card>
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-amber-500/20 text-amber-500"
-              >
-                Secure
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Rules</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 Master-Detail Rules
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -557,14 +535,9 @@ export const Home: React.FC = () => {
               </p>
             </Card>
 
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-blue-500/20 text-blue-500"
-              >
-                Workflow
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Workflow</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 Focus Mode
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -572,14 +545,9 @@ export const Home: React.FC = () => {
                 Hour or Until Tomorrow right from the menu bar.
               </p>
             </Card>
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-purple-500/20 text-purple-500"
-              >
-                Privacy
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Privacy</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 URL Unshortener
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -587,14 +555,9 @@ export const Home: React.FC = () => {
                 shortlinks (like bit.ly) before routing them.
               </p>
             </Card>
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-teal-500/20 text-teal-500"
-              >
-                Automation
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Automation</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 Instant Rules
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -602,14 +565,9 @@ export const Home: React.FC = () => {
                 Recent URLs can be converted into permanent rules instantly with pre-filled patterns.
               </p>
             </Card>
-            <Card className="bg-card/40 border-border/50 p-8 transition-all hover:bg-card/60 hover:scale-[1.02] group backdrop-blur-sm">
-              <Badge
-                variant="outline"
-                className="mb-4 border-pink-500/20 text-pink-500"
-              >
-                Personal
-              </Badge>
-              <h3 className="text-xl font-bold text-foreground mb-3 font-sans">
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Appearance</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
                 Make It Yours
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
@@ -627,15 +585,12 @@ export const Home: React.FC = () => {
           className="container mx-auto px-4 mt-32 max-w-4xl z-10 scroll-mt-32"
         >
           <header className="text-center space-y-6 mb-16 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <Badge
-              variant="outline"
-              className="bg-primary/10 border-primary/20 text-primary gap-1.5 py-1 px-3"
-            >
+            <span className="eyebrow inline-flex items-center gap-1.5">
               <Sparkles className="w-3 h-3" />
               AI-Enhanced Setup
-            </Badge>
-            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">
-              Let AI Configure Chowser
+            </span>
+            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-foreground">
+              Let AI configure Chowser
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
               Automate browser profile discovery and rule generation — your AI
@@ -651,7 +606,7 @@ export const Home: React.FC = () => {
               <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex shadow-lg">
                 1
               </div>
-              <Card className="bg-card/50 border-border/50 overflow-hidden relative transition-all hover:bg-card/60 flex flex-col lg:flex-row">
+              <Card className="panel-hard overflow-hidden relative flex flex-col lg:flex-row">
                 <div className="p-6 sm:p-8 flex-1 space-y-4 sm:space-y-6 relative z-10">
                   <h3 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                     <Terminal className="w-5 h-5 text-primary" />
@@ -749,7 +704,7 @@ export const Home: React.FC = () => {
               <div className="absolute -left-4 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex shadow-lg">
                 2
               </div>
-              <Card className="bg-card/50 border-border/50 overflow-hidden relative transition-all hover:bg-card/60 flex flex-col lg:flex-row">
+              <Card className="panel-hard overflow-hidden relative flex flex-col lg:flex-row">
                 <div className="p-6 sm:p-8 flex-1 space-y-4 sm:space-y-6 relative z-10">
                   <h3 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                     <Wand2 className="w-5 h-5 text-purple-400" />

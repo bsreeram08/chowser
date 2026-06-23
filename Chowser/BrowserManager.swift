@@ -82,6 +82,11 @@ extension BrowserRoutingRule {
         static let pickerIconSizeKey = "pickerIconSize"
         static let pickerShowLabelsKey = "pickerShowLabels"
         static let pickerLayoutModeKey = "pickerLayoutMode"
+        static let pickerAppearanceModeKey = "pickerAppearanceMode"
+        static let pickerTintHexKey = "pickerTintHex"
+        static let pickerBackgroundOpacityKey = "pickerBackgroundOpacity"
+        static let pickerCornerRadiusKey = "pickerCornerRadius"
+        static let pickerAccentHexKey = "pickerAccentHex"
         static let densityPreferenceKey = "densityPreference"
         static let skipExistingImportedRulesKey = "skipExistingImportedRules"
         static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
@@ -170,6 +175,41 @@ extension BrowserRoutingRule {
     var pickerLayoutMode: String = "icons" {
         didSet {
             defaults.set(pickerLayoutMode, forKey: Constants.pickerLayoutModeKey)
+        }
+    }
+
+    /// Picker appearance mode: "auto" (native glass/material) or "custom" (user-tuned surface).
+    var pickerAppearanceMode: String = "auto" {
+        didSet {
+            defaults.set(pickerAppearanceMode, forKey: Constants.pickerAppearanceModeKey)
+        }
+    }
+
+    /// Hex tint washed over the picker panel in custom mode. Empty = no tint.
+    var pickerTintHex: String = "" {
+        didSet {
+            defaults.set(pickerTintHex, forKey: Constants.pickerTintHexKey)
+        }
+    }
+
+    /// Picker surface opacity in custom mode (0.2...1.0).
+    var pickerBackgroundOpacity: Double = 0.85 {
+        didSet {
+            defaults.set(pickerBackgroundOpacity, forKey: Constants.pickerBackgroundOpacityKey)
+        }
+    }
+
+    /// Picker panel corner radius (8...28). Applies in both modes.
+    var pickerCornerRadius: Double = 16 {
+        didSet {
+            defaults.set(pickerCornerRadius, forKey: Constants.pickerCornerRadiusKey)
+        }
+    }
+
+    /// Hex accent override for selection/shortcut highlights. Empty = system accent.
+    var pickerAccentHex: String = "" {
+        didSet {
+            defaults.set(pickerAccentHex, forKey: Constants.pickerAccentHexKey)
         }
     }
 
@@ -276,12 +316,19 @@ extension BrowserRoutingRule {
         #endif
     }
 
+    /// Browser profiles & custom launch arguments are supported in BOTH builds.
+    /// Direct build delivers them via `/usr/bin/open --args`; the sandboxed App Store
+    /// build delivers them via `NSWorkspace.OpenConfiguration.arguments` (sandbox-allowed).
+    /// Only private/incognito mode stays gated to direct builds (see the flag above),
+    /// because the App Store build intentionally avoids that launch path.
+    static var supportsBrowserProfilesInCurrentBuild: Bool { true }
+
     private static func normalizedProfileForCurrentBuild(_ profile: String?) -> String? {
-        supportsApplicationLaunchArgumentsInCurrentBuild ? profile : nil
+        supportsBrowserProfilesInCurrentBuild ? profile : nil
     }
 
     private static func normalizedCustomArgumentsForCurrentBuild(_ customArguments: String?) -> String? {
-        supportsApplicationLaunchArgumentsInCurrentBuild ? customArguments : nil
+        supportsBrowserProfilesInCurrentBuild ? customArguments : nil
     }
 
     private static func normalizedPrivateModeForCurrentBuild(_ usePrivateMode: Bool) -> Bool {
@@ -483,11 +530,23 @@ extension BrowserRoutingRule {
     }
 
     func updateBrowserCustomArguments(id: UUID, to args: String) {
-        guard Self.supportsApplicationLaunchArgumentsInCurrentBuild else { return }
+        guard Self.supportsBrowserProfilesInCurrentBuild else { return }
         guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = args.isEmpty ? nil : args
         if configuredBrowsers[index].customArguments != trimmed {
             configuredBrowsers[index].customArguments = trimmed
+        }
+    }
+
+    /// Sets a browser's profile-directory string. Sandbox can't always auto-detect
+    /// profiles, so this allows manual entry (and the MCP agent) to set it directly.
+    func updateBrowserProfile(id: UUID, to profile: String) {
+        guard Self.supportsBrowserProfilesInCurrentBuild else { return }
+        guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = profile.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.isEmpty ? nil : trimmed
+        if configuredBrowsers[index].profile != normalized {
+            configuredBrowsers[index].profile = normalized
         }
     }
 
@@ -1117,23 +1176,35 @@ extension BrowserRoutingRule {
         "company.thebrowser.browser",
     ]
 
+    /// Human-readable rendering engine for UI badges: "Chromium", "Firefox", or nil.
+    static func browserEngineLabel(forBundleID bundleId: String) -> String? {
+        switch browserFamily(for: bundleId) {
+        case .chromium: return "Chromium"
+        case .firefox: return "Firefox"
+        case .other: return nil
+        }
+    }
+
     private static func browserFamily(for bundleId: String) -> BrowserFamily {
-        if bundleId.localizedCaseInsensitiveContains("Chrome") ||
-           bundleId.localizedCaseInsensitiveContains("Brave") ||
-           bundleId.localizedCaseInsensitiveContains("Edge") ||
-           bundleId.localizedCaseInsensitiveContains("Vivaldi") ||
-           bundleId.localizedCaseInsensitiveContains("Arc") ||
-           bundleId.localizedCaseInsensitiveContains("company.thebrowser") ||
-           bundleId.localizedCaseInsensitiveContains("Chromium") ||
-           bundleId.localizedCaseInsensitiveContains("Opera") {
+        // Chromium-family browsers accept --profile-directory.
+        let chromiumMarkers = [
+            "Chrome", "Brave", "Edge", "Vivaldi", "Arc", "company.thebrowser", // Arc + Dia
+            "Chromium", "Opera", "Comet", "perplexity",                        // Perplexity Comet
+            "Thorium", "Helium", "Wavebox", "Sidekick", "naver.whale",         // Whale
+            "SamsungInternet", "Yandex", "Ungoogled", "Maxthon", "Sleipnir",
+        ]
+        if chromiumMarkers.contains(where: { bundleId.localizedCaseInsensitiveContains($0) }) {
             return .chromium
         }
-        if bundleId.localizedCaseInsensitiveContains("Firefox") ||
-           bundleId.localizedCaseInsensitiveContains("Zen") ||
-           bundleId.localizedCaseInsensitiveContains("LibreWolf") ||
-           bundleId.localizedCaseInsensitiveContains("Waterfox") {
+        // Firefox-family browsers accept -P <profile>.
+        let firefoxMarkers = [
+            "Firefox", "Zen", "LibreWolf", "Waterfox", "Floorp",
+            "Mullvad", "Basilisk", "palemoon", "pale-moon", "torproject", "IceCat",
+        ]
+        if firefoxMarkers.contains(where: { bundleId.localizedCaseInsensitiveContains($0) }) {
             return .firefox
         }
+        // Note: Orion (Kagi) and Safari are WebKit-based — no profile-arg support.
         return .other
     }
 
@@ -1198,15 +1269,17 @@ extension BrowserRoutingRule {
             url: url,
             profile: profile,
             customArguments: customArgs,
-            usePrivateMode: usePrivateMode,
+            usePrivateMode: Self.normalizedPrivateModeForCurrentBuild(usePrivateMode),
             mode: launchMode
         )
 
         #if APP_STORE
-        // Sandboxed callers cannot reliably deliver OpenConfiguration.arguments.
-        // Use NSWorkspace only for reliable app-bundle selection and document delivery.
+        // Sandbox can pass launch arguments via OpenConfiguration.arguments (e.g.
+        // --profile-directory). Reliable for a fresh instance; Chromium handoff to an
+        // already-running instance may still ignore them — same ceiling as Velja.
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = plan.createsNewApplicationInstance
+        configuration.arguments = plan.deliveredApplicationArguments
         NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
             if let error = error {
                 print("Chowser: Failed to open URL (Sandboxed): \(error)")
@@ -1260,7 +1333,10 @@ extension BrowserRoutingRule {
         let filteredArguments = requestedArguments.filter { argument in
             !documentURLs.contains { $0.absoluteString == argument }
         }
-        let appArgumentsSupported = mode == .directDownload
+        // Both builds can deliver launch arguments: the direct build via
+        // `/usr/bin/open --args`, the sandboxed App Store build via
+        // `NSWorkspace.OpenConfiguration.arguments`.
+        let appArgumentsSupported = true
         let deliveredArguments = appArgumentsSupported ? filteredArguments : []
 
         return BrowserLaunchPlan(
@@ -1452,6 +1528,22 @@ extension BrowserRoutingRule {
             if allowedDensities.contains(density) {
                 densityPreference = density
             }
+        }
+        if let mode = defaults.string(forKey: Constants.pickerAppearanceModeKey),
+           ["auto", "custom"].contains(mode) {
+            pickerAppearanceMode = mode
+        }
+        if let tint = defaults.string(forKey: Constants.pickerTintHexKey) {
+            pickerTintHex = tint
+        }
+        if defaults.object(forKey: Constants.pickerBackgroundOpacityKey) != nil {
+            pickerBackgroundOpacity = min(1.0, max(0.2, defaults.double(forKey: Constants.pickerBackgroundOpacityKey)))
+        }
+        if defaults.object(forKey: Constants.pickerCornerRadiusKey) != nil {
+            pickerCornerRadius = min(28, max(8, defaults.double(forKey: Constants.pickerCornerRadiusKey)))
+        }
+        if let accent = defaults.string(forKey: Constants.pickerAccentHexKey) {
+            pickerAccentHex = accent
         }
     }
 

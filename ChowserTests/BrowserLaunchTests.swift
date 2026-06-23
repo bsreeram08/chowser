@@ -167,23 +167,22 @@ struct BrowserLaunchTests {
         #expect(plan.directOpenArguments == ["-n", "-a", appURL.path, url.absoluteString, "--args", "--profile-directory=Profile 1"])
     }
 
-    @Test("App Store launch plan keeps browser selection and URL reliable but does not deliver app arguments")
-    func appStoreLaunchPlanDoesNotClaimArgumentSupport() {
+    @Test("App Store launch plan delivers profile arguments via NSWorkspace (not the direct-open tool)")
+    func appStoreLaunchPlanDeliversProfileArguments() {
         let plan = BrowserManager.launchPlan(
             forBundleID: "com.google.Chrome",
             appURL: appURL,
             url: url,
             profile: "Profile 1",
             customArguments: nil,
-            usePrivateMode: true,
+            usePrivateMode: false, // private mode stays gated off in App Store builds
             mode: .appStoreSandbox
         )
 
-        #expect(!plan.applicationArgumentsSupported)
-        #expect(!plan.usesDirectOpenTool)
+        #expect(plan.applicationArgumentsSupported)
+        #expect(!plan.usesDirectOpenTool) // sandbox never shells out to /usr/bin/open
         #expect(plan.documentURLs == [url])
-        #expect(plan.requestedApplicationArguments == ["--incognito", "--profile-directory=Profile 1"])
-        #expect(plan.deliveredApplicationArguments.isEmpty)
+        #expect(plan.deliveredApplicationArguments == ["--profile-directory=Profile 1"])
         #expect(plan.createsNewApplicationInstance)
     }
 

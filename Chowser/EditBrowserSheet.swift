@@ -6,6 +6,7 @@ struct EditBrowserSheet: View {
     @Binding var isPresented: Bool
 
     @State private var editingName: String
+    @State private var editingProfile: String
     @State private var editingCustomArgs: String
 
     init(browser: BrowserConfig, manager: BrowserManager, isPresented: Binding<Bool>) {
@@ -13,6 +14,7 @@ struct EditBrowserSheet: View {
         self.manager = manager
         self._isPresented = isPresented
         self._editingName = State(initialValue: browser.name)
+        self._editingProfile = State(initialValue: browser.profile ?? "")
         self._editingCustomArgs = State(initialValue: browser.customArguments ?? "")
     }
 
@@ -66,16 +68,19 @@ struct EditBrowserSheet: View {
                             .textSelection(.enabled)
                     }
 
-                    if let profile = browser.profile {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Profile")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            Text(profile)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                                .textSelection(.enabled)
-                        }
+                    // Profile — editable so it can be set manually when auto-detection
+                    // is unavailable (e.g. the sandboxed App Store build).
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Profile")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        TextField("Optional — e.g. Default, Profile 1, Work", text: $editingProfile)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11, design: .monospaced))
+                            .accessibilityIdentifier("settings.editBrowser.profileField")
+                        Text("Chromium profile directory name (\"Default\", \"Profile 1\", …) or a Firefox profile name. Leave blank for the default profile.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                     }
 
                     // Custom Args
@@ -86,11 +91,8 @@ struct EditBrowserSheet: View {
                         TextField("Optional — e.g. --profile-directory={profile} {url}", text: $editingCustomArgs)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
-                            .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
                             .accessibilityIdentifier("settings.editBrowser.argsField")
-                        Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
-                             ? "Placeholders: {url}, {profile}. If omitted, URL is appended at the end."
-                             : "App Store builds can choose browser apps, but macOS does not deliver custom launch arguments from sandboxed apps.")
+                        Text("Placeholders: {url}, {profile}. If omitted, URL is appended at the end.")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
@@ -119,9 +121,8 @@ struct EditBrowserSheet: View {
 
                 Button("Save Changes") {
                     manager.updateBrowserName(id: browser.id, to: editingName.trimmingCharacters(in: .whitespacesAndNewlines))
-                    if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
-                        manager.updateBrowserCustomArguments(id: browser.id, to: editingCustomArgs.trimmingCharacters(in: .whitespacesAndNewlines))
-                    }
+                    manager.updateBrowserProfile(id: browser.id, to: editingProfile)
+                    manager.updateBrowserCustomArguments(id: browser.id, to: editingCustomArgs.trimmingCharacters(in: .whitespacesAndNewlines))
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)

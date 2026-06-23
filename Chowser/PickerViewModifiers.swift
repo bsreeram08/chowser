@@ -7,7 +7,7 @@ private enum PickerGlassStyle {
     static let inlineCardCornerRadius: CGFloat = 12
 
     /// User-tunable panel corner radius (falls back to 16 if unset/invalid).
-    static var panelCornerRadius: CGFloat {
+    @MainActor static var panelCornerRadius: CGFloat {
         CGFloat(BrowserManager.shared.pickerCornerRadius)
     }
 }
@@ -33,14 +33,14 @@ extension Color {
     }
 
     /// Accent used for picker highlights — user override or system accent.
-    static var pickerAccent: Color {
+    @MainActor static var pickerAccent: Color {
         let hex = BrowserManager.shared.pickerAccentHex
         return hex.isEmpty ? .accentColor : (Color(hex: hex) ?? .accentColor)
     }
 
     /// Accent adjusted to stay legible as TEXT/icons on the dark picker panel: if the
     /// chosen accent is too dark, raise its lightness (HSB) keeping hue/saturation.
-    static var pickerAccentText: Color {
+    @MainActor static var pickerAccentText: Color {
         let ns = NSColor(pickerAccent).usingColorSpace(.sRGB) ?? .white
         var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         ns.getHue(&h, saturation: &s, brightness: &b, alpha: &a)

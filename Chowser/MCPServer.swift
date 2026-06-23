@@ -23,6 +23,7 @@
 import Foundation
 import Network
 import Observation
+import AppKit
 
 @MainActor
 @Observable
@@ -289,13 +290,19 @@ final class MCPServer {
                     "method": "GET", "path": "/browsers",
                     "auth": true,
                     "description": "List all configured browsers. Requires Authorization: Bearer <token>.",
-                    "response_fields": ["id", "name", "bundleId", "shortcutKey", "profile?", "customArguments?"],
+                    "response_fields": ["id", "name", "bundleId", "shortcutKey", "profile?", "customArguments?", "privateArguments?"],
                 ],
                 [
                     "method": "POST", "path": "/browsers",
                     "auth": true,
-                    "description": "Add a new browser, or update an existing one (matched by bundleId + profile). Returns 201 on create, 200 on update.",
-                    "body_fields": ["name (required)", "bundleId (required)", "profile?", "shortcutKey?", "customArguments?"],
+                    "description": "Add a new browser, or update an existing one (matched by bundleId + profile). Returns 201/200. AGENT GUIDANCE: to make a browser open the right profile and a private/incognito window reliably, research that specific browser's actual launch arguments (web-search the exact CLI flags) and set them here. `customArguments` is the normal-launch template; `privateArguments` is the private/incognito template. Both support {profile} and {url} placeholders ({url} optional — if omitted the URL is appended). Examples: Chrome/Brave/Edge → customArguments \"--profile-directory={profile}\", privateArguments \"--incognito --profile-directory={profile}\"; Firefox/Zen → customArguments \"-P {profile}\", privateArguments \"-private -P {profile}\". These are STORED in every build and APPLIED at launch in the direct-download build. The App Store (sandboxed) build attempts them but macOS may strip launch arguments (`launchArgumentsSupported:false` signals this).",
+                    "body_fields": ["name (required)", "bundleId (required)", "profile? (Chromium profile-directory name or Firefox profile name)", "shortcutKey?", "customArguments? (normal-launch arg template)", "privateArguments? (private/incognito arg template)"],
+                ],
+                [
+                    "method": "POST", "path": "/browsers/preview",
+                    "auth": true,
+                    "description": "DRY-RUN: resolve exactly how a launch would be framed for a browser + args, WITHOUT launching. Use this to verify researched arguments before saving: send the candidate profile/customArguments/privateArguments, read back the exact `command` string and `deliveredArguments`, then ask the user to confirm it opens the right profile/window. Returns mode, command, requestedArguments, deliveredArguments, launchArgumentsSupported, and a note.",
+                    "body_fields": ["bundleId (required)", "profile?", "customArguments?", "privateArguments?", "usePrivateMode? (default false)", "url? (default https://example.com)"],
                 ],
                 [
                     "method": "DELETE", "path": "/browsers",
@@ -344,6 +351,7 @@ final class MCPServer {
                 ]
                 if let profile = browser.profile { dict["profile"] = profile }
                 if let args = browser.customArguments { dict["customArguments"] = args }
+                if let args = browser.privateArguments { dict["privateArguments"] = args }
                 return dict
             }
             return httpResponse(status: 200, body: ["browsers": browsers])
@@ -353,6 +361,12 @@ final class MCPServer {
                 return httpResponse(status: 400, body: ["error": "Missing request body"])
             }
             return handleAddOrUpdateBrowser(body: body, manager: manager)
+
+        case ("POST", "/browsers/preview"):
+            guard let body = body else {
+                return httpResponse(status: 400, body: ["error": "Missing request body"])
+            }
+            return handleBrowserLaunchPreview(body: body, manager: manager)
 
         case ("DELETE", "/browsers"):
             guard let idStr = queryParams["id"], let uuid = UUID(uuidString: idStr) else {
@@ -414,14 +428,21 @@ final class MCPServer {
         let profile = json["profile"] as? String
         let shortcutKey = json["shortcutKey"] as? String
         let customArguments = json["customArguments"] as? String
+        let privateArguments = json["privateArguments"] as? String
 
         let identity = "\(bundleId)|\(profile ?? "")"
 
         if let existingIndex = manager.configuredBrowsers.firstIndex(where: { $0.identity == identity }) {
-            // Update existing browser
+            // Update existing browser. The local API can force profile/custom/private args
+            // in every build (the App Store UI keeps manual entry, this forces it for
+            // agents). They persist; they apply at launch in the direct-download build.
             manager.configuredBrowsers[existingIndex].name = name
+            manager.configuredBrowsers[existingIndex].profile = profile
             if let args = customArguments {
-                manager.updateBrowserCustomArguments(id: manager.configuredBrowsers[existingIndex].id, to: args)
+                manager.configuredBrowsers[existingIndex].customArguments = args.isEmpty ? nil : args
+            }
+            if let args = privateArguments {
+                manager.configuredBrowsers[existingIndex].privateArguments = args.isEmpty ? nil : args
             }
             if let key = shortcutKey {
                 manager.updateShortcutKey(id: manager.configuredBrowsers[existingIndex].id, to: key)
@@ -434,8 +455,14 @@ final class MCPServer {
         } else {
             // Add new browser
             manager.addBrowser(name: name, bundleId: bundleId, shortcutKey: shortcutKey, profile: profile)
-            if let newBrowser = manager.configuredBrowsers.last, let args = customArguments {
-                manager.updateBrowserCustomArguments(id: newBrowser.id, to: args)
+            if let newBrowser = manager.configuredBrowsers.last,
+               let newIndex = manager.configuredBrowsers.firstIndex(where: { $0.id == newBrowser.id }) {
+                if let args = customArguments, !args.isEmpty {
+                    manager.configuredBrowsers[newIndex].customArguments = args
+                }
+                if let args = privateArguments, !args.isEmpty {
+                    manager.configuredBrowsers[newIndex].privateArguments = args
+                }
             }
             let addedId = manager.configuredBrowsers.last?.id.uuidString ?? "unknown"
             return httpResponse(status: 201, body: [
@@ -444,6 +471,69 @@ final class MCPServer {
                 "launchArgumentsSupported": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild,
             ])
         }
+    }
+
+    /// Dry-run: resolve exactly how a launch would be framed for the given browser/args,
+    /// WITHOUT launching. Lets an agent show the user the precise command and confirm.
+    private func handleBrowserLaunchPreview(body: Data, manager: BrowserManager) -> Data {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let bundleId = json["bundleId"] as? String else {
+            return httpResponse(status: 400, body: ["error": "Invalid JSON. Required field: bundleId"])
+        }
+
+        let profile = json["profile"] as? String
+        let customArguments = json["customArguments"] as? String
+        let privateArguments = json["privateArguments"] as? String
+        let usePrivateMode = json["usePrivateMode"] as? Bool ?? false
+        let urlString = json["url"] as? String ?? "https://example.com"
+        guard let url = URL(string: urlString) else {
+            return httpResponse(status: 400, body: ["error": "Invalid url", "url": urlString])
+        }
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
+            return httpResponse(status: 404, body: ["error": "App not found for bundleId", "bundleId": bundleId])
+        }
+
+        #if APP_STORE
+        let mode = BrowserManager.BrowserLaunchMode.appStoreSandbox
+        #else
+        let mode = BrowserManager.BrowserLaunchMode.directDownload
+        #endif
+
+        let plan = BrowserManager.launchPlan(
+            forBundleID: bundleId,
+            appURL: appURL,
+            url: url,
+            profile: profile,
+            customArguments: customArguments,
+            privateArguments: privateArguments,
+            usePrivateMode: usePrivateMode,
+            mode: mode
+        )
+
+        let command: String
+        if plan.usesDirectOpenTool {
+            command = "/usr/bin/open " + plan.directOpenArguments.joined(separator: " ")
+        } else {
+            let argsDesc = plan.deliveredApplicationArguments.isEmpty
+                ? "(no extra arguments)"
+                : plan.deliveredApplicationArguments.joined(separator: " ")
+            command = "NSWorkspace.open([\(url.absoluteString)]) app=\(appURL.path) arguments=[\(argsDesc)]"
+        }
+
+        return httpResponse(status: 200, body: [
+            "bundleId": bundleId,
+            "appPath": appURL.path,
+            "mode": mode == .directDownload ? "directDownload" : "appStoreSandbox",
+            "usePrivateMode": usePrivateMode,
+            "argumentType": plan.argumentType ?? "default",
+            "requestedArguments": plan.requestedApplicationArguments,
+            "deliveredArguments": plan.deliveredApplicationArguments,
+            "command": command,
+            "launchArgumentsSupported": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild,
+            "note": BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                ? "Arguments are delivered via /usr/bin/open and applied reliably."
+                : "Sandboxed build: macOS may ignore these arguments at launch. Verify by testing.",
+        ])
     }
 
     private func handleAddOrUpdateRule(body: Data, manager: BrowserManager) -> Data {

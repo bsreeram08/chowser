@@ -167,26 +167,39 @@ struct BrowserLaunchTests {
         #expect(plan.directOpenArguments == ["-n", "-a", appURL.path, url.absoluteString, "--args", "--profile-directory=Profile 1"])
     }
 
-    @Test("App Store launch plan delivers no app arguments (sandbox ignores them)")
-    func appStoreLaunchPlanDeliversNoArguments() {
+    @Test("App Store launch plan attempts arguments via NSWorkspace (macOS may drop them)")
+    func appStoreLaunchPlanAttemptsArguments() {
         let plan = BrowserManager.launchPlan(
             forBundleID: "com.google.Chrome",
             appURL: appURL,
             url: url,
             profile: "Profile 1",
             customArguments: nil,
-            usePrivateMode: true,
+            usePrivateMode: false,
             mode: .appStoreSandbox
         )
 
-        // macOS strips OpenConfiguration.arguments from sandboxed callers, so the App
-        // Store build cannot deliver --profile-directory. It opens the app + URL only.
-        #expect(!plan.applicationArgumentsSupported)
+        // The plan carries the args (delivered via OpenConfiguration.arguments); whether
+        // the sandbox honors them is up to macOS. It never shells out to /usr/bin/open.
+        #expect(plan.applicationArgumentsSupported)
         #expect(!plan.usesDirectOpenTool)
         #expect(plan.documentURLs == [url])
-        #expect(plan.requestedApplicationArguments == ["--incognito", "--profile-directory=Profile 1"])
-        #expect(plan.deliveredApplicationArguments.isEmpty)
+        #expect(plan.deliveredApplicationArguments == ["--profile-directory=Profile 1"])
         #expect(plan.createsNewApplicationInstance)
+    }
+
+    @Test("Per-browser private arguments template overrides the built-in private flag")
+    func privateArgumentsTemplateWins() {
+        let info = BrowserManager.launchInfo(
+            forBundleID: "com.google.Chrome",
+            profile: "Work",
+            customArguments: "--profile-directory={profile}",
+            privateArguments: "--incognito --profile-directory={profile}",
+            url: url,
+            usePrivateMode: true
+        )
+        #expect(info?.arguments == ["--incognito", "--profile-directory=Work"])
+        #expect(info?.type == "custom-private")
     }
 
     @Test("Other browsers use reliable NSWorkspace document opening without special args")

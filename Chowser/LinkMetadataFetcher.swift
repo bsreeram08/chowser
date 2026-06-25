@@ -16,10 +16,20 @@ struct LinkMetadata: Equatable {
 }
 
 enum LinkMetadataFetcher {
+    /// Outcome of a preview fetch.
+    enum Result: Equatable {
+        case metadata(LinkMetadata)
+        case unavailable(Int)  // server replied with an HTTP error (e.g. 404, 500)
+        case failed            // couldn't reach the host / timed out — cause unknown
+    }
+
     /// Fetches metadata for `url`, following redirects. Uses an ephemeral session (no
-    /// cookies) to limit tracking. Returns nil on failure/timeout.
-    static func fetch(_ url: URL, timeout: TimeInterval = 6) async -> LinkMetadata? {
-        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
+    /// cookies) to limit tracking.
+    ///
+    /// Caller should skip likely single-use links before calling (see `isLikelySingleUse`):
+    /// a GET would burn the one-time token server-side before the user picks a browser.
+    static func fetch(_ url: URL, timeout: TimeInterval = 6) async -> Result {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return .failed }
 
         var request = URLRequest(url: url)
         request.timeoutInterval = timeout
@@ -35,11 +45,74 @@ enum LinkMetadataFetcher {
         config.timeoutIntervalForResource = timeout
         let session = URLSession(configuration: config)
 
-        guard let (data, response) = try? await session.data(for: request) else { return nil }
+        guard let (data, response) = try? await session.data(for: request) else { return .failed }
+        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+            return .unavailable(http.statusCode)
+        }
         let finalURL = response.url ?? url
-        // Parse only the head-ish prefix; metadata lives near the top.
-        let html = String(decoding: data.prefix(400_000), as: UTF8.self)
-        return parse(html: html, finalURL: finalURL)
+        // Decode a generous prefix: og: tags usually sit in <head>, but heavy pages
+        // (e.g. YouTube) emit ~600KB of inline JSON before them. 1MB covers those
+        // without parsing entire multi-MB documents.
+        let html = String(decoding: data.prefix(1_000_000), as: UTF8.self)
+        return .metadata(parse(html: html, finalURL: finalURL))
+    }
+
+    /// Heuristic: does this URL look like a one-time/auth link whose token a preview
+    /// GET would consume? Biased toward skipping — losing a preview is harmless; burning
+    /// a magic link is not.
+    // ponytail: keyword heuristic, leaky by design. Upgrade path: per-host allow/deny
+    // list if false positives (benign pages skipped) or misses (tokens still burned) bite.
+    static func isLikelySingleUse(_ url: URL) -> Bool {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+
+        // 1. A token-ish query param — almost always one-time. Deliberately NOT "code"
+        //    (coupon/affiliate/error codes) or bare "verify"/"confirm" (too common benign);
+        //    real OAuth carries "code" with a /callback or /oauth path, caught by rule 3.
+        let tokenParams: Set<String> = [
+            "token", "otp", "magic", "secret", "signature", "sig",
+            "nonce", "jwt", "ticket", "access_token", "oauth_token", "oauth_verifier",
+            "id_token", "confirmation_token", "reset_token", "verification_token",
+        ]
+        if let items = components.queryItems,
+           items.contains(where: { tokenParams.contains($0.name.lowercased()) }) {
+            return true
+        }
+
+        let segments = components.percentEncodedPath.lowercased().split(separator: "/").map(String.init)
+
+        // 2. Path keywords that mean a one-time flow on their own (no benign reading).
+        let standalonePathKeywords: Set<String> = [
+            "callback", "oauth", "unsubscribe",
+            "magic-link", "magiclink", "magic_link", "email-confirm", "confirm-email",
+        ]
+        if segments.contains(where: { standalonePathKeywords.contains($0) }) { return true }
+
+        // 3. An auth/verification path word that is *qualified* — either followed by a
+        //    sub-segment (`/verify/<id>`, `/auth/cli/<uuid>`) or sitting next to an opaque
+        //    token. A bare trailing word (`shop.com/reset`, `docs/sso`) is left previewable,
+        //    since it's just as likely a product or docs page. Bias: when a word looks like
+        //    a flow, skip — burning a one-time link is worse than losing a preview.
+        let tokenedPathKeywords: Set<String> = [
+            "auth", "authorize", "authorization", "login", "signin", "sign-in", "session", "token",
+            "verify", "confirm", "reset", "reset-password", "activate", "activation",
+            "invitation", "invite", "sso", "magic",
+        ]
+        let lastIndex = segments.count - 1
+        let hasOpaqueToken = segments.contains(where: isOpaqueToken)
+        for (i, seg) in segments.enumerated() where tokenedPathKeywords.contains(seg) {
+            if i < lastIndex || hasOpaqueToken { return true }
+        }
+
+        return false
+    }
+
+    /// A path segment that looks like a random secret: a UUID, a long hex string, or a
+    /// long opaque alphanumeric token. Used only alongside an auth-flow keyword.
+    private static func isOpaqueToken(_ s: String) -> Bool {
+        if s.count == 36, UUID(uuidString: s) != nil { return true }
+        if s.count >= 16, s.allSatisfy(\.isHexDigit) { return true }
+        if s.count >= 20, s.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) { return true }
+        return false
     }
 
     /// Pure parser, separated from networking so it can be unit-tested offline.

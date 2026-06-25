@@ -58,12 +58,15 @@ struct PickerPanelSurfaceModifier: ViewModifier {
     func body(content: Content) -> some View {
         let radius = PickerGlassStyle.panelCornerRadius
         if manager.pickerAppearanceMode == "custom" && !reduceTransparency {
-            // User-tuned surface: solid tint/window color whose alpha IS the opacity slider,
-            // so 100% = solid panel and low values let the desktop show through.
+            // Glassy translucent surface: ultraThinMaterial blurs the desktop (the "glass"),
+            // a colored veil sits over it for the tint. The veil's alpha IS the opacity
+            // slider, so dragging transparency up genuinely lets the desktop show through —
+            // which `.glassEffect`'s fixed-density material can't do.
             let tint = Color(hex: manager.pickerTintHex)
-            let fill = (tint ?? Color(nsColor: .windowBackgroundColor)).opacity(manager.pickerBackgroundOpacity)
+            let veil = (tint ?? Color(nsColor: .windowBackgroundColor)).opacity(manager.pickerBackgroundOpacity)
             content
-                .background(fill)
+                .background(veil)               // colored veil, directly behind content
+                .background(.ultraThinMaterial) // glass blur, behind the veil
                 .clipShape(.rect(cornerRadius: radius))
                 .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
                 .padding(1)

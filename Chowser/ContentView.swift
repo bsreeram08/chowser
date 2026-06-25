@@ -25,8 +25,22 @@ struct ContentView: View {
     @State private var isUnshortening = false
     @State private var unshorteningError: String? = nil
     @State private var runningBundleIDs: Set<String> = []
-    @State private var linkMetadata: LinkMetadata?
-    @State private var loadingPreview = false
+    /// Link-preview lifecycle. One value at a time — no impossible combos.
+    enum PreviewState {
+        case idle
+        case loading
+        case skippedSingleUse  // one-time link; fetching would burn the token
+        case unavailable(Int)  // server returned an HTTP error (e.g. 404)
+        case noPreview         // reached, but no usable metadata (JSON/API/bare page)
+        case loaded(LinkMetadata)
+
+        var metadata: LinkMetadata? {
+            if case let .loaded(meta) = self { return meta }
+            return nil
+        }
+    }
+
+    @State private var previewState: PreviewState = .idle
     @State private var previewTask: Task<Void, Never>?
 
     private var pickerColorSchemeOverride: ColorScheme? {
@@ -192,7 +206,7 @@ struct ContentView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Text(linkMetadata?.finalURL.host ?? url.host ?? url.absoluteString)
+            Text(previewState.metadata?.finalURL.host ?? url.host ?? url.absoluteString)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
@@ -252,7 +266,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private var previewRow: some View {
-        if loadingPreview {
+        switch previewState {
+        case .idle:
+            EmptyView()
+        case .loading:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text("Loading preview…")
@@ -261,7 +278,39 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             .transition(.opacity)
-        } else if let meta = linkMetadata, meta.isMeaningful {
+        case .skippedSingleUse:
+            HStack(spacing: 8) {
+                Image(systemName: "lock.shield")
+                    .foregroundStyle(.secondary)
+                Text("Preview skipped — looks like a one-time link. Loading it here could use it up before your browser opens.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        case let .unavailable(code):
+            HStack(spacing: 8) {
+                Image(systemName: unavailableIcon(code))
+                    .foregroundStyle(.secondary)
+                Text(unavailableMessage(code))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        case .noPreview:
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .foregroundStyle(.secondary)
+                Text("No preview available for this link.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        case let .loaded(meta):  // assignment only stores meaningful metadata here
             HStack(alignment: .top, spacing: 10) {
                 previewThumbnail(meta)
                 VStack(alignment: .leading, spacing: 2) {
@@ -326,21 +375,46 @@ struct ContentView: View {
             .foregroundStyle(.secondary)
     }
 
+    /// 401/403 mean "sign-in required", not broken — the link opens fine in the user's
+    /// signed-in browser; only our cookie-less preview fetch is refused.
+    private func unavailableMessage(_ code: Int) -> String {
+        switch code {
+        case 401, 403: return "No preview — this link needs you to be signed in. It’ll open normally in your browser."
+        case 404, 410: return "Page not found (\(code)) — this link may no longer be available."
+        default: return "This page may not be available (HTTP \(code))."
+        }
+    }
+
+    private func unavailableIcon(_ code: Int) -> String {
+        switch code {
+        case 401, 403: return "lock"
+        default: return "exclamationmark.triangle"
+        }
+    }
+
     private func loadLinkPreview(for url: URL?) {
         previewTask?.cancel()
-        loadingPreview = false
-        withAnimation(.easeOut(duration: 0.2)) { linkMetadata = nil }
+        withAnimation(.easeOut(duration: 0.2)) { previewState = .idle }
         guard browserManager.showLinkPreview, let url else { return }
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
-        loadingPreview = true
+        // Single-use links: don't fetch (would burn the token) and tell the user why.
+        if LinkMetadataFetcher.isLikelySingleUse(url) {
+            withAnimation(.easeOut(duration: 0.2)) { previewState = .skippedSingleUse }
+            return
+        }
+        previewState = .loading
         previewTask = Task {
-            let meta = await LinkMetadataFetcher.fetch(url)
+            let result = await LinkMetadataFetcher.fetch(url)
             if Task.isCancelled { return }
             await MainActor.run {
                 guard browserManager.currentURL == url else { return }
                 withAnimation(.easeOut(duration: 0.2)) {
-                    linkMetadata = meta
-                    loadingPreview = false
+                    switch result {
+                    case let .metadata(meta) where meta.isMeaningful: previewState = .loaded(meta)
+                    case .metadata: previewState = .noPreview  // reached, but nothing worth showing
+                    case let .unavailable(code): previewState = .unavailable(code)
+                    case .failed: previewState = .noPreview    // couldn't reach / not a web page
+                    }
                 }
             }
         }
@@ -721,7 +795,9 @@ struct ContentView: View {
             ForEach(keys, id: \.self) { key in
                 Text(key)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(isAccent ? Color.pickerAccentText : (isActive ? Color.purple : Color.primary.opacity(0.6)))
+                    // Key glyph = the "shortcut badge"; all of them honor the accent
+                    // (purple only while a toggle like Private is active).
+                    .foregroundStyle(isActive ? Color.purple : Color.pickerAccentText)
                     .fixedSize()
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)

@@ -2,6 +2,19 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.7.2] - 2026-06-25
+
+### Fixed
+- **Link preview no longer burns one-time links.** Clicking a magic-login, OAuth callback, email-confirm, or other single-use link used to silently fetch it for the preview — consuming the token before your browser opened, so the real click landed on "already used." The preview now detects these and skips the fetch, showing why instead.
+- **Previews load for big pages like YouTube.** The preview only scanned the first 400KB of a page; sites that emit a large script blob before their metadata (YouTube puts it ~630KB in) came back blank. Now scans up to 1MB.
+
+### Added
+- **Honest preview states.** Instead of a blank panel, the picker now says what happened: "needs sign-in" for links behind a login (401/403), "page not found" for dead links (404), and "no preview available" for API/JSON endpoints and bare pages.
+
+### Changed
+- **Accent color now applies to every shortcut badge** (Esc, H, R), not just Launch.
+- **Custom picker surface is translucent glass.** The custom tint used a flat fill that ignored the transparency slider; it's now a frosted-glass surface whose tint and see-through both respond to the slider.
+
 ## [3.7.1] - 2026-06-24
 
 ### Added

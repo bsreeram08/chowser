@@ -245,6 +245,35 @@ export const Home: React.FC = () => {
           </div>
         </section>
 
+        {/* ── Problem / solution strip ── */}
+        <section className="max-w-3xl mx-auto px-6 pb-16 sm:pb-20 text-center">
+          <p className="font-display text-xl sm:text-2xl font-medium tracking-tight text-foreground">
+            Tired of links opening in the{" "}
+            <span className="line-through decoration-muted-foreground/50 decoration-2 text-muted-foreground">
+              wrong
+            </span>{" "}
+            browser?
+          </p>
+          <div className="mt-7 flex flex-col sm:flex-row items-stretch justify-center gap-3 text-left">
+            <div className="flex-1 rounded-2xl border border-dashed border-black/[0.18] px-5 py-4">
+              <div className="eyebrow !text-muted-foreground mb-2">Without</div>
+              <p className="text-[15px] text-muted-foreground leading-relaxed">
+                click → wrong browser → copy → paste → right browser
+              </p>
+            </div>
+            <div className="hidden sm:flex items-center text-muted-foreground/40 text-xl shrink-0">
+              →
+            </div>
+            <div className="flex-1 rounded-2xl border border-primary/20 bg-primary/[0.04] px-5 py-4">
+              <div className="eyebrow mb-2">With Chowser</div>
+              <p className="text-[15px] text-foreground leading-relaxed font-medium">
+                click → right browser.{" "}
+                <span className="text-primary">done.</span>
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* ── Product mockup on a soft gradient desktop ── */}
         <section id="demo" className="max-w-5xl mx-auto px-6">
           <div
@@ -627,21 +656,63 @@ export const Home: React.FC = () => {
           id="agentic-setup"
           className="max-w-4xl mx-auto px-6 mt-8 mb-28 scroll-mt-28"
         >
-          <header className="text-center space-y-5 mb-14">
+          <header className="text-center space-y-5 mb-12">
             <span className="eyebrow inline-flex items-center gap-1.5">
               <Sparkles className="w-3 h-3" />
-              AI-Enhanced Setup
+              AI-Powered Setup
             </span>
             <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-foreground">
-              Let AI configure Chowser
+              Describe your workflow.
+              <br />
+              We'll write the rules.
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
-              Automate browser profile discovery and rule generation — your AI
-              agent can research each browser's profile and private-window launch
-              arguments, preview the exact command, and set them for you. Paste
-              the prompt into your favorite AI agent to get started.
+              Tell your AI agent how you work. It discovers your browsers and
+              profiles, previews the exact launch commands, and writes the
+              routing rules for you.
             </p>
           </header>
+
+          {/* Workflow → rules visual (the hook) */}
+          <div className="max-w-2xl mx-auto mb-16">
+            <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-4 shadow-sm flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-primary mt-1 shrink-0" />
+              <p className="text-[15px] sm:text-base text-foreground leading-relaxed italic">
+                “Work stuff in Chrome Work, design in Arc, everything else asks
+                me”
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5 py-3 text-muted-foreground">
+              <span className="text-lg leading-none">↓</span>
+              <span className="eyebrow !text-muted-foreground">generates</span>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { pattern: "*.slack.com", target: "Chrome Work" },
+                { pattern: "github.com/*", target: "Chrome Work" },
+                { pattern: "figma.com/*", target: "Arc" },
+                { pattern: "*", target: "show picker" },
+              ].map((rule, i) => (
+                <div
+                  key={rule.pattern}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl border border-black/[0.06] bg-[#f5f5f7] px-4 py-2.5 font-mono text-[13px] transition-all duration-500",
+                    aiDemoStep >= i + 2
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-2",
+                  )}
+                >
+                  <span className="text-foreground">{rule.pattern}</span>
+                  <span className="text-muted-foreground/60">→</span>
+                  <span className="text-primary font-medium">
+                    {rule.target}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="grid gap-6">
             {/* Step 1 */}

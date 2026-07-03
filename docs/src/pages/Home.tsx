@@ -7,7 +7,6 @@ import {
   Link as LinkIcon,
   Plus,
   Copy,
-  Globe,
   Zap,
   Shield,
   Search,
@@ -17,11 +16,82 @@ import {
   Wand2,
   Smartphone,
   MousePointer2,
+  Briefcase,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const APP_STORE_URL = "https://apps.apple.com/in/app/chowser/id6760034779";
+
+/* Demo browser tiles — CSS-drawn app icons so they read as real browsers,
+   not placeholder glyphs. Work/Personal are profile tiles (briefcase/user). */
+const DEMO_BROWSERS = [
+  { name: "Chrome", key: "1", kind: "chrome" },
+  { name: "Safari", key: "2", kind: "safari" },
+  { name: "Work", key: "3", kind: "work" },
+  { name: "Personal", key: "4", kind: "personal" },
+] as const;
+
+type DemoBrowserKind = (typeof DEMO_BROWSERS)[number]["kind"];
+
+const BrowserTileArt: React.FC<{ kind: DemoBrowserKind; size?: number }> = ({
+  kind,
+  size = 54,
+}) => {
+  const base =
+    "rounded-[15px] grid place-items-center shadow-[0_6px_16px_rgba(0,0,0,0.18)] relative overflow-hidden";
+  const px = { width: size, height: size };
+  if (kind === "chrome")
+    return (
+      <div
+        className={base}
+        style={{
+          ...px,
+          background:
+            "conic-gradient(from -45deg, #ea4335 0 25%, #fbbc05 25% 50%, #34a853 50% 75%, #4285f4 75% 100%)",
+        }}
+      >
+        <div className="w-[42%] h-[42%] bg-white rounded-full grid place-items-center shadow-inner">
+          <div className="w-[62%] h-[62%] rounded-full bg-[#4285f4]" />
+        </div>
+      </div>
+    );
+  if (kind === "safari")
+    return (
+      <div
+        className={base}
+        style={{ ...px, background: "linear-gradient(160deg,#3edcff,#1275f8)" }}
+      >
+        <div className="w-[68%] h-[68%] rounded-full border-[2.5px] border-white/85 grid place-items-center">
+          <div
+            className="w-[52%] h-[52%] rotate-45"
+            style={{
+              background: "linear-gradient(to bottom, #ff3b30 50%, #ffffff 50%)",
+              clipPath: "polygon(50% 0%, 78% 50%, 50% 100%, 22% 50%)",
+            }}
+          />
+        </div>
+      </div>
+    );
+  if (kind === "work")
+    return (
+      <div
+        className={base}
+        style={{ ...px, background: "linear-gradient(135deg,#ff9500,#ff2d55)" }}
+      >
+        <Briefcase className="w-[46%] h-[46%] text-white drop-shadow-sm" />
+      </div>
+    );
+  return (
+    <div
+      className={base}
+      style={{ ...px, background: "linear-gradient(135deg,#7b5cff,#47c7ff)" }}
+    >
+      <UserRound className="w-[48%] h-[48%] text-white drop-shadow-sm" />
+    </div>
+  );
+};
 
 /* Colorful QR glyph — the only saturated element on the page (pure CSS). */
 const QrGlyph = () => (
@@ -178,14 +248,14 @@ export const Home: React.FC = () => {
         {/* ── Product mockup on a soft gradient desktop ── */}
         <section id="demo" className="max-w-5xl mx-auto px-6">
           <div
-            className="rounded-[20px] px-6 sm:px-10 py-20 sm:py-24 flex justify-center shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] relative overflow-hidden"
+            className="rounded-[20px] px-6 sm:px-10 py-14 sm:py-16 flex justify-center shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] relative overflow-hidden"
             style={{
               background:
                 "radial-gradient(1200px 500px at 30% 0%, #cfe3ff 0%, transparent 60%), radial-gradient(900px 500px at 80% 100%, #ffd9c8 0%, transparent 55%), linear-gradient(160deg, #e8ecf4 0%, #dde5f0 100%)",
             }}
           >
             <div
-              className="relative flex justify-center w-full h-[300px]"
+              className="relative flex justify-center w-full h-[290px]"
               onMouseEnter={() => setUserInteracted(true)}
               onClick={() => setUserInteracted(true)}
             >
@@ -256,13 +326,13 @@ export const Home: React.FC = () => {
               {/* The Chowser picker panel — frosted white */}
               <div
                 className={cn(
-                  "flex flex-col w-full max-w-[360px] sm:max-w-[400px] mx-auto rounded-[18px] absolute origin-center overflow-hidden transition-all duration-700 backdrop-blur-[30px] shadow-[0_30px_70px_rgba(20,30,60,0.25),inset_0_0_0_1px_rgba(255,255,255,0.6)]",
+                  "flex flex-col w-full max-w-[380px] sm:max-w-[480px] mx-auto rounded-[18px] absolute origin-center overflow-hidden transition-all duration-700 backdrop-blur-[30px] shadow-[0_30px_70px_rgba(20,30,60,0.25),inset_0_0_0_1px_rgba(255,255,255,0.6)]",
                   isPrivate
                     ? "bg-[#eef1ff]/85 ring-1 ring-primary/15"
                     : "bg-white/72",
                   demoStep >= 4
-                    ? "opacity-100 scale-100 translate-y-0"
-                    : "opacity-0 scale-90 translate-y-8 pointer-events-none",
+                    ? "opacity-100 scale-100 top-1/2 -translate-y-1/2"
+                    : "opacity-0 scale-90 top-1/2 -translate-y-[42%] pointer-events-none",
                 )}
               >
                 {/* Header: URL bar + mini actions */}
@@ -348,58 +418,21 @@ export const Home: React.FC = () => {
                         </p>
                       </div>
                       <div className="flex gap-4">
-                        {[
-                          {
-                            name: "Safari",
-                            color: "bg-[#006CFF]",
-                            icon: <Globe className="w-4 h-4" />,
-                          },
-                          {
-                            name: "Firefox",
-                            color: "bg-[#FF6611]",
-                            icon: <Shield className="w-4 h-4" />,
-                          },
-                          {
-                            name: "Chrome",
-                            color: "bg-[#4285F4]",
-                            icon: <Zap className="w-4 h-4" />,
-                          },
-                        ].map((browser) => (
+                        {DEMO_BROWSERS.map((browser) => (
                           <button
                             key={browser.name}
                             onClick={() => handleBrowserSelect(browser.name)}
-                            className={cn(
-                              "w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95 shadow-md",
-                              browser.color,
-                            )}
+                            className="transition-all hover:scale-110 active:scale-95"
+                            title={browser.name}
                           >
-                            {browser.icon}
+                            <BrowserTileArt kind={browser.kind} size={40} />
                           </button>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-start justify-center gap-5 px-4 py-6 w-full">
-                      {[
-                        {
-                          name: "Safari",
-                          color: "bg-[#006CFF]",
-                          icon: <Globe className="w-5 h-5" />,
-                          key: "1",
-                        },
-                        {
-                          name: "Firefox",
-                          color: "bg-[#FF6611]",
-                          icon: <Shield className="w-5 h-5 opacity-70" />,
-                          key: "2",
-                        },
-                        {
-                          name: "Chrome",
-                          color: "bg-[#4285F4]",
-                          icon: <Zap className="w-5 h-5" />,
-                          key: "3",
-                        },
-                      ].map((browser, i) => (
+                    <div className="flex items-start justify-center gap-6 sm:gap-7 px-5 py-7 w-full">
+                      {DEMO_BROWSERS.map((browser, i) => (
                         <div
                           key={browser.name}
                           className="flex flex-col items-center gap-2 group/browser cursor-pointer"
@@ -407,22 +440,17 @@ export const Home: React.FC = () => {
                         >
                           <div
                             className={cn(
-                              "w-[56px] h-[56px] rounded-2xl flex items-center justify-center relative transition-all duration-300",
+                              "p-[5px] rounded-[19px] relative transition-all duration-300",
                               selectedBrowser === browser.name ||
                                 (!selectedBrowser && i === 0)
                                 ? "bg-black/[0.06] ring-1 ring-black/10 scale-105"
                                 : "hover:bg-black/[0.04]",
                             )}
                           >
-                            <div
-                              className={cn(
-                                "w-[40px] h-[40px] rounded-xl flex items-center justify-center text-white shadow-lg transition-transform duration-300 group-hover/browser:scale-110",
-                                browser.color,
-                              )}
-                            >
-                              {browser.icon}
+                            <div className="transition-transform duration-300 group-hover/browser:scale-105">
+                              <BrowserTileArt kind={browser.kind} />
                             </div>
-                            <span className="absolute -bottom-1 -right-1 z-20 text-[10px] font-bold font-mono text-white bg-[#1d1d1f] rounded-md px-1.5 py-0.5 leading-none shadow-sm">
+                            <span className="absolute -bottom-1 -right-1 z-20 text-[10px] font-bold font-mono text-white bg-[#1d1d1f] rounded-md px-1.5 py-0.5 leading-none shadow-md">
                               {browser.key}
                             </span>
                           </div>

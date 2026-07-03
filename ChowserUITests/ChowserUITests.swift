@@ -139,6 +139,28 @@ final class ChowserUITests: XCTestCase {
         ui.assertBrowserSelectionRecorded()
     }
 
+    func testSendToIPhoneActionMenu() throws {
+        let ui = ChowserAppDriver(app: app)
+        ui.assertPickerVisible()
+
+        XCTAssertTrue(ui.sendToIPhoneButton.waitForExistence(timeout: 5), "Send to iPhone button should exist for a transferable URL.")
+        ui.sendToIPhoneButton.click()
+
+        XCTAssertTrue(ui.iphoneAirDropButton.waitForExistence(timeout: 5), "AirDrop action should appear in the Send to iPhone menu.")
+        XCTAssertTrue(ui.iphoneShowQRCodeButton.waitForExistence(timeout: 5), "Show QR Code action should appear in the Send to iPhone menu.")
+        XCTAssertTrue(ui.iphoneCopyURLButton.waitForExistence(timeout: 5), "Copy URL action should appear in the Send to iPhone menu.")
+        XCTAssertTrue(ui.iphoneHandoffStatusText.waitForExistence(timeout: 5), "Handoff explanation text should appear in the Send to iPhone menu.")
+
+        ui.iphoneShowQRCodeButton.click()
+
+        XCTAssertTrue(ui.iphoneQRSheet.waitForExistence(timeout: 5), "QR sheet should be visible after choosing Show QR Code.")
+        XCTAssertTrue(ui.iphoneQRImage.waitForExistence(timeout: 5), "QR image should be visible in the QR sheet.")
+        XCTAssertTrue(ui.iphoneQRURLText.waitForExistence(timeout: 5), "URL text should be visible in the QR sheet.")
+        XCTAssertTrue(ui.iphoneQRCloseButton.waitForExistence(timeout: 5), "Close button should be visible in the QR sheet.")
+
+        ui.iphoneQRCloseButton.click()
+    }
+
     // MARK: - Profile-Aware Tests
 
     func testAddBrowserSheetShowsProfileEntries() throws {
@@ -287,6 +309,25 @@ private struct ChowserAppDriver {
 
     var firstPickerBrowserRow: XCUIElement {
         app.descendants(matching: .any).matching(identifier: "picker.browserRow").firstMatch
+    }
+
+    var sendToIPhoneButton: XCUIElement { app.buttons["picker.sendToIPhoneButton"] }
+    var iphoneAirDropButton: XCUIElement { app.buttons["iphoneAction.airDropButton"] }
+    var iphoneShowQRCodeButton: XCUIElement { app.buttons["iphoneAction.showQRCodeButton"] }
+    var iphoneCopyURLButton: XCUIElement { app.buttons["iphoneAction.copyURLButton"] }
+    var iphoneHandoffStatusText: XCUIElement { app.staticTexts["iphoneAction.handoffStatusText"] }
+    var iphoneQRCloseButton: XCUIElement { app.buttons["iphoneQR.closeButton"] }
+
+    var iphoneQRSheet: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "iphoneQR.sheet").firstMatch
+    }
+
+    var iphoneQRImage: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "iphoneQR.image").firstMatch
+    }
+
+    var iphoneQRURLText: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "iphoneQR.urlText").firstMatch
     }
 
     var addRuleButton: XCUIElement {

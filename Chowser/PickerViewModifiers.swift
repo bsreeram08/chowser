@@ -38,6 +38,20 @@ extension Color {
         return hex.isEmpty ? .accentColor : (Color(hex: hex) ?? .accentColor)
     }
 
+    /// Pleasant fallback so the QR looks good out of the box — deliberately NOT the raw
+    /// system accent, which can be Graphite/gray and looks dull against a white card.
+    private static let defaultQRAccent = Color(red: 0.33, green: 0.24, blue: 0.94)
+
+    /// Color used for "Send to Phone" QR code modules — user override, else a
+    /// user-customized picker accent (if set), else a fixed pleasant default.
+    @MainActor static var qrCodeAccent: Color {
+        let hex = BrowserManager.shared.qrCodeAccentHex
+        if !hex.isEmpty, let custom = Color(hex: hex) { return custom }
+        let pickerHex = BrowserManager.shared.pickerAccentHex
+        if !pickerHex.isEmpty, let custom = Color(hex: pickerHex) { return custom }
+        return defaultQRAccent
+    }
+
     /// Accent adjusted to stay legible as TEXT/icons on the dark picker panel: if the
     /// chosen accent is too dark, raise its lightness (HSB) keeping hue/saturation.
     @MainActor static var pickerAccentText: Color {

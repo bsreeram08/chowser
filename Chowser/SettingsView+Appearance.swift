@@ -145,9 +145,31 @@ extension SettingsView {
                                 }
                             }
                         }
+                        SettingsRow(title: "QR Code Color", subtitle: "Color of the \"Send to Phone\" QR code. Defaults to the accent color.") {
+                            HStack(spacing: 8) {
+                                ColorPicker("", selection: qrCodeColorBinding, supportsOpacity: false)
+                                    .labelsHidden()
+                                if !manager.qrCodeAccentHex.isEmpty {
+                                    Button("Use Accent") { manager.qrCodeAccentHex = "" }
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
                     }
                 }
             }
+        )
+    }
+
+    /// QR color falls back to the effective picker accent (not raw system accent), so the
+    /// swatch matches what actually renders when no override is set.
+    private var qrCodeColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                let hex = browserManager.qrCodeAccentHex
+                return hex.isEmpty ? Color.qrCodeAccent : (Color(hex: hex) ?? Color.qrCodeAccent)
+            },
+            set: { browserManager.qrCodeAccentHex = $0.toHex }
         )
     }
 

@@ -57,3 +57,5 @@ target/
 .forgecouncil
 # Coverage artifacts
 *.profraw
+.gstack/
+.sisyphus/

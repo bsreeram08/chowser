@@ -34,6 +34,7 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Quick Rule Creation** — Press `R` in the picker to instantly build a routing rule
 - **Domain Frequency Tracking** — Suggests auto-routing rules after you repeatedly open a domain in the same browser
 - **Clipboard URL** — Open URLs from your clipboard via the menu bar
+- **Send to Phone** — Transfer the current link by AirDrop, QR code, or copy, with best-effort Handoff support
 - **Rule Portability** — Import/Export both browser configs and routing rules as JSON
 - **Hidden Apps** — Hide non-browser apps that register as web handlers
 - **Menu Bar App** — Runs silently in the background, no Dock icon

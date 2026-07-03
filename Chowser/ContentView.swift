@@ -7,6 +7,8 @@
 
 import SwiftUI
 import AppKit
+import CoreImage
+import os
 
 struct ContentView: View {
     var browserManager = BrowserManager.shared
@@ -25,6 +27,11 @@ struct ContentView: View {
     @State private var isUnshortening = false
     @State private var unshorteningError: String? = nil
     @State private var runningBundleIDs: Set<String> = []
+    @State private var showingPhoneActionMenu = false
+    @State private var showingPhoneQRSheet = false
+    @State private var phoneMenuSelectedIndex = 0
+    @State private var showingShortcutsInfo = false
+    @State private var phoneHandoffAdapter = PhoneLinkHandoffAdapter()
     /// Link-preview lifecycle. One value at a time — no impossible combos.
     enum PreviewState {
         case idle
@@ -98,12 +105,7 @@ struct ContentView: View {
                     emptyStatePill
                 } else {
                     browserBarPill
-                }
-
-                // Keyboard hints row — footer
-                if !browserManager.configuredBrowsers.isEmpty {
-                    Divider().opacity(0.5)
-                    keyboardHintsRow
+                    shortcutsInfoRow
                 }
 
                 // Hidden test label for UI tests
@@ -133,6 +135,7 @@ struct ContentView: View {
             .onChange(of: browserManager.currentURL) {
                 syncPrivateModeRequest()
                 loadLinkPreview(for: browserManager.currentURL)
+                syncPhoneHandoff()
             }
             .onChange(of: browserManager.currentURLPrivateModeRequested) {
                 syncPrivateModeRequest()
@@ -147,6 +150,7 @@ struct ContentView: View {
         syncPrivateModeRequest()
         runningBundleIDs = BrowserManager.runningBrowserBundleIDs()
         loadLinkPreview(for: browserManager.currentURL)
+        syncPhoneHandoff()
 
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
             appeared = true
@@ -168,9 +172,16 @@ struct ContentView: View {
                 ) { _ in
                     dismissTask?.cancel()
                     let work = DispatchWorkItem {
+                        // Popovers (Send to Phone menu, QR, shortcuts help) take key
+                        // status from the panel — that's not the user leaving, so don't
+                        // tear the picker down under them.
+                        if showingPhoneActionMenu || showingPhoneQRSheet || showingShortcutsInfo { return }
                         if let w = NSApp.windows.first(where: {
                             $0.identifier?.rawValue == "picker" && $0.isVisible
                         }), !w.isKeyWindow, w.attachedSheet == nil {
+                            // Key window being one of the panel's children (e.g. a
+                            // popover window) also counts as still-focused.
+                            if let key = NSApp.keyWindow, w.childWindows?.contains(key) == true { return }
                             dismissPicker()
                         }
                     }
@@ -191,10 +202,23 @@ struct ContentView: View {
         dismissTask = nil
         previewTask?.cancel()
         previewTask = nil
+        phoneHandoffAdapter.stop()
     }
 
     private func syncPrivateModeRequest() {
         privateMode = supportsPrivateLaunchMode && browserManager.currentURLPrivateModeRequested
+    }
+
+    /// Best-effort Handoff advertising, scoped to the picker's current URL — starts/updates
+    /// while a valid HTTP(S) URL is showing, stops otherwise. `startOrUpdate` itself is a
+    /// no-op for non-HTTP(S) URLs, so no extra validation is needed here.
+    private func syncPhoneHandoff() {
+        // Never broadcast a link the user marked private to every iCloud-paired device.
+        if let url = browserManager.currentURL, !browserManager.currentURLPrivateModeRequested, !effectivePrivateMode {
+            phoneHandoffAdapter.startOrUpdate(url)
+        } else {
+            phoneHandoffAdapter.stop()
+        }
     }
 
     // MARK: - URL Bubble
@@ -252,6 +276,32 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .help("Copy URL (⌘C)")
                 .accessibilityLabel("Copy URL")
+
+                if !PhoneLinkTransferManager.shared.availableActions(for: url).isEmpty {
+                    Button(action: { openPhoneActionMenu(url: url) }) {
+                        Image(systemName: "iphone")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(effectivePrivateMode ? Color.purple.opacity(0.8) : Color.secondary)
+                            .padding(6)
+                            .pickerInteractiveMiniButton()
+                    }
+                    .buttonStyle(.plain)
+                    .help("\(PhoneLinkTransferManager.Strings.buttonLabel) (I)")
+                    .accessibilityIdentifier("picker.sendToIPhoneButton")
+                    .accessibilityLabel(PhoneLinkTransferManager.Strings.buttonLabel)
+                    .popover(isPresented: $showingPhoneActionMenu, arrowEdge: .top) {
+                        phoneActionMenu(url: url)
+                            .presentationBackground(.ultraThinMaterial)
+                    }
+                    .popover(isPresented: $showingPhoneQRSheet, arrowEdge: .top) {
+                        PhoneQRPanelView(
+                            url: url,
+                            faviconURL: previewState.metadata?.faviconURL,
+                            onClose: { showingPhoneQRSheet = false }
+                        )
+                        .presentationBackground(.ultraThinMaterial)
+                    }
+                }
             }
         }
 
@@ -262,6 +312,264 @@ struct ContentView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .accessibilityIdentifier("picker.urlDisplay")
+    }
+
+    // MARK: - Send to Phone
+
+    private struct PhoneMenuAction {
+        let title: String
+        let systemImage: String
+        let identifier: String
+        let perform: () -> Void
+    }
+
+    private func phoneMenuActions(url: URL) -> [PhoneMenuAction] {
+        [
+            PhoneMenuAction(title: "AirDrop…", systemImage: "square.and.arrow.up", identifier: "iphoneAction.airDropButton") {
+                if PhoneLinkAirDropAdapter().share(url) == .unavailable {
+                    NSSound.beep()
+                }
+            },
+            PhoneMenuAction(title: "Show QR Code", systemImage: "qrcode", identifier: "iphoneAction.showQRCodeButton") {
+                showingPhoneQRSheet = true
+            },
+            PhoneMenuAction(title: "Copy URL", systemImage: "doc.on.clipboard", identifier: "iphoneAction.copyURLButton") {
+                PhoneLinkPasteboardAdapter().copy(url)
+            },
+        ]
+    }
+
+    /// Opens the Send to Phone menu. Also briefly activates the app: macOS only
+    /// advertises Handoff (NSUserActivity) for the frontmost app, and Chowser's
+    /// non-activating panel never makes us frontmost on its own — without this,
+    /// the Handoff advertisement silently never appears on nearby devices. Scoped
+    /// to this explicit user action so the URL-open flow stays non-activating.
+    private func openPhoneActionMenu(url: URL) {
+        phoneMenuSelectedIndex = 0
+        showingPhoneActionMenu = true
+        guard !isPreview, !AppEnvironment.isUITesting else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        if !browserManager.currentURLPrivateModeRequested && !effectivePrivateMode {
+            phoneHandoffAdapter.startOrUpdate(url)
+        }
+    }
+
+    private func activatePhoneMenuSelection(url: URL) {
+        let actions = phoneMenuActions(url: url)
+        guard actions.indices.contains(phoneMenuSelectedIndex) else { return }
+        showingPhoneActionMenu = false
+        actions[phoneMenuSelectedIndex].perform()
+    }
+
+    @ViewBuilder
+    private func phoneActionMenu(url: URL) -> some View {
+        let actions = phoneMenuActions(url: url)
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(actions.enumerated()), id: \.offset) { index, item in
+                phoneMenuButton(
+                    title: item.title,
+                    systemImage: item.systemImage,
+                    identifier: item.identifier,
+                    isSelected: phoneMenuSelectedIndex == index
+                ) {
+                    phoneMenuSelectedIndex = index
+                    showingPhoneActionMenu = false
+                    item.perform()
+                }
+                .onHover { hovering in
+                    if hovering { phoneMenuSelectedIndex = index }
+                }
+            }
+
+            Divider().padding(.vertical, 4)
+
+            Text(PhoneLinkTransferManager.Strings.handoffExplanation)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 2)
+                .accessibilityIdentifier("iphoneAction.handoffStatusText")
+        }
+        .padding(10)
+        .frame(width: 240)
+    }
+
+    private func phoneMenuButton(title: String, systemImage: String, identifier: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? Color.primary.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(title)
+    }
+
+    /// Self-contained QR popover content. Generates the QR code in its own init — at
+    /// the moment the popover presents — so it never depends on `@State` written from
+    /// the action-menu popover's separate hosting view. That cross-window state handoff
+    /// was the "fails the first time, works the second" bug: the QR popover could
+    /// present before it observed the menu popover's state write.
+    private struct PhoneQRPanelView: View {
+        let url: URL
+        let faviconURL: URL?
+        let onClose: () -> Void
+
+        private let qrResult: Result<PhoneLinkQRCode, Swift.Error>
+        @State private var faviconImage: NSImage?
+        @State private var faviconAccent: Color?
+
+        init(url: URL, faviconURL: URL?, onClose: @escaping () -> Void) {
+            self.url = url
+            self.faviconURL = faviconURL
+            self.onClose = onClose
+            self.qrResult = Result { try PhoneLinkQRGenerator().makeQRCode(for: url) }
+        }
+
+        var body: some View {
+            VStack(spacing: 16) {
+                HStack {
+                    Text(PhoneLinkTransferManager.Strings.buttonLabel)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 0)
+                    Button(action: onClose) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("iphoneQR.closeButton")
+                    .accessibilityLabel("Close")
+                }
+
+                switch qrResult {
+                case .success(let qrCode):
+                    VStack(spacing: 10) {
+                        ZStack {
+                            effectiveAccent
+                                .mask(
+                                    Image(nsImage: qrCode.maskImage)
+                                        .interpolation(.none)
+                                        .resizable()
+                                )
+                                .frame(width: 200, height: 200)
+
+                            if let faviconImage {
+                                Image(nsImage: faviconImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 26, height: 26)
+                                    .padding(7)
+                                    .background(Circle().fill(Color.white))
+                                    .shadow(color: .black.opacity(0.2), radius: 4, y: 1)
+                            }
+                        }
+                        .frame(width: 220, height: 220)
+                        .padding(18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color.white)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
+                        .accessibilityIdentifier("iphoneQR.image")
+
+                        Text("Scan with your phone camera")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        Text(url.host ?? url.absoluteString)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .pickerBadgeChip()
+                            .accessibilityIdentifier("iphoneQR.urlText")
+                    }
+                case .failure(let error):
+                    VStack(spacing: 8) {
+                        Text("Couldn't generate a QR code for this link.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Text("\(error) — \(url.absoluteString.prefix(120))")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(width: 220, height: 220)
+                }
+            }
+            .padding(24)
+            .frame(width: 280)
+            .accessibilityIdentifier("iphoneQR.sheet")
+            .task(id: url) {
+                // Favicon is a pure overlay inside the fixed-size QR square — fetching
+                // it asynchronously can't change this panel's layout/size.
+                guard let faviconURL,
+                      let (data, _) = try? await URLSession.shared.data(from: faviconURL),
+                      let image = NSImage(data: data) else { return }
+                faviconImage = image
+                if let dominant = Self.averageColor(of: image) {
+                    faviconAccent = Self.vividAccent(from: dominant)
+                }
+            }
+        }
+
+        /// Explicit user override wins; otherwise prefer the loaded site's own color so
+        /// the QR feels branded to the link, falling back to the picker accent / default.
+        private var effectiveAccent: Color {
+            if !BrowserManager.shared.qrCodeAccentHex.isEmpty { return Color.qrCodeAccent }
+            if let faviconAccent { return faviconAccent }
+            return Color.qrCodeAccent
+        }
+
+        /// Fast dominant-color extraction via Core Image's built-in area-average filter —
+        /// no third-party image-processing dependency needed for a single average pixel.
+        private static func averageColor(of image: NSImage) -> Color? {
+            guard let tiffData = image.tiffRepresentation, let ciImage = CIImage(data: tiffData) else { return nil }
+            let extent = CIVector(cgRect: ciImage.extent)
+            guard let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: ciImage, kCIInputExtentKey: extent]),
+                  let outputImage = filter.outputImage else { return nil }
+
+            var pixel = [UInt8](repeating: 0, count: 4)
+            let context = CIContext(options: [.workingColorSpace: NSNull()])
+            context.render(outputImage, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+            guard pixel[3] > 0 else { return nil }
+            return Color(red: Double(pixel[0]) / 255, green: Double(pixel[1]) / 255, blue: Double(pixel[2]) / 255)
+        }
+
+        /// Boosts a raw sampled color into something legible/punchy as QR modules — a pale
+        /// or washed-out favicon average would otherwise render as a near-invisible QR.
+        private static func vividAccent(from color: Color) -> Color {
+            let ns = NSColor(color).usingColorSpace(.sRGB) ?? .black
+            var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+            ns.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+            let boostedSaturation = max(saturation, 0.5)
+            let clampedBrightness = min(max(brightness, 0.35), 0.65)
+            return Color(nsColor: NSColor(hue: hue, saturation: boostedSaturation, brightness: clampedBrightness, alpha: 1))
+        }
     }
 
     @ViewBuilder
@@ -277,6 +585,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
             }
+            .frame(minHeight: 60, alignment: .leading)
             .transition(.opacity)
         case .skippedSingleUse:
             HStack(spacing: 8) {
@@ -288,6 +597,7 @@ struct ContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
+            .frame(minHeight: 60, alignment: .leading)
             .transition(.opacity)
         case let .unavailable(code):
             HStack(spacing: 8) {
@@ -299,6 +609,7 @@ struct ContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
+            .frame(minHeight: 60, alignment: .leading)
             .transition(.opacity)
         case .noPreview:
             HStack(spacing: 8) {
@@ -309,6 +620,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
             }
+            .frame(minHeight: 60, alignment: .leading)
             .transition(.opacity)
         case let .loaded(meta):  // assignment only stores meaningful metadata here
             HStack(alignment: .top, spacing: 10) {
@@ -758,8 +1070,34 @@ struct ContentView: View {
 
     // MARK: - Keyboard Hints Row
 
-    private var keyboardHintsRow: some View {
-        HStack(spacing: 6) {
+    /// Decluttered footer: a single tiny info affordance instead of a permanently-visible
+    /// row of shortcut chips with its own divider/section. The chips (and their click
+    /// actions) still exist — they're just tucked behind the info popover now, on demand.
+    private var shortcutsInfoRow: some View {
+        HStack {
+            Spacer()
+            Button(action: { showingShortcutsInfo.toggle() }) {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Keyboard shortcuts")
+            .accessibilityIdentifier("picker.shortcutsInfoButton")
+            .popover(isPresented: $showingShortcutsInfo, arrowEdge: .bottom) {
+                shortcutsInfoPopover
+                    .presentationBackground(.ultraThinMaterial)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+        .opacity(appeared ? 1 : 0)
+        .animation(.easeIn(duration: 0.2).delay(0.3), value: appeared)
+    }
+
+    private var shortcutsInfoPopover: some View {
+        VStack(alignment: .leading, spacing: 4) {
             keyHintChip(
                 keys: ["P"],
                 label: "Private",
@@ -775,18 +1113,28 @@ struct ContentView: View {
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil) {
                 if browserManager.currentURL != nil { showingConfigureRule = true }
             }
+            keyHintChip(
+                keys: ["I"],
+                label: "Send to Phone",
+                isDisabled: browserManager.currentURL.map { PhoneLinkTransferManager.shared.availableActions(for: $0).isEmpty } ?? true
+            ) {
+                guard let url = browserManager.currentURL,
+                      !PhoneLinkTransferManager.shared.availableActions(for: url).isEmpty else { return }
+                showingShortcutsInfo = false
+                openPhoneActionMenu(url: url)
+            }
+            keyHintChip(keys: ["1-9"], label: "Open browser")
             keyHintChip(keys: ["Esc"], label: "Close") {
+                showingShortcutsInfo = false
                 if showingConfigureRule { showingConfigureRule = false } else { dismissPicker() }
             }
-            Spacer()
             keyHintChip(keys: ["↵"], label: "Launch", isAccent: true) {
+                showingShortcutsInfo = false
                 _ = openSelectedBrowser(usePrivateMode: effectivePrivateMode)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .opacity(appeared ? 1 : 0)
-        .animation(.easeIn(duration: 0.2).delay(0.3), value: appeared)
+        .padding(10)
+        .frame(width: 210)
     }
 
     @ViewBuilder
@@ -810,6 +1158,7 @@ struct ContentView: View {
                     isAccent ? Color.pickerAccentText :
                         (isActive ? Color.purple : Color.secondary)
                 )
+            Spacer(minLength: 0)
         }
         .opacity(isDisabled ? 0.3 : 1.0)
 
@@ -908,6 +1257,10 @@ struct ContentView: View {
         privateMode = false
         browserManager.currentURLPrivateModeRequested = false
         showingConfigureRule = false
+        showingPhoneActionMenu = false
+        showingPhoneQRSheet = false
+        showingShortcutsInfo = false
+        phoneHandoffAdapter.stop()
         browserManager.currentURL = nil
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue == "picker" {
             window.orderOut(nil)
@@ -966,6 +1319,37 @@ struct ContentView: View {
     private func handlePickerKeyDown(_ event: NSEvent) -> Bool {
         guard isPickerEvent(event) else { return false }
 
+        // Send to Phone menu — while open, arrow keys move selection, Return/digits
+        // activate it, Escape closes it. Swallows everything else so the browser list
+        // underneath can't be triggered by accident.
+        if showingPhoneActionMenu, let url = browserManager.currentURL {
+            // Command shortcuts (Cmd+Q/W/C…) must keep working — only swallow plain keys.
+            if event.modifierFlags.contains(.command) { return false }
+            let actionCount = phoneMenuActions(url: url).count
+            switch event.keyCode {
+            case 53: // escape
+                showingPhoneActionMenu = false
+            case 36, 76: // return / enter
+                activatePhoneMenuSelection(url: url)
+            case 125: // down arrow
+                phoneMenuSelectedIndex = (phoneMenuSelectedIndex + 1) % max(actionCount, 1)
+            case 126: // up arrow
+                phoneMenuSelectedIndex = (phoneMenuSelectedIndex - 1 + actionCount) % max(actionCount, 1)
+            default:
+                if let chars = event.charactersIgnoringModifiers, let number = Int(chars), (1...actionCount).contains(number) {
+                    phoneMenuSelectedIndex = number - 1
+                    activatePhoneMenuSelection(url: url)
+                }
+            }
+            return true
+        }
+
+        // Send to Phone QR sheet — Escape closes it
+        if showingPhoneQRSheet, event.keyCode == 53 {
+            showingPhoneQRSheet = false
+            return true
+        }
+
         // Escape — close sheet if open, otherwise dismiss picker
         if event.keyCode == 53 {
             if showingConfigureRule { showingConfigureRule = false; return true }
@@ -997,6 +1381,11 @@ struct ContentView: View {
                 return true
             case "h", "s":
                 if !isUnshortening, browserManager.currentURL != nil { performManualUnshorten() }
+                return true
+            case "i":
+                guard let url = browserManager.currentURL,
+                      !PhoneLinkTransferManager.shared.availableActions(for: url).isEmpty else { return false }
+                openPhoneActionMenu(url: url)
                 return true
             default:
                 return selectNextBrowser(matchingInitial: letter)

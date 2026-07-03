@@ -247,6 +247,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 let forceShowPicker = NSEvent.modifierFlags.contains(.shift)
                 let route = Self.resolveIncomingURLRoute(for: cleanedURL, using: manager, forceShowPicker: forceShowPicker)
 
+                let routePrivate = (route?.rule?.usePrivateMode ?? false) || clipboardPrivateModeRequested
+                AppLogger.log("Route", "Received \(routePrivate ? "private link" : (cleanedURL.host ?? cleanedURL.absoluteString)) → \(route.map { "rule '\($0.rule?.name ?? "auto")' → \($0.browser.bundleId)" } ?? "picker")")
+
                 if let route {
                     manager.currentURL = nil
                     let usePrivateMode = Self.requestedPrivateModeForIncomingURL(rule: route.rule, forcedPrivateMode: clipboardPrivateModeRequested)

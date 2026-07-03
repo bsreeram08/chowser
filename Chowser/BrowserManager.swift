@@ -88,6 +88,7 @@ extension BrowserRoutingRule {
         static let pickerBackgroundOpacityKey = "pickerBackgroundOpacity"
         static let pickerCornerRadiusKey = "pickerCornerRadius"
         static let pickerAccentHexKey = "pickerAccentHex"
+        static let qrCodeAccentHexKey = "qrCodeAccentHex"
         static let pickerDimInactiveKey = "pickerDimInactive"
         static let pickerColorSchemeKey = "pickerColorScheme"
         static let showLinkPreviewKey = "showLinkPreview"
@@ -214,6 +215,13 @@ extension BrowserRoutingRule {
     var pickerAccentHex: String = "" {
         didSet {
             defaults.set(pickerAccentHex, forKey: Constants.pickerAccentHexKey)
+        }
+    }
+
+    /// Hex color for "Send to Phone" QR code modules. Empty = falls back to pickerAccentHex/system accent.
+    var qrCodeAccentHex: String = "" {
+        didSet {
+            defaults.set(qrCodeAccentHex, forKey: Constants.qrCodeAccentHexKey)
         }
     }
 
@@ -1288,7 +1296,7 @@ extension BrowserRoutingRule {
         }
 
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
-            print("Chowser: App not found for bundle ID: \(bundleId)")
+            AppLogger.error("Launch", "App not found for bundle ID: \(bundleId)")
             return
         }
 
@@ -1313,6 +1321,11 @@ extension BrowserRoutingRule {
             mode: launchMode
         )
 
+        // Private mode means "leave no local record" — log the launch without the destination.
+        AppLogger.log("Launch", usePrivateMode
+            ? "Opening private link in \(bundleId)"
+            : "Opening \(url.host ?? url.absoluteString) in \(bundleId) profile=\(profile ?? "-")")
+
         #if APP_STORE
         // Sandboxed: attempt to pass launch args via OpenConfiguration (macOS may ignore
         // them). Direct build below delivers them reliably via /usr/bin/open --args.
@@ -1321,7 +1334,7 @@ extension BrowserRoutingRule {
         configuration.arguments = plan.deliveredApplicationArguments
         NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
             if let error = error {
-                print("Chowser: Failed to open URL (Sandboxed): \(error)")
+                AppLogger.error("Launch", "Failed to open URL (sandboxed): \(error)")
             }
         }
         #else
@@ -1332,14 +1345,14 @@ extension BrowserRoutingRule {
             do {
                 try process.run()
             } catch {
-                print("Chowser: Failed to launch browser with profile/private arguments: \(error)")
+                AppLogger.error("Launch", "Failed to launch browser with profile/private arguments: \(error)")
             }
         } else {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.createsNewApplicationInstance = plan.createsNewApplicationInstance
             NSWorkspace.shared.open(plan.documentURLs, withApplicationAt: appURL, configuration: configuration) { _, error in
                 if let error = error {
-                    print("Chowser: Failed to open URL: \(error)")
+                    AppLogger.error("Launch", "Failed to open URL: \(error)")
                 }
             }
         }
@@ -1593,6 +1606,9 @@ extension BrowserRoutingRule {
         }
         if let accent = defaults.string(forKey: Constants.pickerAccentHexKey) {
             pickerAccentHex = accent
+        }
+        if let qrAccent = defaults.string(forKey: Constants.qrCodeAccentHexKey) {
+            qrCodeAccentHex = qrAccent
         }
         if defaults.object(forKey: Constants.pickerDimInactiveKey) != nil {
             pickerDimInactiveBrowsers = defaults.bool(forKey: Constants.pickerDimInactiveKey)

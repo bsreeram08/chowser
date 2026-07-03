@@ -156,6 +156,19 @@ extension SettingsView {
                             Spacer()
                         }
                         .padding(14)
+
+                        SettingsDivider()
+
+                        SettingsRow(
+                            title: "Report a Bug",
+                            subtitle: "Collects recent logs — including hostnames of sites Chowser handled — into a report file and opens a GitHub issue. Review the file before attaching it."
+                        ) {
+                            Button("Report a Bug…") {
+                                AppLogger.startBugReport()
+                            }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("settings.reportBugButton")
+                        }
                     }
                 }
             }

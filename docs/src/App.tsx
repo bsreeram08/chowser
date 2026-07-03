@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppIcon } from "./pages/AppIcon";
@@ -6,13 +5,9 @@ import { PrivacyPolicy } from "./pages/PrivacyPolicy";
 import { Home } from "./pages/Home";
 
 export function App() {
-    useEffect(() => {
-        document.documentElement.classList.add("dark");
-    }, []);
-
     return (
         <BrowserRouter>
-            <Toaster position="bottom-right" richColors theme="dark" />
+            <Toaster position="bottom-right" richColors theme="light" />
             <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />

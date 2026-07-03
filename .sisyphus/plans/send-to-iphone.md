@@ -219,7 +219,7 @@ Wave 4: Task 7 docs/final local verification
 
   **Commit**: YES | Message: `test(phone): add transfer decision seams` | Files: `Chowser/PhoneLinkTransferService.swift`, `ChowserTests/PhoneLinkTransferServiceTests.swift`, `Chowser.xcodeproj/project.pbxproj`
 
-- [ ] 3. Add QR generator with deterministic tests
+- [x] 3. Add QR generator with deterministic tests
 
   **What to do**: Implement QR fallback behind a testable generator.
   1. Add failing tests in `ChowserTests/PhoneLinkQRGeneratorTests.swift`.
@@ -265,7 +265,7 @@ Wave 4: Task 7 docs/final local verification
 
   **Commit**: YES | Message: `feat(phone): generate qr fallback` | Files: `Chowser/PhoneLinkQRGenerator.swift`, `ChowserTests/PhoneLinkQRGeneratorTests.swift`, `Chowser.xcodeproj/project.pbxproj`
 
-- [ ] 4. Add AirDrop, Copy URL, and Handoff adapters behind fakes
+- [x] 4. Add AirDrop, Copy URL, and Handoff adapters behind fakes
 
   **What to do**: Implement public Apple API adapters only through protocols from Task 2.
   1. Add failing tests in `ChowserTests/PhoneLinkSystemAdapterTests.swift`.
@@ -324,7 +324,7 @@ Wave 4: Task 7 docs/final local verification
 
   **Commit**: YES | Message: `feat(phone): add system transfer adapters` | Files: `Chowser/PhoneLinkSystemAdapters.swift`, `ChowserTests/PhoneLinkSystemAdapterTests.swift`, `Chowser/Info.plist`, `Chowser.xcodeproj/project.pbxproj`
 
-- [ ] 5. Add picker Send to iPhone action menu and QR sheet
+- [x] 5. Add picker Send to iPhone action menu and QR sheet
 
   **What to do**: Wire the tested phone-transfer manager into Chowser’s picker UI.
   1. Modify `Chowser/ContentView.swift` in `urlBubble(url:)` to add a compact phone action beside existing URL mini-actions.
@@ -388,7 +388,7 @@ Wave 4: Task 7 docs/final local verification
 
   **Commit**: YES | Message: `feat(picker): add send to iphone menu` | Files: `Chowser/ContentView.swift`, `Chowser/PhoneLinkTransferService.swift`, `Chowser/PhoneLinkSystemAdapters.swift`
 
-- [ ] 6. Add targeted UI smoke test and test-mode evidence hooks
+- [x] 6. Add targeted UI smoke test and test-mode evidence hooks
 
   **What to do**: Add a narrowly scoped UI test that verifies the new picker controls without depending on real AirDrop, QR scanning, or iPhone availability.
   1. Extend `ChowserUITests/ChowserUITests.swift` with `testSendToIPhoneActionMenu`.
@@ -444,7 +444,7 @@ Wave 4: Task 7 docs/final local verification
 
   **Commit**: YES | Message: `test(ui): cover send to iphone picker action` | Files: `ChowserUITests/ChowserUITests.swift`, `Chowser/ContentView.swift`, `Chowser/PhoneLinkSystemAdapters.swift`
 
-- [ ] 7. Update user-facing docs and run final local verification
+- [x] 7. Update user-facing docs and run final local verification
 
   **What to do**: Document the new capability and run the final command suite before review agents.
   1. Update `README.md` feature list with one concise bullet: `Send to iPhone — Transfer the current link by AirDrop, QR code, or copy, with best-effort Handoff support.`
@@ -505,10 +505,10 @@ Wave 4: Task 7 docs/final local verification
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Commit 1: `chore(git): start send-to-iphone branch` only if the executor’s workflow records branch preflight metadata; otherwise no commit for Task 1.

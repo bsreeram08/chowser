@@ -1,0 +1,6 @@
+Task 4 AirDrop adapter evidence
+- Production adapter uses NSSharingService(named: .sendViaAirDrop).
+- Capability uses canPerform(withItems: [url as NSURL]).
+- Invocation uses perform(withItems: [url as NSURL]).
+- UI-test/external-open-disabled path returns .skippedForUITesting before resolving or invoking NSSharingService.
+- PhoneLinkSystemAdapterTests passed AirDrop fake exact URL and disabled-system-UI tests.

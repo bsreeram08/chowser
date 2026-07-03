@@ -1,0 +1,701 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination platform=macOS "-only-testing:ChowserTests"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00006040-000A70890C04801C, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00006040-000A70890C04801C, name:My Mac }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (3 targets)
+    Target 'ChowserScreenshotTests' in project 'Chowser'
+        ➜ Explicit dependency on target 'Chowser' in project 'Chowser'
+    Target 'ChowserTests' in project 'Chowser'
+        ➜ Explicit dependency on target 'Chowser' in project 'Chowser'
+    Target 'Chowser' in project 'Chowser' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: cba3b1f01de4da7ee81a6ccdbe60a6b1
+Build description path: /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/XCBuildData/cba3b1f01de4da7ee81a6ccdbe60a6b1.xcbuilddata
+Ld /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/__preview.dylib normal (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-macos14.0 -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -O0 -L/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -install_name @rpath/Chowser.debug.dylib -Xlinker -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_dependency_info.dat -Xlinker -no_adhoc_codesign -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/__preview.dylib
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -o /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache
+
+ProcessInfoPlistFile /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Info.plist /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/Info.plist (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-infoPlistUtility /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PkgInfo -expandbuildsettings -platform macosx -additionalcontentfile /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/assetcatalog_generated_info.plist -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Info.plist
+
+SwiftDriver Chowser normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Chowser -Onone @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.SwiftFileList -DDEBUG -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -emit-localized-strings -emit-localized-strings-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64 -c -j14 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache -output-file-map /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-generated-files.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-own-target-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-all-target-headers.hmap -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-project-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/include -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources-normal/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-Swift.h -working-directory /Users/sreeram/workspace/Sreeram/projects/Chowser -experimental-emit-module-separately -disable-cmo
+
+SwiftCompile normal arm64 Compiling\ LinkMetadataFetcher.swift /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/LinkMetadataFetcher.swift (in target 'Chowser' from project 'Chowser')
+
+SwiftCompile normal arm64 /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/LinkMetadataFetcher.swift (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+/Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/LinkMetadataFetcher.swift:101:55: warning: call to main actor-isolated static method 'isOpaqueToken' in a synchronous nonisolated context
+        let hasOpaqueToken = segments.contains(where: isOpaqueToken)
+                                                      ^
+/Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/LinkMetadataFetcher.swift:111:25: note: calls to static method 'isOpaqueToken' from outside of its actor context are implicitly asynchronous
+    private static func isOpaqueToken(_ s: String) -> Bool {
+                        ^
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ Chowser (in target 'Chowser' from project 'Chowser')
+EmitSwiftModule normal arm64 (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+
+SwiftCompile normal arm64 Compiling\ PickerViewModifiers.swift /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/PickerViewModifiers.swift (in target 'Chowser' from project 'Chowser')
+
+SwiftCompile normal arm64 /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/PickerViewModifiers.swift (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+
+SwiftCompile normal arm64 Compiling\ ContentView.swift /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/ContentView.swift (in target 'Chowser' from project 'Chowser')
+SwiftCompile normal arm64 /Users/sreeram/workspace/Sreeram/projects/Chowser/Chowser/ContentView.swift (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling LinkMetadataFetcher.swift (in target 'Chowser' from project 'Chowser')
+
+SwiftDriverJobDiscovery normal arm64 Compiling PickerViewModifiers.swift (in target 'Chowser' from project 'Chowser')
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for Chowser (in target 'Chowser' from project 'Chowser')
+
+SwiftDriver\ Compilation\ Requirements Chowser normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Chowser -Onone @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.SwiftFileList -DDEBUG -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -emit-localized-strings -emit-localized-strings-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64 -c -j14 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache -output-file-map /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-generated-files.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-own-target-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-all-target-headers.hmap -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-project-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/include -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources-normal/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-Swift.h -working-directory /Users/sreeram/workspace/Sreeram/projects/Chowser -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.swiftmodule/arm64-apple-macos.abi.json /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.abi.json (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.abi.json /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.swiftmodule/arm64-apple-macos.abi.json
+
+Copy /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.swiftmodule/Project/arm64-apple-macos.swiftsourceinfo /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.swiftsourceinfo (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.swiftsourceinfo /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.swiftmodule/Project/arm64-apple-macos.swiftsourceinfo
+
+SwiftDriver ChowserTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name ChowserTests -Onone @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j14 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache -output-file-map /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-generated-files.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-own-target-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-project-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/include -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources-normal/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-Swift.h -working-directory /Users/sreeram/workspace/Sreeram/projects/Chowser -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ ChowserTests (in target 'ChowserTests' from project 'Chowser')
+
+EmitSwiftModule normal arm64 (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+
+SwiftCompile normal arm64 Compiling\ LinkMetadataTests.swift /Users/sreeram/workspace/Sreeram/projects/Chowser/ChowserTests/LinkMetadataTests.swift (in target 'ChowserTests' from project 'Chowser')
+
+SwiftCompile normal arm64 /Users/sreeram/workspace/Sreeram/projects/Chowser/ChowserTests/LinkMetadataTests.swift (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling LinkMetadataTests.swift (in target 'ChowserTests' from project 'Chowser')
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for ChowserTests (in target 'ChowserTests' from project 'Chowser')
+
+SwiftDriver\ Compilation\ Requirements ChowserTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name ChowserTests -Onone @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j14 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache -output-file-map /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-generated-files.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-own-target-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-project-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/include -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources-normal/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-Swift.h -working-directory /Users/sreeram/workspace/Sreeram/projects/Chowser -experimental-emit-module-separately -disable-cmo
+
+SwiftDriver\ Compilation ChowserTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name ChowserTests -Onone @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.SwiftFileList -DDEBUG -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j14 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache -output-file-map /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-generated-files.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-own-target-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests-project-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/include -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources-normal/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-Swift.h -working-directory /Users/sreeram/workspace/Sreeram/projects/Chowser -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserTests.swiftmodule/Project/arm64-apple-macos.swiftsourceinfo /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.swiftsourceinfo (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.swiftsourceinfo /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserTests.swiftmodule/Project/arm64-apple-macos.swiftsourceinfo
+
+Copy /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserTests.swiftmodule/arm64-apple-macos.abi.json /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.abi.json (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.abi.json /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserTests.swiftmodule/arm64-apple-macos.abi.json
+
+SwiftDriverJobDiscovery normal arm64 Compiling ContentView.swift (in target 'Chowser' from project 'Chowser')
+
+SwiftDriver\ Compilation Chowser normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Chowser -Onone @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.SwiftFileList -DDEBUG -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -emit-localized-strings -emit-localized-strings-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64 -c -j14 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.5-25F70-e082c4a02f00227109f4ed75e425c832.sdkstatcache -output-file-map /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sreeram/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-generated-files.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-own-target-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-all-target-headers.hmap -Xcc -iquote -Xcc /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-project-headers.hmap -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/include -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources-normal/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources/arm64 -Xcc -I/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-Swift.h -working-directory /Users/sreeram/workspace/Sreeram/projects/Chowser -experimental-emit-module-separately -disable-cmo
+
+Ld /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib normal (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-macos14.0 -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -O0 -L/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/EagerLinkingTBDs/Debug -L/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/EagerLinkingTBDs/Debug -F/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -filelist /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.LinkFileList -install_name @rpath/Chowser.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/../Frameworks -Xlinker -dead_strip -Xlinker -object_path_lto -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_dependency_info.dat -fobjc-link-runtime -fprofile-instr-generate -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.swiftmodule @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser-linker-args.resp -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -Xlinker -no_adhoc_codesign -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib
+
+ConstructStubExecutorLinkFileList /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-ExecutorLinkFileList-normal-arm64.txt (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    construct-stub-executor-link-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'Chowser' from project 'Chowser')
+
+Ld /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser normal (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-macos14.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -O0 -L/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -F/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker @executable_path/../Frameworks -rdynamic -Xlinker -no_deduplicate -Xlinker -debug_variant -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser-ExecutorLinkFileList-normal-arm64.txt /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser
+
+CopySwiftLibs /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-swiftStdLibTool --copy --verbose --sign 223D8B28DD323883D6F28751734A55923C7F09F4 --scan-executable /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Frameworks --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Library/SystemExtensions --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Extensions --platform macosx --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+
+ExtractAppIntentsMetadata (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name Chowser --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk --xcode-version 17F42 --platform-family macOS --deployment-target 14.0 --bundle-identifier in.sreerams.Chowser --output /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/Resources --target-triple arm64-apple-macos14.0 --binary-file /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser --dependency-file /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser_dependency_info.dat --stringsdata-file /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.SwiftFileList --metadata-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser.DependencyMetadataFileList --static-metadata-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser.DependencyStaticMetadataFileList --swift-const-vals-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Objects-normal/arm64/Chowser.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-07-03 16:08:49.856 appintentsmetadataprocessor[41793:20451495] Starting appintentsmetadataprocessor export
+2026-07-03 16:08:49.868 appintentsmetadataprocessor[41793:20451495] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+ProcessInfoPlistFile /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Info.plist /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/empty-ChowserTests.plist (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-infoPlistUtility /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/empty-ChowserTests.plist -producttype com.apple.product-type.bundle.unit-test -expandbuildsettings -platform macosx -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Info.plist
+
+Ld /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/MacOS/ChowserTests normal (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-macos14.0 -bundle -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -O0 -L/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/EagerLinkingTBDs/Debug -L/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/EagerLinkingTBDs/Debug -F/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug -iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -filelist /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @loader_path/../Frameworks -Xlinker -rpath -Xlinker @executable_path/../Frameworks -Xlinker -dead_strip -bundle_loader /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser -Xlinker -object_path_lto -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests_dependency_info.dat -fobjc-link-runtime -fprofile-instr-generate -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.swiftmodule @/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests-linker-args.resp -Xlinker -needed_framework -Xlinker XCTest -framework XCTest -Xlinker -needed-lXCTestSwiftSupport -lXCTestSwiftSupport /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/MacOS/ChowserTests
+
+CopySwiftLibs /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-swiftStdLibTool --copy --verbose --sign 223D8B28DD323883D6F28751734A55923C7F09F4 --scan-executable /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/MacOS/ChowserTests --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Frameworks --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/PlugIns --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Library/SystemExtensions --scan-folder /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Extensions --platform macosx --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Frameworks --strip-bitcode --scan-executable /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+
+ExtractAppIntentsMetadata (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name ChowserTests --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk --xcode-version 17F42 --platform-family macOS --deployment-target 14.0 --bundle-identifier in.sreerams.ChowserTests --output /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/Resources --target-triple arm64-apple-macos14.0 --binary-file /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest/Contents/MacOS/ChowserTests --dependency-file /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests_dependency_info.dat --stringsdata-file /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.SwiftFileList --metadata-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests.DependencyMetadataFileList --static-metadata-file-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/ChowserTests.DependencyStaticMetadataFileList --swift-const-vals-list /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserTests.build/Objects-normal/arm64/ChowserTests.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-07-03 16:08:50.103 appintentsmetadataprocessor[41796:20451516] Starting appintentsmetadataprocessor export
+2026-07-03 16:08:50.104 appintentsmetadataprocessor[41796:20451516] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+CodeSign /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest (in target 'ChowserTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+    Signing Identity:     "Apple Development: Sreeram Balamurugan (6DBAH3ZN57)"
+    
+    /usr/bin/codesign --force --sign 223D8B28DD323883D6F28751734A55923C7F09F4 --timestamp\=none --generate-entitlement-der /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/PlugIns/ChowserTests.xctest
+
+CodeSign /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+    Signing Identity:     "Apple Development: Sreeram Balamurugan (6DBAH3ZN57)"
+    
+    /usr/bin/codesign --force --sign 223D8B28DD323883D6F28751734A55923C7F09F4 -o runtime --timestamp\=none --generate-entitlement-der /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/Chowser.debug.dylib
+
+CodeSign /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/__preview.dylib (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+    Signing Identity:     "Apple Development: Sreeram Balamurugan (6DBAH3ZN57)"
+    
+    /usr/bin/codesign --force --sign 223D8B28DD323883D6F28751734A55923C7F09F4 -o runtime --timestamp\=none --generate-entitlement-der /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app/Contents/MacOS/__preview.dylib
+
+CodeSign /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+    Signing Identity:     "Apple Development: Sreeram Balamurugan (6DBAH3ZN57)"
+    
+    /usr/bin/codesign --force --sign 223D8B28DD323883D6F28751734A55923C7F09F4 -o runtime --entitlements /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/Chowser.build/Chowser.app.xcent --timestamp\=none --generate-entitlement-der /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app
+
+Validate /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-validationUtility /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app -no-validate-extension -infoplist-subpath Contents/Info.plist
+
+RegisterWithLaunchServices /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app (in target 'Chowser' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    /System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister -f -R -trusted /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/Chowser.app
+
+ProcessInfoPlistFile /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/PlugIns/ChowserScreenshotTests.xctest/Contents/Info.plist /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserScreenshotTests.build/empty-ChowserScreenshotTests.plist (in target 'ChowserScreenshotTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-infoPlistUtility /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserScreenshotTests.build/empty-ChowserScreenshotTests.plist -producttype com.apple.product-type.bundle.ui-testing -expandbuildsettings -platform macosx -additionalcontentfile /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserScreenshotTests.build/ProductTypeInfoPlistAdditions.plist -o /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/PlugIns/ChowserScreenshotTests.xctest/Contents/Info.plist
+
+CopyPlistFile /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/Info.plist /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCTRunner.app/Contents/Info.plist (in target 'ChowserScreenshotTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    builtin-copyPlist --validate --convert xml1 --macro-expansion WRAPPEDPRODUCTNAME ChowserScreenshotTests-Runner --macro-expansion WRAPPEDPRODUCTBUNDLEIDENTIFIER in.sreerams.ChowserScreenshotTests.xctrunner --macro-expansion TESTPRODUCTNAME ChowserScreenshotTests --macro-expansion TESTPRODUCTBUNDLEIDENTIFIER in.sreerams.ChowserScreenshotTests --copy-value UIDeviceFamily /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/PlugIns/ChowserScreenshotTests.xctest/Contents/Info.plist --outdir /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents -- /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCTRunner.app/Contents/Info.plist
+
+CodeSign /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/PlugIns/ChowserScreenshotTests.xctest (in target 'ChowserScreenshotTests' from project 'Chowser')
+    cd /Users/sreeram/workspace/Sreeram/projects/Chowser
+    
+    Signing Identity:     "Apple Development: Sreeram Balamurugan (6DBAH3ZN57)"
+    
+    /usr/bin/codesign --force --sign 223D8B28DD323883D6F28751734A55923C7F09F4 --entitlements /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Intermediates.noindex/Chowser.build/Debug/ChowserScreenshotTests.build/ChowserScreenshotTests.xctest.xcent --timestamp\=none --generate-entitlement-der /Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/PlugIns/ChowserScreenshotTests.xctest
+/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Build/Products/Debug/ChowserScreenshotTests-Runner.app/Contents/PlugIns/ChowserScreenshotTests.xctest: replacing existing signature
+
+Test Suite 'All tests' started at 2026-07-03 16:08:52.071.
+Test Suite 'All tests' passed at 2026-07-03 16:08:52.072.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite BrowserManagerTests started.
+◇ Suite MCPServerTests started.
+◇ Suite BrowserProfileDetectorTests started.
+◇ Suite BrowserConfigTests started.
+◇ Suite OnboardingStateTests started.
+◇ Suite LinkMetadataTests started.
+◇ Suite BrowserLaunchTests started.
+◇ Test "addBrowser with profile stores profile correctly" started.
+◇ Test "Routing rules persist across manager instances" started.
+◇ Test "Temporary focus route takes precedence over matching source app rule" started.
+◇ Test "Private clipboard action arms private mode for the next URL open" started.
+◇ Test "Corrupted defaults data falls back to default Safari" started.
+◇ Test "cleanURL strips expanded tracking parameters" started.
+◇ Test "Picker fallback private request state is explicit per consumed URL" started.
+◇ Test "Duplicating a routing rule inserts a copy below the source" started.
+◇ Test "addBrowser allows same bundleId with different profiles" started.
+◇ Test "Profile persists across manager instances" started.
+◇ Test "Rule import skips invalid rules and keeps valid existing rules loadable" started.
+◇ Test "getInstalledBrowsers returns at least Safari" started.
+◇ Test "getInstalledBrowsers respects blocklist parameter" started.
+◇ Test "Rule validation normalizes paths and validates source app matching" started.
+◇ Test "Import adds new rules alongside existing ones" started.
+◇ Test "Adding a browser appends to list and persists" started.
+◇ Test "resolvedRoute returns both matching rule and browser" started.
+◇ Test "Rules are exported and imported correctly" started.
+◇ Test "Encodes and decodes correctly" started.
+◇ Test "Reset to fresh setup restores default Safari browser" started.
+◇ Test "Shortcut keys default incrementally when adding browsers" started.
+◇ Test "Import rules summary reports invalid entries" started.
+◇ Test "Regex routing rule rejects invalid pattern" started.
+◇ Test "Removing by offset works (used by onDelete)" started.
+◇ Test "Import updates existing rules with matching IDs" started.
+◇ Test "getInstalledBrowsers filters out Safari WebApps" started.
+◇ Test "Import browsers returns summary for merge behavior" started.
+◇ Test "Rule edits use validation and preserve existing rule on invalid update" started.
+◇ Test "Import/export preserves profile in routing rules" started.
+◇ Test "Equality based on all fields including id" started.
+◇ Test "Array encodes and decodes correctly" started.
+◇ Test "isValidRoutingHostPattern validates regex patterns" started.
+◇ Test "Hashable conformance works for Set usage" started.
+◇ Test "Import skips rules with duplicate IDs" started.
+◇ Test "Installed browsers list includes profile info when profiles exist" started.
+◇ Test "Default initialization creates valid config" started.
+◇ Test "Each config gets a unique ID" started.
+◇ Test "Updating a shortcut swaps conflicting assignments" started.
+◇ Test "Adding a duplicate URL moves it to the top instead of adding twice" started.
+◇ Test "Completing onboarding persists across manager instances" started.
+◇ Test "Private clipboard request only applies to the exact URL and is one-shot" started.
+◇ Test "Unsupported launch-argument builds collapse profile variants to plain browser apps" started.
+◇ Test "Launch-argument-capable builds keep profile variants selectable" started.
+◇ Test "First launch defaults to incomplete onboarding" started.
+◇ Test "Import rules returns summary for merge behavior" started.
+◇ Test "Removing a browser by ID works" started.
+◇ Test "getInstalledBrowsers results are sorted alphabetically" started.
+◇ Test "Source app helper resolves PID before sender bundle and frontmost fallback" started.
+◇ Test "Reset clears the state used by launch gating" started.
+◇ Test "Import updates existing browsers with matching identity" started.
+◇ Test "Duplicating a regex rule preserves the useRegex flag" started.
+◇ Test "Removing browser with profile preserves all rules" started.
+◇ Test "Routing rule with profile matches correct browser" started.
+◇ Test "Incoming URL route falls back to picker when source app does not match" started.
+◇ Test "UI test defaults suite is isolated from standard defaults" started.
+◇ Test "Completed onboarding persists through canonical defaults key" started.
+◇ Test "Regex routing rule anchors match to full host string" started.
+◇ Test "Multiple rapid mutations all persist correctly" started.
+◇ Test "Removing a browser preserves rules targeting that browser" started.
+◇ Test "Regex routing rule matches host pattern" started.
+◇ Test "addBrowser prevents duplicate bundleId+profile combination" started.
+◇ Test "BrowserManager bridges live canonical onboarding state" started.
+◇ Test "Moving browsers reorders and persists" started.
+◇ Test "Routing rules match exact host and optional path prefix" started.
+◇ Test "Fresh manager loads default Safari browser" started.
+◇ Test "Routing host normalization accepts pasted full URLs" started.
+◇ Test "getInstalledBrowsers filters out Chowser itself" started.
+◇ Test "Forced picker bypasses matching rules and clears source app context" started.
+◇ Test "Routing rules support global wildcard host pattern" started.
+◇ Test "Safari and other browsers do not generate special app arguments" started.
+◇ Test "Skips preview for likely single-use / auth links (would burn the token)" started.
+◇ Test "Forced private clipboard request overrides non-private routing rule" started.
+◇ Test "Empty browser list persists correctly" started.
+◇ Test "Recent URLs are capped at 5 and persist" started.
+◇ Test "Apple Event URL helper rejects invalid URL payloads" started.
+◇ Test "cleanURL strips tracking parameters but keeps valid ones" started.
+◇ Test "Saved browsers persist across manager instances" started.
+◇ Test "Incoming URL route uses source app and clears routing context" started.
+◇ Test "Parses Open Graph title, description, and image" started.
+◇ Test "Regex rule persists useRegex flag across manager instances" started.
+◇ Test "Single-instance browsers do not request a new application instance" started.
+◇ Test "Direct launch plan delivers URL once before args through /usr/bin/open" started.
+◇ Test "Routing rules support wildcard host patterns" started.
+◇ Test "Firefox-based browsers use -P without URL app argument" started.
+◇ Test "Falls back to <title> when no og:title" started.
+◇ Test "Firefox private arguments cover default profile and profile combinations" started.
+◇ Test "Custom arguments support quoted values and URL placeholders" started.
+◇ Test "BrowserConfig identity combines bundleId and profile" started.
+◇ Test "Normal clipboard action clears private mode for the next URL open" started.
+◇ Test "Custom arguments preserve profile names with spaces" started.
+◇ Test "Browser blocklist persists and filters correctly" started.
+◇ Test "Global wildcard rules can be scoped by source app" started.
+◇ Test "Editing browser name persists" started.
+◇ Test "Direct launch plan filters custom URL app arguments to avoid duplicate URL delivery" started.
+◇ Test "Chromium-based browsers use --profile-directory without URL app argument" started.
+◇ Test "Prefers a raster favicon (apple-touch-icon) over SVG" started.
+◇ Test "DIA profile detection uses chromium directory path" started.
+◇ Test "Per-browser private arguments template overrides the built-in private flag" started.
+◇ Test "Chromium private arguments cover default profile and profile combinations" started.
+◇ Test "Safari returns no profiles" started.
+◇ Test "Other browsers use reliable NSWorkspace document opening without special args" started.
+◇ Test "App Store launch plan attempts arguments via NSWorkspace (macOS may drop them)" started.
+◇ Test "Resolved bookmark with denied security scope reports invalid status" started.
+◇ Test "Chrome profile detection returns empty if Chrome not installed" started.
+◇ Test "Detects DIA browser profiles from Local State file" started.
+◇ Test "Brave profile IDs use Chromium directory names" started.
+◇ Test "Application Support picker default uses login user home" started.
+◇ Test "Unknown browser returns no profiles" started.
+◇ Test "Detected profiles are sorted alphabetically by name" started.
+◇ Test "Malformed stored bookmark data reports invalid status" started.
+◇ Test "Clearing a stored Application Support grant returns to missing status" started.
+◇ Test "Missing Application Support access reports no grant and profile detection does not crash" started.
+◇ Test "Detects Brave browser profiles from Local State file" started.
+◇ Test "Detects Firefox profiles from a temp Application Support fixture" started.
+◇ Test "Server is stopped and has no token before first start" started.
+◇ Test "Detects Chromium profiles from a temp Application Support fixture" started.
+✔ Test "addBrowser with profile stores profile correctly" passed after 0.016 seconds.
+✔ Test "Routing rules persist across manager instances" passed after 0.031 seconds.
+✔ Test "Temporary focus route takes precedence over matching source app rule" passed after 0.038 seconds.
+✔ Test "Private clipboard action arms private mode for the next URL open" passed after 0.044 seconds.
+✔ Test "Duplicating a routing rule inserts a copy below the source" passed after 0.047 seconds.
+✔ Test "cleanURL strips expanded tracking parameters" passed after 0.054 seconds.
+✔ Test "Picker fallback private request state is explicit per consumed URL" passed after 0.061 seconds.
+✔ Test "Corrupted defaults data falls back to default Safari" passed after 0.073 seconds.
+✔ Test "Profile persists across manager instances" passed after 0.081 seconds.
+✔ Test "Rule import skips invalid rules and keeps valid existing rules loadable" passed after 0.089 seconds.
+✔ Test "Adding a browser appends to list and persists" passed after 0.102 seconds.
+✔ Test "Shortcut keys default incrementally when adding browsers" passed after 0.110 seconds.
+✔ Test "Import adds new rules alongside existing ones" passed after 0.118 seconds.
+✔ Test "Rule validation normalizes paths and validates source app matching" passed after 0.125 seconds.
+✔ Test "addBrowser allows same bundleId with different profiles" passed after 0.133 seconds.
+✔ Test "resolvedRoute returns both matching rule and browser" passed after 0.139 seconds.
+✔ Test "Removing by offset works (used by onDelete)" passed after 0.147 seconds.
+✔ Test "Regex routing rule rejects invalid pattern" passed after 0.154 seconds.
+✔ Test "Rules are exported and imported correctly" passed after 0.168 seconds.
+2026-07-03 16:08:52.265259+0530 Chowser[41804:20451612] [logging-persist] cannot open file at line 51044 of [f0ca7bba1c]
+2026-07-03 16:08:52.265276+0530 Chowser[41804:20451612] [logging-persist] os_unix.c:51044: (2) open(/private/var/db/DetachedSignatures) - No such file or directory
+✔ Test "getInstalledBrowsers respects blocklist parameter" passed after 0.208 seconds.
+✔ Test "Import browsers returns summary for merge behavior" passed after 0.216 seconds.
+✔ Test "Import rules summary reports invalid entries" passed after 0.224 seconds.
+✔ Test "Rule edits use validation and preserve existing rule on invalid update" passed after 0.232 seconds.
+✔ Test "Import/export preserves profile in routing rules" passed after 0.246 seconds.
+✔ Test "Reset to fresh setup restores default Safari browser" passed after 0.258 seconds.
+✔ Test "Import updates existing rules with matching IDs" passed after 0.262 seconds.
+✔ Test "Import skips rules with duplicate IDs" passed after 0.267 seconds.
+✔ Test "Updating a shortcut swaps conflicting assignments" passed after 0.271 seconds.
+✔ Test "Adding a duplicate URL moves it to the top instead of adding twice" passed after 0.277 seconds.
+✔ Test "Private clipboard request only applies to the exact URL and is one-shot" passed after 0.280 seconds.
+✔ Test "Removing a browser by ID works" passed after 0.285 seconds.
+✔ Test "Completing onboarding persists across manager instances" passed after 0.293 seconds.
+✔ Test "Removing browser with profile preserves all rules" passed after 0.297 seconds.
+✔ Test "Import rules returns summary for merge behavior" passed after 0.303 seconds.
+✔ Test "isValidRoutingHostPattern validates regex patterns" passed after 0.307 seconds.
+✔ Test "Routing rule with profile matches correct browser" passed after 0.311 seconds.
+✔ Test "Regex routing rule anchors match to full host string" passed after 0.315 seconds.
+✔ Test "Duplicating a regex rule preserves the useRegex flag" passed after 0.320 seconds.
+✔ Test "Incoming URL route falls back to picker when source app does not match" passed after 0.325 seconds.
+✔ Test "BrowserManager bridges live canonical onboarding state" passed after 0.330 seconds.
+✔ Test "Multiple rapid mutations all persist correctly" passed after 0.338 seconds.
+✔ Test "Fresh manager loads default Safari browser" passed after 0.342 seconds.
+✔ Test "Import updates existing browsers with matching identity" passed after 0.347 seconds.
+✔ Test "Regex routing rule matches host pattern" passed after 0.351 seconds.
+✔ Test "Forced private clipboard request overrides non-private routing rule" passed after 0.355 seconds.
+✔ Test "addBrowser prevents duplicate bundleId+profile combination" passed after 0.360 seconds.
+✔ Test "Saved browsers persist across manager instances" passed after 0.366 seconds.
+✔ Test "Routing rules support global wildcard host pattern" passed after 0.371 seconds.
+✔ Test "Empty browser list persists correctly" passed after 0.377 seconds.
+✔ Test "Incoming URL route uses source app and clears routing context" passed after 0.382 seconds.
+✔ Test "Browser blocklist persists and filters correctly" passed after 0.383 seconds.
+✔ Test "Removing a browser preserves rules targeting that browser" passed after 0.393 seconds.
+✔ Test "Normal clipboard action clears private mode for the next URL open" passed after 0.397 seconds.
+✔ Test "Recent URLs are capped at 5 and persist" passed after 0.405 seconds.
+✔ Test "Global wildcard rules can be scoped by source app" passed after 0.404 seconds.
+✔ Test "Forced picker bypasses matching rules and clears source app context" passed after 0.415 seconds.
+✔ Test "Routing rules support wildcard host patterns" passed after 0.413 seconds.
+✔ Test "Editing browser name persists" passed after 0.419 seconds.
+✔ Test "Regex rule persists useRegex flag across manager instances" passed after 0.427 seconds.
+✔ Test "Routing host normalization accepts pasted full URLs" passed after 0.438 seconds.
+✔ Test "Routing rules match exact host and optional path prefix" passed after 0.443 seconds.
+✔ Test "Server is stopped and has no token before first start" passed after 0.435 seconds.
+◇ Test "isRunning becomes true only after listener reaches .ready (not synchronously)" started.
+✔ Test "Moving browsers reorders and persists" passed after 0.451 seconds.
+2026-07-03 16:08:52.570143+0530 Chowser[41804:20451612] [bookmark] BookmarkData: invalid bookmark length
+2026-07-03 16:08:52.570190+0530 Chowser[41804:20451612] [bookmark] BookmarkData: invalid bookmark length
+2026-07-03 16:08:52.570200+0530 Chowser[41804:20451612] [bookmark] BookmarkData: invalid bookmark length
+2026-07-03 16:08:52.570207+0530 Chowser[41804:20451612] [bookmark] BookmarkData: invalid bookmark length
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "Encodes and decodes correctly" passed after 0.495 seconds.
+✔ Test "Each config gets a unique ID" passed after 0.494 seconds.
+✔ Test "Array encodes and decodes correctly" passed after 0.494 seconds.
+✔ Test "Equality based on all fields including id" passed after 0.495 seconds.
+✔ Test "Installed browsers list includes profile info when profiles exist" passed after 0.495 seconds.
+✔ Test "getInstalledBrowsers filters out Safari WebApps" passed after 0.495 seconds.
+✔ Test "Unsupported launch-argument builds collapse profile variants to plain browser apps" passed after 0.495 seconds.
+✔ Test "Completed onboarding persists through canonical defaults key" passed after 0.494 seconds.
+✔ Test "First launch defaults to incomplete onboarding" passed after 0.494 seconds.
+✔ Test "Reset clears the state used by launch gating" passed after 0.494 seconds.
+✔ Test "getInstalledBrowsers returns at least Safari" passed after 0.495 seconds.
+✔ Test "UI test defaults suite is isolated from standard defaults" passed after 0.494 seconds.
+✔ Test "getInstalledBrowsers results are sorted alphabetically" passed after 0.495 seconds.
+✔ Test "Launch-argument-capable builds keep profile variants selectable" passed after 0.494 seconds.
+✔ Test "Safari and other browsers do not generate special app arguments" passed after 0.494 seconds.
+✔ Test "Direct launch plan delivers URL once before args through /usr/bin/open" passed after 0.487 seconds.
+✔ Test "Single-instance browsers do not request a new application instance" passed after 0.494 seconds.
+✔ Test "Hashable conformance works for Set usage" passed after 0.495 seconds.
+✔ Test "getInstalledBrowsers filters out Chowser itself" passed after 0.494 seconds.
+✔ Test "Source app helper resolves PID before sender bundle and frontmost fallback" passed after 0.495 seconds.
+✔ Test "Custom arguments preserve profile names with spaces" passed after 0.487 seconds.
+✔ Test "Default initialization creates valid config" passed after 0.495 seconds.
+✔ Test "Direct launch plan filters custom URL app arguments to avoid duplicate URL delivery" passed after 0.487 seconds.
+✔ Test "Parses Open Graph title, description, and image" passed after 0.494 seconds.
+✔ Test "Safari returns no profiles" passed after 0.487 seconds.
+✔ Test "Skips preview for likely single-use / auth links (would burn the token)" passed after 0.494 seconds.
+✔ Test "Resolved bookmark with denied security scope reports invalid status" passed after 0.487 seconds.
+✔ Test "BrowserConfig identity combines bundleId and profile" passed after 0.488 seconds.
+✔ Test "Chromium-based browsers use --profile-directory without URL app argument" passed after 0.487 seconds.
+✔ Test "DIA profile detection uses chromium directory path" passed after 0.487 seconds.
+✔ Test "Prefers a raster favicon (apple-touch-icon) over SVG" passed after 0.488 seconds.
+✔ Test "Other browsers use reliable NSWorkspace document opening without special args" passed after 0.487 seconds.
+✔ Test "Custom arguments support quoted values and URL placeholders" passed after 0.488 seconds.
+✔ Test "Chromium private arguments cover default profile and profile combinations" passed after 0.487 seconds.
+✔ Test "Application Support picker default uses login user home" passed after 0.487 seconds.
+✔ Test "Apple Event URL helper rejects invalid URL payloads" passed after 0.494 seconds.
+✔ Test "Unknown browser returns no profiles" passed after 0.487 seconds.
+✔ Test "Brave profile IDs use Chromium directory names" passed after 0.487 seconds.
+✔ Test "Detects Brave browser profiles from Local State file" passed after 0.487 seconds.
+✔ Test "App Store launch plan attempts arguments via NSWorkspace (macOS may drop them)" passed after 0.487 seconds.
+✔ Test "Chrome profile detection returns empty if Chrome not installed" passed after 0.487 seconds.
+✔ Test "Per-browser private arguments template overrides the built-in private flag" passed after 0.487 seconds.
+✔ Test "Detects Chromium profiles from a temp Application Support fixture" passed after 0.487 seconds.
+✔ Test "Clearing a stored Application Support grant returns to missing status" passed after 0.487 seconds.
+✔ Test "Firefox private arguments cover default profile and profile combinations" passed after 0.488 seconds.
+✔ Test "Detected profiles are sorted alphabetically by name" passed after 0.487 seconds.
+✔ Test "Missing Application Support access reports no grant and profile detection does not crash" passed after 0.487 seconds.
+✔ Test "Malformed stored bookmark data reports invalid status" passed after 0.487 seconds.
+✔ Test "cleanURL strips tracking parameters but keeps valid ones" passed after 0.495 seconds.
+✔ Suite OnboardingStateTests passed after 0.500 seconds.
+✔ Test "Falls back to <title> when no og:title" passed after 0.494 seconds.
+✔ Test "Firefox-based browsers use -P without URL app argument" passed after 0.494 seconds.
+✔ Suite BrowserConfigTests passed after 0.500 seconds.
+✔ Test "Detects DIA browser profiles from Local State file" passed after 0.488 seconds.
+✔ Test "Detects Firefox profiles from a temp Application Support fixture" passed after 0.487 seconds.
+✔ Suite LinkMetadataTests passed after 0.500 seconds.
+✔ Suite BrowserLaunchTests passed after 0.500 seconds.
+✔ Suite BrowserManagerTests passed after 0.500 seconds.
+✔ Suite BrowserProfileDetectorTests passed after 0.500 seconds.
+✔ Test "isRunning becomes true only after listener reaches .ready (not synchronously)" passed after 0.260 seconds.
+◇ Test "stop() immediately sets isRunning false and clears auth token" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+Chowser MCP: Server stopped
+✔ Test "stop() immediately sets isRunning false and clears auth token" passed after 0.234 seconds.
+◇ Test "Calling start() while already running is a no-op" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "Calling start() while already running is a no-op" passed after 0.233 seconds.
+◇ Test "Each start generates a distinct auth token" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "Each start generates a distinct auth token" passed after 0.470 seconds.
+◇ Test "Server can be restarted after stop" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "Server can be restarted after stop" passed after 0.467 seconds.
+◇ Test "GET /status returns 200 with app info and full endpoint schema" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /status returns 200 with app info and full endpoint schema" passed after 0.267 seconds.
+◇ Test "GET /browsers returns 200 with browsers array" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /browsers returns 200 with browsers array" passed after 0.242 seconds.
+◇ Test "GET /rules returns 200 with rules array" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /rules returns 200 with rules array" passed after 0.238 seconds.
+◇ Test "GET to unknown path returns 404" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET to unknown path returns 404" passed after 0.238 seconds.
+◇ Test "GET /status without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /status without token returns 401" passed after 0.237 seconds.
+◇ Test "GET /status with wrong token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:55.419062+0530 Chowser[41804:20451638] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "GET /status with wrong token returns 401" passed after 0.238 seconds.
+◇ Test "GET /status with malformed Authorization header returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /status with malformed Authorization header returns 401" passed after 0.237 seconds.
+◇ Test "GET /browsers without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:55.896553+0530 Chowser[41804:20451643] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "GET /browsers without token returns 401" passed after 0.239 seconds.
+◇ Test "GET /browsers with wrong token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /browsers with wrong token returns 401" passed after 0.241 seconds.
+◇ Test "GET /rules without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:56.379572+0530 Chowser[41804:20451707] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "GET /rules without token returns 401" passed after 0.238 seconds.
+◇ Test "GET /rules with wrong token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "GET /rules with wrong token returns 401" passed after 0.239 seconds.
+◇ Test "Stopped server refuses API connections" started.
+2026-07-03 16:08:56.857562+0530 Chowser[41804:20451638] [connection] nw_socket_handle_socket_event [C23.1.1:2] Socket SO_ERROR [61: Connection refused]
+2026-07-03 16:08:56.858494+0530 Chowser[41804:20451638] [connection] nw_endpoint_flow_failed_with_error [C23.1.1 ::1.24246 in_progress socket-flow (satisfied (Path is satisfied), viable, interface: lo0)] already failing, returning
+2026-07-03 16:08:56.859211+0530 Chowser[41804:20451638] [connection] nw_socket_handle_socket_event [C23.1.2:2] Socket SO_ERROR [61: Connection refused]
+2026-07-03 16:08:56.859277+0530 Chowser[41804:20451638] [connection] nw_endpoint_flow_failed_with_error [C23.1.2 127.0.0.1:24246 in_progress socket-flow (satisfied (Path is satisfied), viable, interface: lo0)] already failing, returning
+2026-07-03 16:08:56.859368+0530 Chowser[41804:20451638] [connection] nw_endpoint_flow_failed_with_error [C23.1.2 127.0.0.1:24246 cancelled socket-flow ((null))] already failing, returning
+2026-07-03 16:08:56.859431+0530 Chowser[41804:20451638] [Default] Connection 23: received failure notification
+2026-07-03 16:08:56.860200+0530 Chowser[41804:20451638] [Default] Connection 23: failed to connect 1:61, reason -1
+2026-07-03 16:08:56.860213+0530 Chowser[41804:20451638] [Default] Connection 23: encountered error(1:61)
+2026-07-03 16:08:56.860400+0530 Chowser[41804:20451638] [Default] Task <652F69A9-FBC5-4CEE-990C-4332AA62FBC5>.<12> HTTP load failed, 0/0 bytes (error code: -1004 [1:61])
+2026-07-03 16:08:56.862497+0530 Chowser[41804:20451706] [Default] Task <652F69A9-FBC5-4CEE-990C-4332AA62FBC5>.<12> finished with error [-1004] Error Domain=NSURLErrorDomain Code=-1004 "Could not connect to the server." UserInfo={_kCFStreamErrorCodeKey=61, NSUnderlyingError=0x9ddc04810 {Error Domain=kCFErrorDomainCFNetwork Code=-1004 "(null)" UserInfo={_NSURLErrorNWPathKey=satisfied (Path is satisfied), interface: lo0, _kCFStreamErrorCodeKey=61, _kCFStreamErrorDomainKey=1}}, _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <652F69A9-FBC5-4CEE-990C-4332AA62FBC5>.<12>, _NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <652F69A9-FBC5-4CEE-990C-4332AA62FBC5>.<12>"
+), NSLocalizedDescription=Could not connect to the server., NSErrorFailingURLStringKey=http://localhost:24246/status, NSErrorFailingURLKey=http://localhost:24246/status, _kCFStreamErrorDomainKey=1}
+✔ Test "Stopped server refuses API connections" passed after 0.007 seconds.
+◇ Test "POST /browsers without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:56.865802+0530 Chowser[41804:20451643] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /browsers without token returns 401" passed after 0.237 seconds.
+◇ Test "POST /browsers with wrong token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "POST /browsers with wrong token returns 401" passed after 0.241 seconds.
+◇ Test "POST /rules without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "POST /rules without token returns 401" passed after 0.238 seconds.
+◇ Test "DELETE /browsers without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "DELETE /browsers without token returns 401" passed after 0.238 seconds.
+◇ Test "DELETE /rules without token returns 401" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "DELETE /rules without token returns 401" passed after 0.239 seconds.
+◇ Test "POST /browsers missing bundleId returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:58.062767+0530 Chowser[41804:20451680] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /browsers missing bundleId returns 400" passed after 0.237 seconds.
+◇ Test "POST /rules missing browserBundleId returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "POST /rules missing browserBundleId returns 400" passed after 0.240 seconds.
+◇ Test "DELETE /browsers missing id param returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "DELETE /browsers missing id param returns 400" passed after 0.241 seconds.
+◇ Test "DELETE /rules missing id param returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:58.780592+0530 Chowser[41804:20451680] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "DELETE /rules missing id param returns 400" passed after 0.237 seconds.
+◇ Test "DELETE /browsers with malformed (non-UUID) id returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "DELETE /browsers with malformed (non-UUID) id returns 400" passed after 0.240 seconds.
+◇ Test "DELETE /rules with malformed (non-UUID) id returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:59.259454+0530 Chowser[41804:20451709] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "DELETE /rules with malformed (non-UUID) id returns 400" passed after 0.238 seconds.
+◇ Test "DELETE /browsers with non-existent id returns 404" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "DELETE /browsers with non-existent id returns 404" passed after 0.237 seconds.
+◇ Test "DELETE /rules with non-existent id returns 404" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:59.765697+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "DELETE /rules with non-existent id returns 404" passed after 0.239 seconds.
+◇ Test "POST /browsers with empty body returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:08:59.975659+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /browsers with empty body returns 400" passed after 0.241 seconds.
+◇ Test "POST /rules with empty body returns 400" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:00.217066+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /rules with empty body returns 400" passed after 0.246 seconds.
+◇ Test "POST /rules targeting non-existent browser returns 422" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:00.495402+0530 Chowser[41804:20451702] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /rules targeting non-existent browser returns 422" passed after 0.238 seconds.
+◇ Test "POST /rules with invalid host pattern returns 422 even when browser exists" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:00.741940+0530 Chowser[41804:20451680] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /rules with invalid host pattern returns 422 even when browser exists" passed after 0.248 seconds.
+◇ Test "POST /rules rejects invalid regex and malformed path prefixes" started.
+Chowser MCP: Server listening on localhost:24246
+Chowser MCP: Server stopped
+✔ Test "POST /rules rejects invalid regex and malformed path prefixes" passed after 0.260 seconds.
+◇ Test "POST /rules invalid update returns 422 and preserves existing rule" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:01.247679+0530 Chowser[41804:20451709] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:01.259222+0530 Chowser[41804:20451680] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:01.262405+0530 Chowser[41804:20451702] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /rules invalid update returns 422 and preserves existing rule" passed after 0.261 seconds.
+◇ Test "POST /rules with unknown id returns 404 instead of creating a rule" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:01.474131+0530 Chowser[41804:20451709] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:01.508813+0530 Chowser[41804:20451704] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:01.512802+0530 Chowser[41804:20451704] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /rules with unknown id returns 404 instead of creating a rule" passed after 0.249 seconds.
+◇ Test "POST /browsers creates browser; duplicate POST updates it; DELETE removes it" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:01.756160+0530 Chowser[41804:20451699] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:01.763468+0530 Chowser[41804:20451680] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /browsers creates browser; duplicate POST updates it; DELETE removes it" passed after 0.252 seconds.
+◇ Test "POST /rules creates rule; POST with id updates it; DELETE removes it" started.
+Chowser MCP: Server listening on localhost:24246
+2026-07-03 16:09:01.977712+0530 Chowser[41804:20451704] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:02.020672+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:02.030679+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:02.033915+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+2026-07-03 16:09:02.038436+0530 Chowser[41804:20451681] [] nw_path_necp_check_for_updates Failed to copy updated result (22)
+Chowser MCP: Server stopped
+✔ Test "POST /rules creates rule; POST with id updates it; DELETE removes it" passed after 0.265 seconds.
+✔ Suite MCPServerTests passed after 10.164 seconds.
+✔ Test run with 155 tests in 7 suites passed after 10.165 seconds.
+2026-07-03 16:09:02.541 xcodebuild[41382:20450258] [MT] IDETestOperationsObserverDebug: 12.103 elapsed -- Testing started completed.
+2026-07-03 16:09:02.541 xcodebuild[41382:20450258] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-07-03 16:09:02.541 xcodebuild[41382:20450258] [MT] IDETestOperationsObserverDebug: 12.103 sec, +12.103 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/sreeram/Library/Developer/Xcode/DerivedData/Chowser-beahajwjvizoovalnuskecignryj/Logs/Test/Test-Chowser-2026.07.03_16-08-41-+0530.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started

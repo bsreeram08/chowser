@@ -1,0 +1,6 @@
+Task 4 Handoff lifecycle evidence
+- Activity type: in.sreerams.Chowser.phone-link, declared in Info.plist NSUserActivityTypes.
+- start/update uses NSUserActivity.webpageURL, isEligibleForHandoff = true, and becomeCurrent().
+- stop invalidates the current NSUserActivity and clears it.
+- Non-HTTP(S) URLs are ignored by the fake lifecycle test.
+- PhoneLinkSystemAdapterTests passed start/update/invalidate and ignore-non-HTTP(S) tests.

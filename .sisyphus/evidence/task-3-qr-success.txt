@@ -1,0 +1,2 @@
+Task 3 QR success evidence
+Validated by PhoneLinkQRGeneratorTests. HTTPS URL https://example.com/path?q=1 generated non-empty PNG data and non-zero NSImage dimensions. Encoded message equals exact UTF-8 bytes for the URL absoluteString.

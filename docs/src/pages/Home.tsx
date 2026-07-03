@@ -576,6 +576,18 @@ export const Home: React.FC = () => {
                 background. Icons or list layout, your call.
               </p>
             </Card>
+            <Card className="panel-hard rounded-lg p-7 transition-transform hover:-translate-y-1 group">
+              <span className="eyebrow block mb-4">Continuity</span>
+              <h3 className="font-display text-xl font-bold text-foreground mb-3">
+                Send to Phone
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Move the current link to your phone in one step — AirDrop it,
+                scan a color QR code styled with the site's own branding, or
+                copy the URL. Handoff makes it available on nearby Apple
+                devices too.
+              </p>
+            </Card>
           </div>
         </section>
 

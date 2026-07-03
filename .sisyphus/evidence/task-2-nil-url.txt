@@ -1,2 +1,0 @@
-PASS: nil, malformed, file, mailto, and ftp URLs are tested for no enabled phone-transfer actions.
-PASS: invalid URL cases call availableActions(for:) without force unwraps or crash-prone assumptions.

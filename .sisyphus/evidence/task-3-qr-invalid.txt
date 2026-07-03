@@ -1,2 +1,0 @@
-Task 3 QR invalid-input evidence
-Validated by PhoneLinkQRGeneratorTests. nil, empty, malformed, file, mailto, and ftp inputs throw PhoneLinkQRGenerator.Error and do not return image output.

@@ -1,2 +1,0 @@
-PASS: https://example.com/path?q=1 exposes exactly [.airDrop, .showQRCode, .copyURL].
-PASS: PhoneLinkTransferAction.allCases is exactly airDrop, showQRCode, copyURL.

@@ -1,5 +1,0 @@
- M .sisyphus/boulder.json
-?? .gstack/
-?? .sisyphus/evidence/task-1-branch-status.txt
-?? .sisyphus/notepads/send-to-iphone/
-?? .sisyphus/plans/send-to-iphone.md

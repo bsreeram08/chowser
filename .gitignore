@@ -58,3 +58,4 @@ target/
 # Coverage artifacts
 *.profraw
 .gstack/
+.sisyphus/

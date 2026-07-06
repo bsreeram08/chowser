@@ -5,9 +5,26 @@ Your goal is to configure my browsers, routing rules, and (optionally) URL rewri
 
 ## Step 0: Check what tools you have
 
-- **If you have local shell/file access** (e.g. Claude Code, an agent with Bash/Read tools, or Computer Use): follow every step below, including scanning the filesystem in Step 2.
-- **If you only have HTTP fetch access, no filesystem access** (e.g. a plain chat app, "cowork," or similar): skip the filesystem scan in Step 2 — you can't read local files. Instead ask me directly which browsers I use and what profile names/directories they have, then continue from Step 3. You can still call every API endpoint below with a fetch/HTTP tool.
+- **If you have local shell/file access** (e.g. Claude Code, an agent with Bash/Read tools, or Computer Use): follow every step below, including scanning the filesystem in Step 2. You can also turn the API on and off yourself — see the shell-only flow below — instead of asking me to click "Start API Server."
+- **If you only have HTTP fetch access, no filesystem access** (e.g. a plain chat app, "cowork," or similar): skip the filesystem scan in Step 2 — you can't read local files. Instead ask me directly which browsers I use and what profile names/directories they have, then continue from Step 3. You'll need me to start the API server and give you the URL/token below, since you can't run shell commands.
 - **If you have neither** (no fetch tool, no shell): you cannot complete this setup. Tell me so plainly instead of guessing or pretending to have called the API.
+
+### Shell-only flow: turn the API on, do the work, turn it off
+
+If you have shell access, you don't need me to open Settings at all:
+
+```
+open "chowser://mcp/start"
+cat ~/Library/Application\ Support/Chowser/mcp-session.json
+```
+
+That file has `port` and `authToken` — build requests as `http://localhost:<port>` with header `Authorization: Bearer <authToken>`. When you're completely done configuring, turn it back off:
+
+```
+open "chowser://mcp/stop"
+```
+
+(This removes the session file too.) Do this at the end of the session, not between individual requests — there's no need to restart the server for every call.
 
 ## Step 1: Authenticate & discover the API
 
@@ -53,7 +70,7 @@ Profiles and private windows are driven by per-browser launch arguments. For eac
 2. **Preview before committing**: Call `POST /browsers/preview` with the candidate `bundleId`, `profile`, `customArguments`, `privateArguments`, and a sample `url`. Read back the exact `command` and `deliveredArguments`. Confirm with me that it would open the right profile/window. **Test it** if possible.
 3. **Sync Browsers**: Call `POST /browsers` for each profile found, including `profile`, `customArguments`, and `privateArguments`.
 4. **Sync Rules**: Call `POST /rules` to set routing. Example: open `*.github.com` in `Chrome - Work`.
-5. **App-level settings** (optional): `GET`/`POST /settings` reads/writes App Mode, fallback routing policy, and network privacy preferences — only touch these if I ask for them specifically.
+5. **App-level settings**: `GET`/`POST /settings` covers the entire Settings app — App Mode, fallback routing, network privacy, launch-at-login, hidden apps, and every picker appearance/behavior preference. If I ask conversationally for something like "turn on dark mode for the picker" or "stop launching at login," call `GET /settings` first to see current values, then `POST` only the field(s) that changed. Don't touch settings I didn't ask about.
 
 **CAVEATS**:
 - **App Store build**: macOS sandboxing may strip launch arguments, so profiles/args are stored but may not apply at launch (`launchArgumentsSupported:false` in responses). They apply reliably in the direct-download build.

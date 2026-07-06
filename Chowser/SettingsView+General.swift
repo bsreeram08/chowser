@@ -287,6 +287,7 @@ struct MCPServerSettingsRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
+                        .accessibilityIdentifier("settings.mcpAuthToken")
 
                     Button(tokenCopied ? "Copied" : "Copy", systemImage: tokenCopied ? "checkmark" : "doc.on.clipboard") {
                         copyToken()

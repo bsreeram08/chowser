@@ -59,4 +59,13 @@ enum AppEnvironment {
         guard arguments.contains("-UITesting_DefaultURL") else { return nil }
         return URL(string: "https://example.com/ui-test")
     }
+
+    /// Pins MCPServer's auth token to a known value under UI testing/automation,
+    /// instead of a fresh UUID every launch — otherwise there's no sanctioned way
+    /// for test automation to discover the token (it's UI-only, no accessibility
+    /// identifier, never logged) and the MCP API can't be exercised end-to-end.
+    static var fixedMCPAuthToken: String? {
+        guard isUITesting else { return nil }
+        return "ui-testing-fixed-mcp-token"
+    }
 }

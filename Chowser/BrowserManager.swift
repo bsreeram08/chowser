@@ -3,6 +3,15 @@ import AppKit
 import SwiftUI
 import ServiceManagement
 
+/// Whether Chowser presents as a menu-bar-only utility (today's only behavior, no Dock
+/// icon) or a regular app (Dock icon, appears in Cmd-Tab, no menu bar status item).
+/// Existing installs are asked once on upgrade (`hasBeenAskedAppMode`), new installs are
+/// asked during onboarding — see `AppModeStepView`.
+enum ChowserAppMode: String, Codable {
+    case menuBar
+    case app
+}
+
 struct BrowserConfig: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
@@ -95,6 +104,8 @@ extension BrowserRoutingRule {
         static let densityPreferenceKey = "densityPreference"
         static let skipExistingImportedRulesKey = "skipExistingImportedRules"
         static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
+        static let appModeKey = "appMode"
+        static let hasBeenAskedAppModeKey = "hasBeenAskedAppMode"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -138,6 +149,24 @@ extension BrowserRoutingRule {
         didSet {
             guard launchAtLogin != oldValue else { return }
             updateLaunchAtLogin()
+        }
+    }
+    /// Menu-bar-only utility vs. regular Dock app. Defaults to `.app` for a brand-new
+    /// install with no persisted value; existing installs are asked explicitly once
+    /// (`hasBeenAskedAppMode`) rather than silently switched, so this default only takes
+    /// effect if that one-time question is somehow skipped. AppDelegate applies the
+    /// activation-policy side effect (NSApp.setActivationPolicy) — this property is just
+    /// the persisted preference, mirroring how `launchAtLogin` separates state from the
+    /// SMAppService side effect in `updateLaunchAtLogin()`.
+    var appMode: ChowserAppMode = .app {
+        didSet {
+            guard appMode != oldValue else { return }
+            defaults.set(appMode.rawValue, forKey: Constants.appModeKey)
+        }
+    }
+    var hasBeenAskedAppMode: Bool = false {
+        didSet {
+            defaults.set(hasBeenAskedAppMode, forKey: Constants.hasBeenAskedAppModeKey)
         }
     }
     var skipExistingImportedRules: Bool = true {
@@ -308,6 +337,8 @@ extension BrowserRoutingRule {
         loadRecentURLs()
         loadPickerPreferences()
         loadImportPreferences()
+        appMode = ChowserAppMode(rawValue: defaults.string(forKey: Constants.appModeKey) ?? "") ?? .app
+        hasBeenAskedAppMode = defaults.bool(forKey: Constants.hasBeenAskedAppModeKey)
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {

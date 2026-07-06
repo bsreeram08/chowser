@@ -40,42 +40,50 @@ final class OnboardingManager {
     static func resetOnboarding(in defaults: UserDefaults) {
         defaults.removeObject(forKey: completionDefaultsKey)
     }
-    
+
     func showOnboardingWindow(completion: @escaping () -> Void) {
         // Force the app to act like a regular app so the window comes to the very front
         // and gains focus, because LSUIElement apps usually stay out of the way.
         NSApp.setActivationPolicy(.regular)
-        
+
         if onboardingWindowController != nil {
             onboardingWindowController?.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        
+
         let view = OnboardingView(onComplete: { [weak self] in
             guard let self = self else { return }
             self.markOnboardingComplete()
             self.closeOnboardingWindow()
             completion()
         })
-        
-        let hostingController = NSHostingController(rootView: view)
-        
-        let window = NSWindow(contentViewController: hostingController)
+
+        // NSHostingView + sizingOptions, not NSHostingController + a hardcoded
+        // setContentSize — the exact pattern the picker panel already uses
+        // (AppDelegate.createPickerPanel). The window sizes itself to OnboardingView's
+        // actual content (which is itself `.fixedSize(vertical: true)`), so there's no
+        // design-time pixel guess that can exceed a smaller screen.
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.sizingOptions = [.preferredContentSize]
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
         window.title = "Welcome to Chowser"
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.backgroundColor = NSColor.windowBackgroundColor
-        
-        // Size it beautifully
-        window.setContentSize(NSSize(width: 500, height: 600))
         window.center()
         window.isReleasedWhenClosed = false
-        
+
         let controller = NSWindowController(window: window)
         onboardingWindowController = controller
-        
+
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -83,17 +91,64 @@ final class OnboardingManager {
     private func closeOnboardingWindow() {
         onboardingWindowController?.window?.orderOut(nil)
         onboardingWindowController = nil
-        
-        // Return to background accessory mode
-        NSApp.setActivationPolicy(.accessory)
+
+        // Respect the mode chosen in AppModeStepView instead of always reverting to
+        // accessory — App Mode users keep their Dock icon after onboarding closes.
+        NSApp.setActivationPolicy(BrowserManager.shared.appMode == .app ? .regular : .accessory)
     }
-    
+
     private func markOnboardingComplete() {
         hasCompletedOnboarding = true
     }
-    
+
     // For debugging/testing
     func resetOnboarding() {
         Self.resetOnboarding(in: defaults)
+    }
+
+    /// One-time prompt for existing installs upgrading into App Mode support — the
+    /// onboarding flow only runs for brand-new installs, so this is the equivalent ask
+    /// for everyone who already completed onboarding before this feature existed.
+    private var appModeQuestionWindowController: NSWindowController?
+
+    func showAppModeQuestionWindow(completion: @escaping () -> Void) {
+        NSApp.setActivationPolicy(.regular)
+
+        if appModeQuestionWindowController != nil {
+            appModeQuestionWindowController?.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let view = AppModeStepView(manager: BrowserManager.shared, nextAction: { [weak self] in
+            guard let self else { return }
+            self.appModeQuestionWindowController?.window?.orderOut(nil)
+            self.appModeQuestionWindowController = nil
+            NSApp.setActivationPolicy(BrowserManager.shared.appMode == .app ? .regular : .accessory)
+            completion()
+        })
+
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.sizingOptions = [.preferredContentSize]
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Chowser"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.backgroundColor = NSColor.windowBackgroundColor
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let controller = NSWindowController(window: window)
+        appModeQuestionWindowController = controller
+
+        controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

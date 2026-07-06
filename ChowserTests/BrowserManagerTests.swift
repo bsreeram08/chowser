@@ -18,8 +18,31 @@ struct BrowserManagerTests {
         defaults.removePersistentDomain(forName: defaults.description)
     }
     
+    // MARK: - App Mode
+
+    @Test("App mode defaults to .app on a fresh install, hasBeenAskedAppMode defaults to false")
+    @MainActor
+    func appModeDefaultsToAppOnFreshInstall() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        #expect(manager.appMode == .app)
+        #expect(manager.hasBeenAskedAppMode == false)
+    }
+
+    @Test("App mode and hasBeenAskedAppMode persist across manager instances")
+    @MainActor
+    func appModePersists() {
+        let defaults = makeTestDefaults()
+        let manager1 = BrowserManager(defaults: defaults)
+        manager1.appMode = .menuBar
+        manager1.hasBeenAskedAppMode = true
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.appMode == .menuBar)
+        #expect(manager2.hasBeenAskedAppMode == true)
+    }
+
     // MARK: - Default State
-    
+
     @Test("Fresh manager loads default Safari browser")
     @MainActor
     func defaultBrowserOnFirstLaunch() {

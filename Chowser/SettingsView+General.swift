@@ -60,6 +60,33 @@ extension SettingsView {
             systemImage: "gearshape",
             content: {
                 VStack(alignment: .leading, spacing: 16) {
+                    SettingsGroup("App Mode", subtitle: "Choose how Chowser lives on your Mac.") {
+                        VStack(spacing: 8) {
+                            AppModeOptionRow(
+                                icon: "dock.rectangle",
+                                title: "App",
+                                subtitle: "Dock icon, appears in Cmd-Tab.",
+                                isSelected: manager.appMode == .app
+                            ) {
+                                manager.appMode = .app
+                                NSApp.setActivationPolicy(.regular)
+                            }
+                            .accessibilityIdentifier("settings.appMode.app")
+
+                            AppModeOptionRow(
+                                icon: "menubar.rectangle",
+                                title: "Menu Bar",
+                                subtitle: "No Dock icon, lives in the menu bar only.",
+                                isSelected: manager.appMode == .menuBar
+                            ) {
+                                manager.appMode = .menuBar
+                                NSApp.setActivationPolicy(.accessory)
+                            }
+                            .accessibilityIdentifier("settings.appMode.menuBar")
+                        }
+                        .padding(14)
+                    }
+
                     SettingsGroup("Startup") {
                         SettingsRow(
                             title: "Launch Chowser at login",

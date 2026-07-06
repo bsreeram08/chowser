@@ -20,8 +20,44 @@ struct BrowserConfig: Identifiable, Codable, Hashable {
     var profile: String? // Optional profile argument for browsers that support it
     var customArguments: String? // Normal-launch arg template (e.g. "--profile-directory={profile}")
     var privateArguments: String? // Private/incognito-launch arg template (e.g. "--incognito --profile-directory={profile}")
+    var isEnabled: Bool = true // PRD FR-003: a disabled fallback browser must fall through to the picker
 
     var identity: String { "\(bundleId)|\(profile ?? "")" }
+}
+
+extension BrowserConfig {
+    /// Custom `init(from:)`/`encode(to:)` (mirrors `BrowserRoutingRule` above) so that
+    /// `isEnabled`, added after browsers were already being persisted, decodes to its
+    /// default (`true`) for existing saved configs instead of throwing `keyNotFound` and
+    /// silently wiping the browser list (see the `try?` decode at `BrowserManager.swift`'s
+    /// `loadBrowsers`).
+    private enum CodingKeys: String, CodingKey {
+        case id, name, bundleId, shortcutKey, profile, customArguments, privateArguments, isEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        bundleId = try c.decode(String.self, forKey: .bundleId)
+        shortcutKey = try c.decode(String.self, forKey: .shortcutKey)
+        profile = try c.decodeIfPresent(String.self, forKey: .profile)
+        customArguments = try c.decodeIfPresent(String.self, forKey: .customArguments)
+        privateArguments = try c.decodeIfPresent(String.self, forKey: .privateArguments)
+        isEnabled = (try c.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(bundleId, forKey: .bundleId)
+        try c.encode(shortcutKey, forKey: .shortcutKey)
+        try c.encodeIfPresent(profile, forKey: .profile)
+        try c.encodeIfPresent(customArguments, forKey: .customArguments)
+        try c.encodeIfPresent(privateArguments, forKey: .privateArguments)
+        try c.encode(isEnabled, forKey: .isEnabled)
+    }
 }
 
 struct BrowserRoutingRule: Identifiable, Codable, Hashable {
@@ -32,14 +68,19 @@ struct BrowserRoutingRule: Identifiable, Codable, Hashable {
     var browserBundleId: String
     var profile: String?
     var isEnabled: Bool = true
-    var sourceAppBundleId: String? = nil
+    /// Zero source apps means "any source app" (FR-011). Matches when the incoming
+    /// source app is present in this list (FR-012).
+    var sourceAppBundleIDs: [String] = []
     var usePrivateMode: Bool = false
     var useRegex: Bool = false
 }
 
 extension BrowserRoutingRule {
+    /// `legacySourceAppBundleId` decodes the old single-source shape (FR-014); it is
+    /// never used for encoding, so exports always emit the plural `sourceAppBundleIDs`.
     private enum CodingKeys: String, CodingKey {
-        case id, name, hostPattern, pathPrefix, browserBundleId, profile, isEnabled, sourceAppBundleId, usePrivateMode, useRegex
+        case id, name, hostPattern, pathPrefix, browserBundleId, profile, isEnabled, sourceAppBundleIDs, usePrivateMode, useRegex
+        case legacySourceAppBundleId = "sourceAppBundleId"
     }
 
     init(from decoder: Decoder) throws {
@@ -51,9 +92,62 @@ extension BrowserRoutingRule {
         browserBundleId = try c.decode(String.self, forKey: .browserBundleId)
         profile = try c.decodeIfPresent(String.self, forKey: .profile)
         isEnabled = (try c.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? true
-        sourceAppBundleId = try c.decodeIfPresent(String.self, forKey: .sourceAppBundleId)
+        if let ids = try c.decodeIfPresent([String].self, forKey: .sourceAppBundleIDs) {
+            sourceAppBundleIDs = ids
+        } else if let legacy = try c.decodeIfPresent(String.self, forKey: .legacySourceAppBundleId), !legacy.isEmpty {
+            sourceAppBundleIDs = [legacy]
+        } else {
+            sourceAppBundleIDs = []
+        }
         usePrivateMode = (try c.decodeIfPresent(Bool.self, forKey: .usePrivateMode)) ?? false
         useRegex = (try c.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(hostPattern, forKey: .hostPattern)
+        try c.encodeIfPresent(pathPrefix, forKey: .pathPrefix)
+        try c.encode(browserBundleId, forKey: .browserBundleId)
+        try c.encodeIfPresent(profile, forKey: .profile)
+        try c.encode(isEnabled, forKey: .isEnabled)
+        try c.encode(sourceAppBundleIDs, forKey: .sourceAppBundleIDs)
+        try c.encode(usePrivateMode, forKey: .usePrivateMode)
+        try c.encode(useRegex, forKey: .useRegex)
+    }
+}
+
+/// A migration-time suggestion (Phase 2) to merge two or more single-source routing
+/// rules that share the same destination and match condition into one multi-source
+/// rule. Computed once per install (gated by `hasSeenRuleMergeReview`) and only
+/// applied on explicit user accept — never silently (see PRD "Migration-time merge assist").
+struct RuleMergeSuggestion: Identifiable, Equatable {
+    var id = UUID()
+    var ruleIDs: [UUID]
+    var mergedName: String
+    var mergedSourceAppBundleIDs: [String]
+    var browserBundleId: String
+    var profile: String?
+    var hostPattern: String
+}
+
+/// The global routing outcome for unmatched links: show the picker, or open a
+/// specific configured browser/profile. See CONTEXT.md: "Fallback Policy".
+struct BrowserFallbackPolicy: Codable, Equatable {
+    enum Mode: String, Codable, Hashable {
+        case picker
+        case browser
+    }
+
+    var mode: Mode
+    var browserID: UUID?
+    var profile: String?
+
+    init(mode: Mode = .picker, browserID: UUID? = nil, profile: String? = nil) {
+        self.mode = mode
+        self.browserID = browserID
+        self.profile = profile
     }
 }
 
@@ -63,6 +157,7 @@ extension BrowserRoutingRule {
         case browserNotFound(bundleId: String, profile: String?)
         case invalidHostPattern
         case invalidRegexPattern
+        case regexTooComplex
         case invalidPathPrefix
         case invalidSourceAppBundleId
         case ruleNotFound
@@ -75,6 +170,8 @@ extension BrowserRoutingRule {
                 return "Host pattern is invalid."
             case .invalidRegexPattern:
                 return "Regex host pattern is invalid."
+            case .regexTooComplex:
+                return "This pattern could cause severe slowdowns — simplify it."
             case .invalidPathPrefix:
                 return "Path prefix is invalid. Use a path such as /docs or docs."
             case .invalidSourceAppBundleId:
@@ -106,6 +203,14 @@ extension BrowserRoutingRule {
         static let skipExistingImportedBrowsersKey = "skipExistingImportedBrowsers"
         static let appModeKey = "appMode"
         static let hasBeenAskedAppModeKey = "hasBeenAskedAppMode"
+        static let fallbackPolicyKey = "fallbackPolicy"
+        static let networkLookupsEnabledKey = "networkLookupsEnabled"
+        static let userShortenerHostsKey = "userShortenerHosts"
+        static let shortlinkResolutionTimeoutKey = "shortlinkResolutionTimeout"
+        static let trackingCleanupEnabledKey = "trackingCleanupEnabled"
+        static let hasSeenNetworkPrivacyUpgradeNoticeKey = "hasSeenNetworkPrivacyUpgradeNotice"
+        static let hasSeenRuleMergeReviewKey = "hasSeenRuleMergeReview"
+        static let rewriteRulesKey = "rewriteRules"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -145,6 +250,26 @@ extension BrowserRoutingRule {
         }
     }
 
+    /// Typed URL rewrite rules (FR-020), applied in order before routing-rule matching.
+    var rewriteRules: [URLRewriteRule] = [] {
+        didSet {
+            scheduleSaveRewrites()
+        }
+    }
+
+    /// Last skip reason per rewrite rule (FR-024), keyed by rule ID. In-memory only —
+    /// reflects the most recent real (or tested) pipeline run, not persisted state.
+    var rewriteSkipReasons: [UUID: String] = [:]
+
+    /// True while the pre-picker pipeline (rewrites → shortlink resolution → cleanup) is
+    /// still running on an incoming link. Drives the picker's loading state so a shortlink
+    /// lookup taking up to `shortlinkResolutionTimeout` doesn't read as an app hang.
+    var isResolvingIncomingURL: Bool = false
+
+    /// Trace of rewrite steps applied to the currently-displayed picker URL (Phase 3
+    /// cherry-pick: shown inline in the picker's link-preview area). In-memory only.
+    var currentRewriteTrace: [RewritePipeline.Step] = []
+
     var launchAtLogin: Bool = false {
         didSet {
             guard launchAtLogin != oldValue else { return }
@@ -179,6 +304,75 @@ extension BrowserRoutingRule {
             defaults.set(skipExistingImportedBrowsers, forKey: Constants.skipExistingImportedBrowsersKey)
         }
     }
+
+    /// What happens when no routing rule matches: show the picker, or open a
+    /// specific configured browser/profile. Defaults to picker for every install
+    /// (fresh and upgraded) per FR-005.
+    var fallbackPolicy: BrowserFallbackPolicy = BrowserFallbackPolicy() {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(fallbackPolicy) {
+                defaults.set(encoded, forKey: Constants.fallbackPolicyKey)
+            }
+        }
+    }
+
+    /// Gates every network call Chowser makes before routing/previewing a link
+    /// (shortlink resolution, FR-030; link-preview fetch, FR-034). Off by default,
+    /// including on upgrade for existing installs — docs/adr/0003.
+    var networkLookupsEnabled: Bool = false {
+        didSet {
+            defaults.set(networkLookupsEnabled, forKey: Constants.networkLookupsEnabledKey)
+        }
+    }
+
+    /// User-appended shortener hosts, on top of the fixed built-in list (FR-031).
+    var userShortenerHosts: Set<String> = [] {
+        didSet {
+            defaults.set(Array(userShortenerHosts), forKey: Constants.userShortenerHostsKey)
+        }
+    }
+
+    /// Per-request timeout for shortlink resolution (FR-032). Visible in Settings.
+    var shortlinkResolutionTimeout: Double = 1.5 {
+        didSet {
+            defaults.set(shortlinkResolutionTimeout, forKey: Constants.shortlinkResolutionTimeoutKey)
+        }
+    }
+
+    /// Built-in tracking-parameter stripping, on/off (docs/adr/0002). On by default —
+    /// this is today's always-on behavior, not a new privacy-sensitive default.
+    var trackingCleanupEnabled: Bool = true {
+        didSet {
+            defaults.set(trackingCleanupEnabled, forKey: Constants.trackingCleanupEnabledKey)
+        }
+    }
+
+    /// Whether the one-time "shortlink resolution is now off by default" notice has been
+    /// shown, on either surface (picker banner or Settings > Behavior). Shared flag so it
+    /// only shows once total, whichever surface the user hits first.
+    var hasSeenNetworkPrivacyUpgradeNotice: Bool = false {
+        didSet {
+            defaults.set(hasSeenNetworkPrivacyUpgradeNotice, forKey: Constants.hasSeenNetworkPrivacyUpgradeNoticeKey)
+        }
+    }
+
+    func markNetworkPrivacyUpgradeNoticeSeen() {
+        guard !hasSeenNetworkPrivacyUpgradeNotice else { return }
+        hasSeenNetworkPrivacyUpgradeNotice = true
+    }
+
+    /// Whether the one-time rule-merge-assist review has been shown (accepted/rejected/
+    /// dismissed). Gates `pendingRuleMergeSuggestions` computation so it only runs once
+    /// per install, not on every launch.
+    var hasSeenRuleMergeReview: Bool = false {
+        didSet {
+            defaults.set(hasSeenRuleMergeReview, forKey: Constants.hasSeenRuleMergeReviewKey)
+        }
+    }
+
+    /// Migration-time merge suggestions awaiting explicit accept/reject (never applied
+    /// silently — see PRD "Migration-time merge assist"). Empty once reviewed.
+    var pendingRuleMergeSuggestions: [RuleMergeSuggestion] = []
 
     var hasCompletedOnboarding: Bool {
         get { OnboardingManager.hasCompletedOnboarding(in: defaults) }
@@ -317,6 +511,7 @@ extension BrowserRoutingRule {
     @ObservationIgnored private let immediateWrite: Bool
     @ObservationIgnored private var pendingBrowsersSave: DispatchWorkItem?
     @ObservationIgnored private var pendingRulesSave: DispatchWorkItem?
+    @ObservationIgnored private var pendingRewritesSave: DispatchWorkItem?
     @ObservationIgnored private var pendingRecentURLsSave: DispatchWorkItem?
     @ObservationIgnored private var temporaryRouteExpirationTimer: Timer?
 
@@ -333,12 +528,19 @@ extension BrowserRoutingRule {
 
         load()
         loadRoutingRules()
+        loadRewriteRules()
         loadHiddenBundleIDs()
         loadRecentURLs()
         loadPickerPreferences()
         loadImportPreferences()
         appMode = ChowserAppMode(rawValue: defaults.string(forKey: Constants.appModeKey) ?? "") ?? .app
         hasBeenAskedAppMode = defaults.bool(forKey: Constants.hasBeenAskedAppModeKey)
+        loadFallbackPolicy()
+        loadNetworkPrivacyPreferences()
+        hasSeenRuleMergeReview = defaults.bool(forKey: Constants.hasSeenRuleMergeReviewKey)
+        if !hasSeenRuleMergeReview {
+            pendingRuleMergeSuggestions = Self.computeMergeSuggestions(for: routingRules)
+        }
         if AppEnvironment.shouldDisableSystemIntegration {
             launchAtLogin = false
         } else {
@@ -429,6 +631,12 @@ extension BrowserRoutingRule {
         }
     }
 
+    func saveRewriteRules() {
+        if let encoded = try? JSONEncoder().encode(rewriteRules) {
+            defaults.set(encoded, forKey: Constants.rewriteRulesKey)
+        }
+    }
+
     func saveRecentURLs() {
         if let encoded = try? JSONEncoder().encode(recentURLs) {
             defaults.set(encoded, forKey: Constants.recentURLsKey)
@@ -455,6 +663,16 @@ extension BrowserRoutingRule {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
     }
 
+    private func scheduleSaveRewrites() {
+        guard !immediateWrite else { saveRewriteRules(); return }
+        pendingRewritesSave?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.saveRewriteRules() }
+        }
+        pendingRewritesSave = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+    }
+
     private func scheduleSaveRecentURLs() {
         guard !immediateWrite else { saveRecentURLs(); return }
         pendingRecentURLsSave?.cancel()
@@ -475,6 +693,11 @@ extension BrowserRoutingRule {
             pendingRulesSave?.cancel()
             pendingRulesSave = nil
             saveRoutingRules()
+        }
+        if pendingRewritesSave != nil {
+            pendingRewritesSave?.cancel()
+            pendingRewritesSave = nil
+            saveRewriteRules()
         }
         if pendingRecentURLsSave != nil {
             pendingRecentURLsSave?.cancel()
@@ -524,6 +747,15 @@ extension BrowserRoutingRule {
         }
     }
 
+    func loadRewriteRules() {
+        if let data = defaults.data(forKey: Constants.rewriteRulesKey),
+           let decoded = try? JSONDecoder().decode([URLRewriteRule].self, from: data) {
+            rewriteRules = decoded
+        } else {
+            rewriteRules = []
+        }
+    }
+
     func loadRecentURLs() {
         if let data = defaults.data(forKey: Constants.recentURLsKey),
            let decoded = try? JSONDecoder().decode([URL].self, from: data) {
@@ -531,6 +763,31 @@ extension BrowserRoutingRule {
         } else {
             recentURLs = []
         }
+    }
+
+    private func loadFallbackPolicy() {
+        if let data = defaults.data(forKey: Constants.fallbackPolicyKey),
+           let decoded = try? JSONDecoder().decode(BrowserFallbackPolicy.self, from: data) {
+            fallbackPolicy = decoded
+        } else {
+            fallbackPolicy = BrowserFallbackPolicy()
+        }
+    }
+
+    private func loadNetworkPrivacyPreferences() {
+        networkLookupsEnabled = defaults.object(forKey: Constants.networkLookupsEnabledKey) != nil
+            ? defaults.bool(forKey: Constants.networkLookupsEnabledKey)
+            : false
+        if let stored = defaults.array(forKey: Constants.userShortenerHostsKey) as? [String] {
+            userShortenerHosts = Set(stored)
+        }
+        if defaults.object(forKey: Constants.shortlinkResolutionTimeoutKey) != nil {
+            shortlinkResolutionTimeout = defaults.double(forKey: Constants.shortlinkResolutionTimeoutKey)
+        }
+        trackingCleanupEnabled = defaults.object(forKey: Constants.trackingCleanupEnabledKey) != nil
+            ? defaults.bool(forKey: Constants.trackingCleanupEnabledKey)
+            : true
+        hasSeenNetworkPrivacyUpgradeNotice = defaults.bool(forKey: Constants.hasSeenNetworkPrivacyUpgradeNoticeKey)
     }
 
     func resetToFreshSetup() {
@@ -662,15 +919,37 @@ extension BrowserRoutingRule {
         try data.write(to: url)
     }
 
+    /// Decodes the file as loosely-typed JSON first, then attempts each element's
+    /// `Decodable` decode individually — a malformed element is skipped and counted
+    /// in `summary.invalid` instead of failing the entire import (see PRD Architecture
+    /// Notes "Correction": a single-shot `[BrowserRoutingRule].self` decode has no
+    /// per-item resilience, one bad element fails the whole array).
     func importRules(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
-        let decoded = try decoder.decode([BrowserRoutingRule].self, from: data)
+
+        // Cast to `[Any]`, not `[[String: Any]]` — the latter returns nil for the whole
+        // array if even one element isn't an object (e.g. null/string/number), which
+        // used to fall through to a whole-array decode that throws and aborts the entire
+        // import. Casting loosely lets each element be judged (and skipped) individually.
+        guard let rawItems = try JSONSerialization.jsonObject(with: data) as? [Any] else {
+            // Not an array at all — surface the same decode error callers relied on
+            // before (e.g. importing a non-JSON or non-array file).
+            _ = try decoder.decode([BrowserRoutingRule].self, from: data)
+            return ImportSummary()
+        }
 
         var summary = ImportSummary()
         var updatedRules = routingRules
-        
-        for rule in decoded {
+
+        for rawItem in rawItems {
+            guard let rawObject = rawItem as? [String: Any],
+                  let itemData = try? JSONSerialization.data(withJSONObject: rawObject),
+                  let rule = try? decoder.decode(BrowserRoutingRule.self, from: itemData) else {
+                summary.invalid += 1
+                continue
+            }
+
             guard case .success(let normalizedRule) = validatedRoutingRule(rule) else {
                 summary.invalid += 1
                 continue
@@ -690,7 +969,7 @@ extension BrowserRoutingRule {
                 summary.added += 1
             }
         }
-        
+
         routingRules = updatedRules
         return summary
     }
@@ -748,14 +1027,14 @@ extension BrowserRoutingRule {
     // MARK: - Routing Rules
 
     @discardableResult
-    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleId: String? = nil, usePrivateMode: Bool = false, useRegex: Bool = false) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+    func addRoutingRule(name: String, hostPattern: String, pathPrefix: String?, browserBundleId: String, profile: String? = nil, sourceAppBundleIDs: [String] = [], usePrivateMode: Bool = false, useRegex: Bool = false) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
         let rule = BrowserRoutingRule(
             name: name,
             hostPattern: hostPattern,
             pathPrefix: pathPrefix,
             browserBundleId: browserBundleId,
             profile: profile,
-            sourceAppBundleId: sourceAppBundleId,
+            sourceAppBundleIDs: sourceAppBundleIDs,
             usePrivateMode: usePrivateMode,
             useRegex: useRegex
         )
@@ -794,7 +1073,7 @@ extension BrowserRoutingRule {
             browserBundleId: original.browserBundleId,
             profile: original.profile,
             isEnabled: original.isEnabled,
-            sourceAppBundleId: original.sourceAppBundleId,
+            sourceAppBundleIDs: original.sourceAppBundleIDs,
             usePrivateMode: original.usePrivateMode,
             useRegex: original.useRegex
         )
@@ -862,10 +1141,10 @@ extension BrowserRoutingRule {
         updateRule(updated)
     }
 
-    func updateRoutingRuleSourceApp(id: UUID, to bundleId: String?) {
+    func updateRoutingRuleSourceApps(id: UUID, to bundleIds: [String]) {
         guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
         var updated = routingRules[index]
-        updated.sourceAppBundleId = bundleId
+        updated.sourceAppBundleIDs = bundleIds
         updateRule(updated)
     }
 
@@ -888,7 +1167,14 @@ extension BrowserRoutingRule {
         return result
     }
 
-    func resolvedRoute(for url: URL) -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
+    /// Source app is an explicit parameter (mirrors `RewritePipeline.apply`) rather than
+    /// always reading the ambient `currentSourceAppBundleId`, which is only set during a
+    /// live URL open and `defer`-cleared immediately after — a tester/preview call site
+    /// invoking this outside that window would otherwise always see `nil` and could never
+    /// match a source-app condition. Defaults to the ambient property so existing live-open
+    /// call sites (AppDelegate, ContentView) keep working unchanged.
+    func resolvedRoute(for url: URL, sourceApp: String? = nil) -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
+        let effectiveSourceApp = sourceApp ?? currentSourceAppBundleId
         let host = (url.host ?? "").lowercased()
         guard !host.isEmpty else { return nil }
 
@@ -903,10 +1189,10 @@ extension BrowserRoutingRule {
 
         // 2. Evaluate rules
         for rule in routingRules where rule.isEnabled {
-            guard hostMatches(host, pattern: rule.hostPattern, useRegex: rule.useRegex) else { continue }
-            guard pathMatches(path, prefix: rule.pathPrefix) else { continue }
-            if let ruleSource = rule.sourceAppBundleId, !ruleSource.isEmpty {
-                guard ruleSource == (currentSourceAppBundleId ?? "") else { continue }
+            guard Self.hostMatches(host, pattern: rule.hostPattern, useRegex: rule.useRegex) else { continue }
+            guard Self.pathMatches(path, prefix: rule.pathPrefix) else { continue }
+            if !rule.sourceAppBundleIDs.isEmpty {
+                guard let currentSource = effectiveSourceApp, rule.sourceAppBundleIDs.contains(currentSource) else { continue }
             }
             guard let browser = configuredBrowsers.first(where: { $0.bundleId == rule.browserBundleId && $0.profile == rule.profile }) else { continue }
 
@@ -918,6 +1204,347 @@ extension BrowserRoutingRule {
 
     func resolvedBrowser(for url: URL) -> BrowserConfig? {
         resolvedRoute(for: url)?.browser
+    }
+
+    /// The fallback destination for a link that matched no routing rule (FR-001/002).
+    /// Returns nil (show the picker) when the mode is picker, or when the configured
+    /// fallback browser was deleted, disabled, or hidden since it was chosen (FR-003).
+    func fallbackRoute() -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
+        guard fallbackPolicy.mode == .browser, let browserID = fallbackPolicy.browserID else {
+            return nil
+        }
+        guard let browser = configuredBrowsers.first(where: { $0.id == browserID }),
+              browser.isEnabled,
+              !hiddenBundleIDs.contains(browser.bundleId) else {
+            return nil
+        }
+        return (nil, browser)
+    }
+
+    // MARK: - URL Rewrites
+
+    enum RewriteRuleValidationError: Error, Equatable {
+        case invalidHostPattern
+        case invalidRegexPattern
+        case regexTooComplex
+        case invalidPathPrefix
+        case invalidSourceAppBundleId
+        case noActions
+        case ruleNotFound
+
+        var message: String {
+            switch self {
+            case .invalidHostPattern:
+                return "Host pattern is invalid."
+            case .invalidRegexPattern:
+                return "Regex host pattern is invalid."
+            case .regexTooComplex:
+                return "This pattern could cause severe slowdowns — simplify it."
+            case .invalidPathPrefix:
+                return "Path prefix is invalid. Use a path such as /docs or docs."
+            case .invalidSourceAppBundleId:
+                return "Source app bundle ID is invalid."
+            case .noActions:
+                return "Add at least one action."
+            case .ruleNotFound:
+                return "Rewrite rule not found."
+            }
+        }
+    }
+
+    /// Runs the rewrite pipeline (FR-021/022) against a real or tested URL. Source app is
+    /// an explicit parameter (Eng Review: "Source-app context must be explicit") rather than
+    /// read from `currentSourceAppBundleId`, which is cleared via `defer` before later
+    /// picker interactions (the tester, a live trace) would otherwise see it. Records each
+    /// skipped rule's reason (FR-024) and logs the outcome through the existing "Route"
+    /// category (FR-025b) — the same entry point the tester (FR-025) calls into.
+    @discardableResult
+    func applyRewritePipeline(to url: URL, sourceApp: String?) -> RewritePipeline.Result {
+        let result = RewritePipeline.apply(url: url, rules: rewriteRules, sourceApp: sourceApp)
+        for step in result.steps where step.skipped {
+            rewriteSkipReasons[step.ruleID] = step.skipReason
+        }
+        if !result.steps.isEmpty {
+            let summary = result.steps.map { "\($0.ruleName)\($0.skipped ? " (skipped: \($0.skipReason ?? "invalid output"))" : "")" }
+            AppLogger.log("Route", "Rewrite pipeline for \(url.host ?? url.absoluteString): \(summary.joined(separator: " → "))")
+        }
+        return result
+    }
+
+    @discardableResult
+    func addRewriteRule(_ rule: URLRewriteRule) -> Result<URLRewriteRule, RewriteRuleValidationError> {
+        let result = validatedRewriteRule(rule)
+        if case .success(let normalizedRule) = result {
+            rewriteRules.append(normalizedRule)
+        }
+        return result
+    }
+
+    @discardableResult
+    func updateRewriteRule(_ rule: URLRewriteRule) -> Result<URLRewriteRule, RewriteRuleValidationError> {
+        guard let index = rewriteRules.firstIndex(where: { $0.id == rule.id }) else {
+            return .failure(.ruleNotFound)
+        }
+        let result = validatedRewriteRule(rule)
+        if case .success(let normalizedRule) = result {
+            rewriteRules[index] = normalizedRule
+        }
+        return result
+    }
+
+    func removeRewriteRule(id: UUID) {
+        rewriteRules.removeAll { $0.id == id }
+        rewriteSkipReasons.removeValue(forKey: id)
+    }
+
+    func duplicateRewriteRule(id: UUID) {
+        guard let index = rewriteRules.firstIndex(where: { $0.id == id }) else { return }
+        let original = rewriteRules[index]
+        let duplicate = URLRewriteRule(name: "\(original.name) Copy", isEnabled: original.isEnabled, match: original.match, actions: original.actions)
+        guard case .success(let normalizedDuplicate) = validatedRewriteRule(duplicate) else { return }
+        rewriteRules.insert(normalizedDuplicate, at: index + 1)
+    }
+
+    /// Keyboard-accessible reordering (design review: drag-only has no accessible
+    /// equivalent) — Up/Down buttons in the Rewrites list call this directly.
+    func moveRewriteRule(id: UUID, offsetBy delta: Int) {
+        guard let index = rewriteRules.firstIndex(where: { $0.id == id }) else { return }
+        let destination = index + delta
+        guard rewriteRules.indices.contains(destination) else { return }
+        rewriteRules.move(fromOffsets: IndexSet(integer: index), toOffset: delta > 0 ? destination + 1 : destination)
+    }
+
+    func exportRewrites(to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(rewriteRules)
+        try data.write(to: url)
+    }
+
+    /// Same per-item-resilient decode restructuring as `importRules` (PRD Architecture
+    /// Notes "Correction" — a naive `[URLRewriteRule].self` decode has no per-item
+    /// resilience; one malformed element must not fail the whole import).
+    func importRewrites(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+
+        // See `importRules` above: `[Any]`, not `[[String: Any]]`, so a non-object
+        // element (null/string/number) is counted invalid instead of failing the cast
+        // for the whole array and aborting the import.
+        guard let rawItems = try JSONSerialization.jsonObject(with: data) as? [Any] else {
+            _ = try decoder.decode([URLRewriteRule].self, from: data)
+            return ImportSummary()
+        }
+
+        var summary = ImportSummary()
+        var updatedRewrites = rewriteRules
+
+        for rawItem in rawItems {
+            guard let rawObject = rawItem as? [String: Any],
+                  let itemData = try? JSONSerialization.data(withJSONObject: rawObject),
+                  let rule = try? decoder.decode(URLRewriteRule.self, from: itemData) else {
+                summary.invalid += 1
+                continue
+            }
+
+            guard case .success(let normalizedRule) = validatedRewriteRule(rule) else {
+                summary.invalid += 1
+                continue
+            }
+
+            if let existingIndex = updatedRewrites.firstIndex(where: { $0.id == rule.id }) {
+                if skipExisting {
+                    summary.skipped += 1
+                    continue
+                }
+                updatedRewrites[existingIndex] = normalizedRule
+                summary.updated += 1
+            } else {
+                updatedRewrites.append(normalizedRule)
+                summary.added += 1
+            }
+        }
+
+        rewriteRules = updatedRewrites
+        return summary
+    }
+
+    private func validatedRewriteRule(_ rule: URLRewriteRule) -> Result<URLRewriteRule, RewriteRuleValidationError> {
+        let normalizedActions = Self.normalizedRewriteActions(rule.actions)
+        guard !normalizedActions.isEmpty else { return .failure(.noActions) }
+
+        switch normalizedSourceAppBundleIDs(rule.match.sourceAppBundleIDs) {
+        case .success(let value):
+            let normalizedPathPrefixResult = Self.normalizedPathPrefixForStorage(rule.match.pathPrefix)
+            let normalizedPathPrefix: String?
+            switch normalizedPathPrefixResult {
+            case .success(let path):
+                normalizedPathPrefix = path
+            case .failure:
+                return .failure(.invalidPathPrefix)
+            }
+
+            let normalizedHost: String
+            if rule.match.useRegex {
+                let trimmed = rule.match.hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, trimmed.count <= 500, (try? NSRegularExpression(pattern: trimmed)) != nil else {
+                    return .failure(.invalidRegexPattern)
+                }
+                guard !Self.isDangerouslyComplexRegex(trimmed) else {
+                    return .failure(.regexTooComplex)
+                }
+                normalizedHost = trimmed
+            } else {
+                let normalizedHosts = normalizedHostPatterns(rule.match.hostPattern)
+                guard isValidHostPatterns(normalizedHosts) else {
+                    return .failure(.invalidHostPattern)
+                }
+                normalizedHost = normalizedHosts.joined(separator: ", ")
+            }
+
+            var normalizedRule = rule
+            let trimmedName = rule.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedRule.name = trimmedName.isEmpty ? normalizedHost : trimmedName
+            normalizedRule.match.hostPattern = normalizedHost
+            normalizedRule.match.pathPrefix = normalizedPathPrefix
+            normalizedRule.match.sourceAppBundleIDs = value
+            normalizedRule.match.schemes = Self.normalizedSchemes(rule.match.schemes)
+            normalizedRule.actions = normalizedActions
+            return .success(normalizedRule)
+        case .failure:
+            return .failure(.invalidSourceAppBundleId)
+        }
+    }
+
+    private static func normalizedSchemes(_ schemes: [String]) -> [String] {
+        var normalized: [String] = []
+        for raw in schemes {
+            let lowered = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard lowered == "http" || lowered == "https", !normalized.contains(lowered) else { continue }
+            normalized.append(lowered)
+        }
+        return normalized
+    }
+
+    private static func normalizedRewriteActions(_ actions: [URLRewriteAction]) -> [URLRewriteAction] {
+        actions.compactMap { action in
+            switch action {
+            case .forceScheme(let scheme):
+                let trimmed = scheme.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return trimmed.isEmpty ? nil : .forceScheme(trimmed)
+            case .replaceHost(let host):
+                let trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return trimmed.isEmpty ? nil : .replaceHost(trimmed)
+            case .stripQueryParameters(let names):
+                let trimmed = names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                return trimmed.isEmpty ? nil : .stripQueryParameters(trimmed)
+            case .stripQueryParameterPrefixes(let prefixes):
+                let trimmed = prefixes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                return trimmed.isEmpty ? nil : .stripQueryParameterPrefixes(trimmed)
+            case .setQueryParameter(let name, let value):
+                let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmedName.isEmpty ? nil : .setQueryParameter(name: trimmedName, value: value)
+            case .removeFragment:
+                return .removeFragment
+            }
+        }
+    }
+
+    // MARK: - Migration-Time Merge Assist
+
+    /// Groups *consecutive* rules (in current order) that share every field except a
+    /// single source app into merge suggestions. Requiring consecutiveness is the
+    /// order-safety guarantee: any interleaved rule with a different match condition
+    /// blocks the merge outright rather than risk changing which rule wins for a URL.
+    static func computeMergeSuggestions(for rules: [BrowserRoutingRule]) -> [RuleMergeSuggestion] {
+        guard rules.count >= 2 else { return [] }
+
+        var suggestions: [RuleMergeSuggestion] = []
+        var index = 0
+        while index < rules.count {
+            var group = [rules[index]]
+            var next = index + 1
+            while next < rules.count, isMergeableSignature(rules[index], rules[next]) {
+                group.append(rules[next])
+                next += 1
+            }
+
+            if group.count >= 2 {
+                var mergedSources: [String] = []
+                for rule in group {
+                    for source in rule.sourceAppBundleIDs where !mergedSources.contains(source) {
+                        mergedSources.append(source)
+                    }
+                }
+                suggestions.append(RuleMergeSuggestion(
+                    ruleIDs: group.map(\.id),
+                    mergedName: group[0].name,
+                    mergedSourceAppBundleIDs: mergedSources,
+                    browserBundleId: group[0].browserBundleId,
+                    profile: group[0].profile,
+                    hostPattern: group[0].hostPattern
+                ))
+            }
+
+            index = next > index + 1 ? next : index + 1
+        }
+        return suggestions
+    }
+
+    private static func isMergeableSignature(_ a: BrowserRoutingRule, _ b: BrowserRoutingRule) -> Bool {
+        a.sourceAppBundleIDs.count == 1 &&
+        b.sourceAppBundleIDs.count == 1 &&
+        a.sourceAppBundleIDs != b.sourceAppBundleIDs &&
+        a.hostPattern == b.hostPattern &&
+        a.pathPrefix == b.pathPrefix &&
+        a.browserBundleId == b.browserBundleId &&
+        a.profile == b.profile &&
+        a.isEnabled == b.isEnabled &&
+        a.usePrivateMode == b.usePrivateMode &&
+        a.useRegex == b.useRegex
+    }
+
+    @discardableResult
+    func acceptRuleMergeSuggestion(_ suggestion: RuleMergeSuggestion) -> Bool {
+        guard applyRuleMerge(suggestion) else { return false }
+        pendingRuleMergeSuggestions.removeAll { $0.id == suggestion.id }
+        return true
+    }
+
+    func rejectRuleMergeSuggestion(_ suggestion: RuleMergeSuggestion) {
+        pendingRuleMergeSuggestions.removeAll { $0.id == suggestion.id }
+    }
+
+    func acceptAllPendingRuleMergeSuggestions() {
+        for suggestion in pendingRuleMergeSuggestions {
+            applyRuleMerge(suggestion)
+        }
+        pendingRuleMergeSuggestions.removeAll()
+    }
+
+    /// Marks the one-time review as complete so suggestions are never recomputed again.
+    func finishRuleMergeReview() {
+        hasSeenRuleMergeReview = true
+        pendingRuleMergeSuggestions = []
+    }
+
+    @discardableResult
+    private func applyRuleMerge(_ suggestion: RuleMergeSuggestion) -> Bool {
+        guard let firstIndex = routingRules.firstIndex(where: { $0.id == suggestion.ruleIDs.first }) else { return false }
+
+        var merged = routingRules[firstIndex]
+        merged.sourceAppBundleIDs = suggestion.mergedSourceAppBundleIDs
+        guard case .success(let normalizedMerged) = validatedRoutingRule(merged) else { return false }
+
+        let groupIDs = Set(suggestion.ruleIDs)
+        var updatedRules = routingRules.filter { !groupIDs.contains($0.id) }
+        updatedRules.insert(normalizedMerged, at: firstIndex)
+
+        routingRules = updatedRules
+        // One-time migration write: a single synchronous save, not debounced (PRD:
+        // "Persistence And Compatibility") — this isn't an interactive drag/typing edit.
+        saveRoutingRules()
+        return true
     }
 
     // MARK: - URL Cleaning & Unshortening
@@ -949,8 +1576,9 @@ extension BrowserRoutingRule {
     ]
 
     func cleanURL(_ url: URL) -> URL {
+        guard trackingCleanupEnabled else { return url }
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
-        
+
         if let queryItems = components.queryItems {
             let cleanedItems = queryItems.filter { !Self.trackingParameters.contains($0.name.lowercased()) }
             components.queryItems = cleanedItems.isEmpty ? nil : cleanedItems
@@ -963,8 +1591,26 @@ extension BrowserRoutingRule {
         "t.co", "bit.ly", "tinyurl.com", "is.gd", "buff.ly", "ow.ly", "goo.gl", "lnkd.in"
     ]
 
+    /// Fixed built-in list plus any user-appended hosts (FR-031). The built-in list itself
+    /// cannot be edited — users can only add to it.
+    func isAllowedShortenerHost(_ host: String) -> Bool {
+        let lowered = host.lowercased()
+        return Self.shortenerDomains.contains(lowered) || userShortenerHosts.contains(lowered)
+    }
+
+    func addUserShortenerHost(_ host: String) {
+        let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return }
+        userShortenerHosts.insert(normalized)
+    }
+
+    func removeUserShortenerHost(_ host: String) {
+        userShortenerHosts.remove(host)
+    }
+
     func unshortenURL(_ url: URL) async -> URL {
-        guard let host = url.host?.lowercased(), Self.shortenerDomains.contains(host) else {
+        guard networkLookupsEnabled,
+              let host = url.host?.lowercased(), isAllowedShortenerHost(host) else {
             return url
         }
 
@@ -972,11 +1618,14 @@ extension BrowserRoutingRule {
         var hops = 0
         let maxHops = 5
         let sessionConfig = URLSessionConfiguration.ephemeral
-        
+        sessionConfig.timeoutIntervalForRequest = shortlinkResolutionTimeout
+        sessionConfig.timeoutIntervalForResource = shortlinkResolutionTimeout
+
         while hops < maxHops {
             var request = URLRequest(url: currentURL)
             request.httpMethod = "HEAD"
-            
+            request.timeoutInterval = shortlinkResolutionTimeout
+
             let delegate = RedirectHandler()
             let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
             
@@ -1542,15 +2191,65 @@ extension BrowserRoutingRule {
         if useRegex {
             let trimmed = hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, trimmed.count <= 500 else { return false }
-            return (try? NSRegularExpression(pattern: trimmed)) != nil
+            guard (try? NSRegularExpression(pattern: trimmed)) != nil else { return false }
+            return !Self.isDangerouslyComplexRegex(trimmed)
         }
-        let normalizedPattern = normalizedHostPattern(hostPattern)
+        let normalizedPattern = Self.normalizedHostPattern(hostPattern)
         return isValidHostPattern(normalizedPattern)
+    }
+
+    /// Save-time ReDoS heuristic (FR-028): flags nested-quantifier shapes like `(a+)+` or
+    /// `(a*)*`, interval-quantifier variants like `(a+){10,}` and `(a{2,})+`, overlapping
+    /// alternation like `(a|a)*`/`(a|ab)*`, and directly-nested groups like `((a+))+` that
+    /// cause catastrophic backtracking. A heuristic, not a formal classifier — see the
+    /// PRD's Risks section; `hostMatches` also caps host length as a runtime backstop for
+    /// whatever this heuristic misses. Runs only when a pattern is saved/edited, never at
+    /// match time, so already-persisted rules are never retroactively re-validated.
+    static func isDangerouslyComplexRegex(_ pattern: String) -> Bool {
+        let nsPattern = pattern as NSString
+        let fullRange = NSRange(location: 0, length: nsPattern.length)
+        let quantifierSuffix = "(?:[+*]|\\{[0-9]+,?[0-9]*\\})"
+
+        // A parenthesized group (no nested parens) immediately followed by `+`, `*`, or an
+        // interval like `{10,}`. Covers `(a+)+` / `(a*)*` as well as interval variants:
+        // `(a+){10,}` (interval outer) and `(a{2,})+` (interval inner).
+        if let quantifiedGroup = try? NSRegularExpression(pattern: "\\(([^()]*)\\)\(quantifierSuffix)") {
+            for match in quantifiedGroup.matches(in: pattern, range: fullRange) where match.numberOfRanges > 1 {
+                let content = nsPattern.substring(with: match.range(at: 1))
+
+                if content.range(of: "[+*]|\\{[0-9]+,?[0-9]*\\}", options: .regularExpression) != nil {
+                    return true
+                }
+
+                // Overlapping/duplicate alternation branches under a quantifier, e.g.
+                // `(a|a)*` (identical branches) or `(a|ab)*` (one branch a prefix of another).
+                if content.contains("|") {
+                    let branches = content.components(separatedBy: "|")
+                    for i in 0..<branches.count {
+                        for j in (i + 1)..<branches.count {
+                            let (a, b) = (branches[i], branches[j])
+                            guard !a.isEmpty, !b.isEmpty else { continue }
+                            if a == b || a.hasPrefix(b) || b.hasPrefix(a) { return true }
+                        }
+                    }
+                }
+            }
+        }
+
+        // A group directly nested inside another group with an inner quantifier, itself
+        // under an outer quantifier, e.g. `((a+))+` — the check above can't see across the
+        // inner group's own parens, so this needs its own pattern.
+        if let nestedGroup = try? NSRegularExpression(pattern: "\\(\\([^()]*[+*][^()]*\\)\\)\(quantifierSuffix)"),
+           nestedGroup.firstMatch(in: pattern, range: fullRange) != nil {
+            return true
+        }
+
+        return false
     }
 
     /// Public normalization helper for rule host patterns (used by view closures).
     func normalizedRoutingHostPattern(_ pattern: String) -> String {
-        normalizedHostPattern(pattern)
+        Self.normalizedHostPattern(pattern)
     }
 
     /// Replaces an existing routing rule (matched by ID) with an updated value.
@@ -1678,7 +2377,7 @@ extension BrowserRoutingRule {
 
     private func normalizedHostPatterns(_ patterns: String) -> [String] {
         return patterns.components(separatedBy: ",")
-            .map { normalizedHostPattern(String($0)) }
+            .map { Self.normalizedHostPattern(String($0)) }
             .filter { !$0.isEmpty }
     }
 
@@ -1689,16 +2388,16 @@ extension BrowserRoutingRule {
             return .failure(.browserNotFound(bundleId: rule.browserBundleId, profile: launchProfile))
         }
 
-        let normalizedSourceBundleId: String?
-        switch normalizedSourceAppBundleId(rule.sourceAppBundleId) {
+        let normalizedSourceBundleIDs: [String]
+        switch normalizedSourceAppBundleIDs(rule.sourceAppBundleIDs) {
         case .success(let value):
-            normalizedSourceBundleId = value
+            normalizedSourceBundleIDs = value
         case .failure(let error):
             return .failure(error)
         }
 
         let normalizedPathPrefix: String?
-        switch normalizedPathPrefixForStorage(rule.pathPrefix) {
+        switch Self.normalizedPathPrefixForStorage(rule.pathPrefix) {
         case .success(let value):
             normalizedPathPrefix = value
         case .failure(let error):
@@ -1711,10 +2410,13 @@ extension BrowserRoutingRule {
             guard !trimmed.isEmpty, trimmed.count <= 500, (try? NSRegularExpression(pattern: trimmed)) != nil else {
                 return .failure(.invalidRegexPattern)
             }
+            guard !Self.isDangerouslyComplexRegex(trimmed) else {
+                return .failure(.regexTooComplex)
+            }
             normalizedHost = trimmed
         } else {
             let normalizedHosts = normalizedHostPatterns(rule.hostPattern)
-            guard isValidHostPatterns(normalizedHosts, sourceAppBundleId: normalizedSourceBundleId) else {
+            guard isValidHostPatterns(normalizedHosts) else {
                 return .failure(.invalidHostPattern)
             }
             normalizedHost = normalizedHosts.joined(separator: ", ")
@@ -1727,12 +2429,12 @@ extension BrowserRoutingRule {
         normalizedRule.hostPattern = normalizedHost
         normalizedRule.pathPrefix = normalizedPathPrefix
         normalizedRule.profile = launchProfile
-        normalizedRule.sourceAppBundleId = normalizedSourceBundleId
+        normalizedRule.sourceAppBundleIDs = normalizedSourceBundleIDs
         normalizedRule.usePrivateMode = launchPrivateMode
         return .success(normalizedRule)
     }
 
-    private func isValidHostPatterns(_ patterns: [String], sourceAppBundleId: String? = nil) -> Bool {
+    private func isValidHostPatterns(_ patterns: [String]) -> Bool {
         guard !patterns.isEmpty else { return false }
         for pattern in patterns {
             if !isValidHostPattern(pattern) { return false }
@@ -1740,7 +2442,10 @@ extension BrowserRoutingRule {
         return true
     }
 
-    private func normalizedHostPattern(_ hostPattern: String) -> String {
+    /// Static (not just private) so `RewritePipeline` — a separate pure type — can reuse
+    /// the exact same host-matching logic routing rules use (Eng Review: rewrite engine
+    /// must literally share code with routing, not just look similar).
+    static func normalizedHostPattern(_ hostPattern: String) -> String {
         var normalized = hostPattern
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -1814,11 +2519,11 @@ extension BrowserRoutingRule {
         return true
     }
 
-    private func normalizedPathPrefix(_ pathPrefix: String?) -> String? {
+    static func normalizedPathPrefix(_ pathPrefix: String?) -> String? {
         (try? normalizedPathPrefixForStorage(pathPrefix).get()) ?? nil
     }
 
-    private func normalizedPathPrefixForStorage(_ pathPrefix: String?) -> Result<String?, RoutingRuleValidationError> {
+    static func normalizedPathPrefixForStorage(_ pathPrefix: String?) -> Result<String?, RoutingRuleValidationError> {
         guard let pathPrefix else { return .success(nil) }
 
         let trimmed = pathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1837,13 +2542,17 @@ extension BrowserRoutingRule {
         return .success("/\(trimmed)")
     }
 
-    private func normalizedSourceAppBundleId(_ bundleId: String?) -> Result<String?, RoutingRuleValidationError> {
-        guard let bundleId else { return .success(nil) }
-
-        let trimmed = bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .success(nil) }
-        guard isValidBundleId(trimmed) else { return .failure(.invalidSourceAppBundleId) }
-        return .success(trimmed)
+    private func normalizedSourceAppBundleIDs(_ bundleIds: [String]) -> Result<[String], RoutingRuleValidationError> {
+        var normalized: [String] = []
+        for raw in bundleIds {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard isValidBundleId(trimmed) else { return .failure(.invalidSourceAppBundleId) }
+            if !normalized.contains(trimmed) {
+                normalized.append(trimmed)
+            }
+        }
+        return .success(normalized)
     }
 
     private func isValidBundleId(_ bundleId: String) -> Bool {
@@ -1855,8 +2564,19 @@ extension BrowserRoutingRule {
         }
     }
 
-    private func hostMatches(_ host: String, pattern: String, useRegex: Bool = false) -> Bool {
+    /// Hard runtime backstop (Security Review, round 2): the save-time `isDangerouslyComplexRegex`
+    /// heuristic can never catch every catastrophic-backtracking shape. A length cap only bounds
+    /// anything if it's near the actual worst case, not an arbitrary "large" number — classic
+    /// catastrophic regexes exhaust NSRegularExpression's backtracking budget around 30-60 input
+    /// characters, so a 2000-char cap (the original value here) protected nothing: any hostname
+    /// short enough to be real (DNS labels cap total hostname length at 253 chars, RFC 1035) would
+    /// already trigger the hang before ever approaching that cap. 253 is both the real-world bound
+    /// (nothing valid is longer) and small enough to actually matter for pathological patterns.
+    static let maxRegexHostLength = 253
+
+    static func hostMatches(_ host: String, pattern: String, useRegex: Bool = false) -> Bool {
         if useRegex {
+            guard host.count <= maxRegexHostLength else { return false }
             do {
                 let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
                 let fullRange = NSRange(host.startIndex..., in: host)
@@ -1887,7 +2607,7 @@ extension BrowserRoutingRule {
         return host == normalizedPattern
     }
 
-    private func pathMatches(_ path: String, prefix: String?) -> Bool {
+    static func pathMatches(_ path: String, prefix: String?) -> Bool {
         guard let normalizedPrefix = normalizedPathPrefix(prefix) else {
             return true
         }

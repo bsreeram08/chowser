@@ -2,6 +2,18 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.1] - 2026-07-06
+
+### Added
+- **App Mode.** Chowser can now run as a regular Dock app instead of menu-bar-only — choose during onboarding, change anytime in Settings → General. Existing installs are asked once after updating.
+- **MCP: full Settings API.** The local API now reads and writes every Settings preference (App Mode, fallback routing, network privacy, launch-at-login, hidden apps, picker appearance) via `GET`/`POST /settings`, so an AI assistant can configure Chowser conversationally, not just browsers/rules/rewrites.
+- **MCP: headless start/stop.** `chowser://mcp/start` and `chowser://mcp/stop` let an agent with shell access turn the local API on, configure Chowser, and turn it off without opening the app UI.
+- **Predefined rewrite rules.** Settings → Rewrites can check for a small hosted catalog of starter rewrite rules (HTTPS upgrade, tracking-parameter stripping) and offer to add them.
+
+### Fixed
+- **Handoff to nearby devices** could silently fail to advertise due to an activation-timing race, and the always-on background path never had a real chance of working in the first place (the picker deliberately doesn't steal focus) — now gated honestly and the explicit "Send to Phone" path is race-free.
+- **The AI setup prompt was broken** for any AI assistant without a way to self-correct (e.g. inside Claude's app or Cowork) — it specified the wrong auth header and stale API response fields, so every request failed with 401. Corrected to match the real API.
+
 ## [3.9.0] - 2026-07-06
 
 ### Added

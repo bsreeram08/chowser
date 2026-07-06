@@ -2,6 +2,21 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.0] - 2026-07-06
+
+### Added
+- **Fallback routing.** Unmatched links can now open directly in a chosen browser/profile instead of always showing the picker — configurable in Settings → Behavior. Existing installs keep today's picker-first behavior by default.
+- **Multiple source apps per rule.** A single routing rule can now match links from several apps (e.g. Slack, Mail, and Linear all routing the same way) instead of needing one rule per app. Existing installs get an on-upgrade prompt offering to merge duplicate rules that only differed by source app.
+- **URL rewrites.** New Settings → Rewrites section lets you strip tracking parameters, force HTTPS, replace hosts, or edit query parameters on a link before it's routed — with a live tester showing exactly what changed and why, no code required.
+- **Picker URL editing.** The link shown in the picker can now be edited before choosing a browser, for one-off fixes to a malformed URL.
+- **Network privacy controls.** Shortlink resolution and link-preview fetches are now off by default (including for existing installs, a deliberate change — see below), with a configurable timeout and an appendable allowlist of trusted shortener hosts.
+
+### Changed
+- **Shortlink resolution and link preview no longer contact the network automatically.** Both used to unshorten/preview every link without asking; both are now off by default, including on upgrade. A one-time notice explains the change the first time you hit the picker or open Settings after updating. Turn it back on in Settings → Behavior.
+
+### Fixed
+- **Regex host patterns are now checked for catastrophic backtracking before they can be saved**, in both routing rules and rewrites — a maliciously crafted link could otherwise freeze the app.
+
 ## [3.8.0] - 2026-07-03
 
 ### Added

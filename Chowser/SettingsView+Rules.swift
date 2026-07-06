@@ -14,7 +14,7 @@ extension SettingsView {
             rule.name.localizedStandardContains(query)
                 || rule.hostPattern.localizedStandardContains(query)
                 || (rule.pathPrefix?.localizedStandardContains(query) ?? false)
-                || (rule.sourceAppBundleId?.localizedStandardContains(query) ?? false)
+                || rule.sourceAppBundleIDs.contains(where: { $0.localizedStandardContains(query) })
         }
     }
 
@@ -52,6 +52,10 @@ extension SettingsView {
             },
             content: {
                 VStack(alignment: .leading, spacing: 16) {
+                    if !browserManager.pendingRuleMergeSuggestions.isEmpty {
+                        mergeSuggestionBanner
+                    }
+
                     HStack(spacing: 12) {
                         sectionSearchField(
                             placeholder: "Filter rules by name, host, path, or source app",
@@ -71,6 +75,32 @@ extension SettingsView {
                 }
             }
         )
+    }
+
+    private var mergeSuggestionBanner: some View {
+        let count = browserManager.pendingRuleMergeSuggestions.count
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "arrow.triangle.merge")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(count) rule merge\(count == 1 ? "" : "s") suggested")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("These rules differ only by source app and route to the same browser.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            Button("Review") { showingRuleMergeReview = true }
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.rules.reviewMergeSuggestionsButton")
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityIdentifier("settings.rules.mergeSuggestionBanner")
     }
 
     @ViewBuilder
@@ -290,31 +320,30 @@ private struct SettingsRuleRow: View {
                         Spacer()
                     }
 
-                    HStack(spacing: 10) {
-                        Button(action: chooseSourceApp) {
-                            AppBadgeView(bundleId: draft.sourceAppBundleId, fallbackText: "Any source app")
-                        }
-                        .buttonStyle(.plain)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Source Apps")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
 
-                        if draft.sourceAppBundleId != nil {
-                            Button("Clear Source") {
-                                draft.sourceAppBundleId = nil
-                                commitDraft()
+                        HStack(spacing: 10) {
+                            SourceAppChipsView(bundleIDs: $draft.sourceAppBundleIDs, onCommit: commitDraft)
+
+                            Spacer()
+
+                            Button("Duplicate", systemImage: "doc.on.doc") {
+                                onDuplicate()
+                            }
+                            .controlSize(.small)
+
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                onDelete()
                             }
                             .controlSize(.small)
                         }
 
-                        Spacer()
-
-                        Button("Duplicate", systemImage: "doc.on.doc") {
-                            onDuplicate()
-                        }
-                        .controlSize(.small)
-
-                        Button("Delete", systemImage: "trash", role: .destructive) {
-                            onDelete()
-                        }
-                        .controlSize(.small)
+                        Text(sourceSummaryText)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -380,16 +409,19 @@ private struct SettingsRuleRow: View {
         onUpdate(draft)
     }
 
-    private func chooseSourceApp() {
-        let panel = NSOpenPanel()
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.applicationBundle]
+    /// Compact source condition summary, e.g. "Slack, Mail → Chrome Work" (PRD: Settings: Rules).
+    private var sourceSummaryText: String {
+        let sourceNames = draft.sourceAppBundleIDs.isEmpty
+            ? "Any source app"
+            : draft.sourceAppBundleIDs.map(appDisplayName).joined(separator: ", ")
+        return "\(sourceNames) → \(browser.map(browserDisplayName) ?? "missing browser")"
+    }
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        draft.sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
-        commitDraft()
+    private func appDisplayName(for bundleId: String) -> String {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
+            return bundleId
+        }
+        return (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? bundleId
     }
 }
 
@@ -402,6 +434,7 @@ private extension BrowserRoutingRule {
 private struct SettingsRuleTester: View {
     let manager: BrowserManager
     @State private var urlString = ""
+    @State private var sourceAppBundleId = ""
 
     var body: some View {
         SettingsGroup("Rule Tester", subtitle: "Check how a link resolves before leaving Settings.") {
@@ -409,6 +442,12 @@ private struct SettingsRuleTester: View {
                 TextField("https://example.com/docs", text: $urlString)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
+                    .accessibilityIdentifier("settings.ruleTester.urlField")
+
+                TextField("Source app bundle ID (optional)", text: $sourceAppBundleId)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .accessibilityIdentifier("settings.ruleTester.sourceAppField")
 
                 testerResult
             }
@@ -423,7 +462,10 @@ private struct SettingsRuleTester: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         } else if let url = parsedURL {
-            if let route = manager.resolvedRoute(for: url) {
+            // Explicit source app (Eng Review: the tester must not rely on the ambient
+            // currentSourceAppBundleId, which is only set during a live URL open).
+            let trimmedSourceApp = sourceAppBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let route = manager.resolvedRoute(for: url, sourceApp: trimmedSourceApp.isEmpty ? nil : trimmedSourceApp) {
                 Label("Matches \(route.rule?.name ?? "temporary route") and opens \(route.browser.name)", systemImage: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.green)

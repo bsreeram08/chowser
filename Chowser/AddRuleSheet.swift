@@ -1,7 +1,6 @@
 import SwiftUI
 import Foundation
 import AppKit
-import UniformTypeIdentifiers
 
 struct AddRuleSheet: View {
     var manager: BrowserManager
@@ -14,7 +13,7 @@ struct AddRuleSheet: View {
     @State private var hostPattern = ""
     @State private var pathPrefix = ""
     @State private var selectedBrowserIdentity = ""
-    @State private var sourceAppBundleId: String? = nil
+    @State private var sourceAppBundleIDs: [String] = []
     @State private var usePrivateMode = false
     @State private var useRegex = false
 
@@ -122,11 +121,8 @@ struct AddRuleSheet: View {
                     
                     // Context
                     DetailSection(title: "Context", icon: "cpu.fill") {
-                        DetailRow(label: "Source App") {
-                            Button(action: chooseSourceApp) {
-                                AppBadgeView(bundleId: sourceAppBundleId, fallbackText: "Any Application")
-                            }
-                            .buttonStyle(.plain)
+                        DetailRow(label: "Source Apps") {
+                            SourceAppChipsView(bundleIDs: $sourceAppBundleIDs)
                         }
                     }
                 }
@@ -188,17 +184,6 @@ struct AddRuleSheet: View {
         }
     }
     
-    private func chooseSourceApp() {
-        let panel = NSOpenPanel()
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.applicationBundle]
-        if panel.runModal() == .OK, let url = panel.url {
-            sourceAppBundleId = Bundle(url: url)?.bundleIdentifier
-        }
-    }
-    
     private func saveRule() {
         let parts = selectedBrowserIdentity.split(separator: "|")
         let browserBundleId = String(parts[0])
@@ -210,7 +195,7 @@ struct AddRuleSheet: View {
             pathPrefix: pathPrefix.isEmpty ? nil : pathPrefix,
             browserBundleId: browserBundleId,
             profile: profile,
-            sourceAppBundleId: sourceAppBundleId,
+            sourceAppBundleIDs: sourceAppBundleIDs,
             usePrivateMode: BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild ? usePrivateMode : false,
             useRegex: useRegex
         )

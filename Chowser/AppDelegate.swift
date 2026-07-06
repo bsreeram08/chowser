@@ -191,14 +191,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     static func resolveIncomingURLRoute(
         for url: URL,
         using manager: BrowserManager,
-        forceShowPicker: Bool
+        forceShowPicker: Bool,
+        sourceApp: String? = nil
     ) -> (rule: BrowserRoutingRule?, browser: BrowserConfig)? {
         defer {
             manager.currentSourceAppBundleId = nil
         }
 
         guard !forceShowPicker else { return nil }
-        return manager.resolvedRoute(for: url)
+        if let matched = manager.resolvedRoute(for: url, sourceApp: sourceApp) {
+            return matched
+        }
+        return manager.fallbackRoute()
     }
 
     private static func senderPID(from data: Data?) -> pid_t? {
@@ -261,19 +265,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         Task {
+            // 0. Apply URL rewrite rules — local, synchronous, before any network call
+            // (PRD Architecture Notes pipeline order: rewrites → shortlink → cleanup).
+            // Source app is captured explicitly here (still non-nil; the defer below clears
+            // it only after route resolution) rather than read ambiently by the pipeline.
+            let sourceAppBundleId = manager.currentSourceAppBundleId
+            let rewriteResult = manager.applyRewritePipeline(to: url, sourceApp: sourceAppBundleId)
+            let rewrittenURL = rewriteResult.finalURL
+
+            // Only show a loading state when shortlink resolution will actually make a
+            // network call (up to the 1.5s timeout) — the default one-key path stays instant.
+            let willAwaitShortlink = manager.networkLookupsEnabled
+                && (rewrittenURL.host.map { manager.isAllowedShortenerHost($0) } ?? false)
+
+            if willAwaitShortlink {
+                manager.currentRewriteTrace = rewriteResult.steps
+                manager.currentURL = rewrittenURL
+                manager.isResolvingIncomingURL = true
+                showPicker()
+            }
+
             // 1. Unshorten the URL if it's from a known shortener
-            let unshortenedURL = await manager.unshortenURL(url)
-            
+            let unshortenedURL = await manager.unshortenURL(rewrittenURL)
+
             // 2. Clean known tracking parameters
             let cleanedURL = manager.cleanURL(unshortenedURL)
 
             await MainActor.run {
+                manager.isResolvingIncomingURL = false
+                manager.currentRewriteTrace = rewriteResult.steps
                 manager.addRecentURL(cleanedURL)
                 manager.currentURL = cleanedURL
 
                 // Hold Shift (⇧) while clicking a link to bypass auto-rules and force the picker.
                 let forceShowPicker = NSEvent.modifierFlags.contains(.shift)
-                let route = Self.resolveIncomingURLRoute(for: cleanedURL, using: manager, forceShowPicker: forceShowPicker)
+                // Pass the source app captured at the top of this Task explicitly — reading
+                // `manager.currentSourceAppBundleId` here (after the `await unshortenURL` gap
+                // above) would race a second incoming link overwriting that ambient property
+                // before this one's routing decision runs (TOCTOU, found in review).
+                let route = Self.resolveIncomingURLRoute(for: cleanedURL, using: manager, forceShowPicker: forceShowPicker, sourceApp: sourceAppBundleId)
 
                 let routePrivate = (route?.rule?.usePrivateMode ?? false) || clipboardPrivateModeRequested
                 AppLogger.log("Route", "Received \(routePrivate ? "private link" : (cleanedURL.host ?? cleanedURL.absoluteString)) → \(route.map { "rule '\($0.rule?.name ?? "auto")' → \($0.browser.bundleId)" } ?? "picker")")
@@ -283,6 +313,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     let usePrivateMode = Self.requestedPrivateModeForIncomingURL(rule: route.rule, forcedPrivateMode: clipboardPrivateModeRequested)
                     manager.currentURLPrivateModeRequested = false
                     manager.open(url: cleanedURL, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: usePrivateMode)
+                    if willAwaitShortlink { self.closePicker() }
                     return
                 }
 

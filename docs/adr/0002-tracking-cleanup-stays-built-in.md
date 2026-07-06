@@ -1,0 +1,3 @@
+# Tracking cleanup stays a built-in toggle, not user-editable rewrite rules
+
+The new rewrite engine can strip query parameters by name, which is technically capable of replacing the hardcoded tracking-parameter cleanup step. We chose to keep tracking cleanup as its own built-in behavior with a simple on/off toggle, rather than converting it into default (editable) rewrite rules. Making it editable would let users unintentionally weaken privacy protection parameter-by-parameter, and no use case in the PRD asks for per-parameter control — the PRD's own risk list flags this same concern. Revisit only if a real use case for partial cleanup control shows up.

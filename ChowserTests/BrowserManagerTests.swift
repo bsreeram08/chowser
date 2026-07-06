@@ -389,7 +389,7 @@ struct BrowserManagerTests {
             hostPattern: "*",
             pathPrefix: nil,
             browserBundleId: "com.google.Chrome",
-            sourceAppBundleId: "net.whatsapp.WhatsApp"
+            sourceAppBundleIDs: ["net.whatsapp.WhatsApp"]
         )
 
         let url = URL(string: "https://news.ycombinator.com")!
@@ -398,7 +398,40 @@ struct BrowserManagerTests {
 
         manager.currentSourceAppBundleId = "net.whatsapp.WhatsApp"
         #expect(manager.resolvedRoute(for: url)?.browser.bundleId == "com.google.Chrome")
-        #expect(manager.resolvedRoute(for: url)?.rule?.sourceAppBundleId == "net.whatsapp.WhatsApp")
+        #expect(manager.resolvedRoute(for: url)?.rule?.sourceAppBundleIDs == ["net.whatsapp.WhatsApp"])
+    }
+
+    @Test("A rule with multiple source apps matches any of them (FR-010/012), zero means any (FR-011)")
+    @MainActor
+    func routingRuleMatchesAnyOfMultipleSourceApps() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+
+        manager.addRoutingRule(
+            name: "Work Chat Apps",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap", "com.apple.mail"]
+        )
+
+        let url = URL(string: "https://github.com/org/repo")!
+
+        manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
+        #expect(manager.resolvedRoute(for: url)?.browser.bundleId == "com.google.Chrome")
+
+        manager.currentSourceAppBundleId = "com.apple.mail"
+        #expect(manager.resolvedRoute(for: url)?.browser.bundleId == "com.google.Chrome")
+
+        // Zero source apps in the incoming context, or a source not in the list: no match.
+        manager.currentSourceAppBundleId = nil
+        #expect(manager.resolvedRoute(for: url) == nil)
+
+        manager.currentSourceAppBundleId = "com.tinyspeck.linear"
+        #expect(manager.resolvedRoute(for: url) == nil)
     }
 
     @Test("Apple Event URL helper rejects invalid URL payloads")
@@ -468,7 +501,7 @@ struct BrowserManagerTests {
             hostPattern: "github.com",
             pathPrefix: nil,
             browserBundleId: "com.google.Chrome",
-            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
         )
 
         manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
@@ -479,7 +512,7 @@ struct BrowserManagerTests {
         )
 
         #expect(route?.browser.bundleId == "com.google.Chrome")
-        #expect(route?.rule?.sourceAppBundleId == "com.tinyspeck.slackmacgap")
+        #expect(route?.rule?.sourceAppBundleIDs == ["com.tinyspeck.slackmacgap"])
         #expect(manager.currentSourceAppBundleId == nil)
     }
 
@@ -497,7 +530,7 @@ struct BrowserManagerTests {
             hostPattern: "github.com",
             pathPrefix: nil,
             browserBundleId: "com.google.Chrome",
-            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
         )
 
         manager.currentSourceAppBundleId = "com.apple.mail"
@@ -509,6 +542,39 @@ struct BrowserManagerTests {
 
         #expect(route == nil)
         #expect(manager.currentSourceAppBundleId == nil)
+    }
+
+    @Test("Incoming URL route uses the explicitly passed source app, not a since-overwritten ambient value (TOCTOU regression, found in Hound review)")
+    @MainActor
+    func incomingURLRouteUsesExplicitSourceAppNotAmbient() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "2"),
+        ]
+        manager.addRoutingRule(
+            name: "Slack GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
+        )
+
+        // Simulate the race: a second link's source app has already overwritten the ambient
+        // property by the time this call runs (e.g. after an `await unshortenURL` gap), but the
+        // caller (AppDelegate.application(_:open:)) captured the correct value up front and must
+        // pass it explicitly — the production entry point does this, this test proves it matters.
+        manager.currentSourceAppBundleId = "com.apple.mail"
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://github.com/org/repo")!,
+            using: manager,
+            forceShowPicker: false,
+            sourceApp: "com.tinyspeck.slackmacgap"
+        )
+
+        #expect(route?.browser.bundleId == "com.google.Chrome")
+        #expect(route?.rule?.sourceAppBundleIDs == ["com.tinyspeck.slackmacgap"])
     }
 
     @Test("Temporary focus route takes precedence over matching source app rule")
@@ -525,7 +591,7 @@ struct BrowserManagerTests {
             hostPattern: "github.com",
             pathPrefix: nil,
             browserBundleId: "com.google.Chrome",
-            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
         )
         manager.setTemporaryRoute(browserBundleId: "org.mozilla.firefox", profile: nil, duration: 60)
         manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
@@ -726,6 +792,38 @@ struct BrowserManagerTests {
         #expect(route?.browser.name == "Safari")
     }
 
+    @Test("resolvedRoute takes an explicit source app so callers outside a live URL open (e.g. the Settings rule tester) can match source-app conditions")
+    @MainActor
+    func resolvedRouteAcceptsExplicitSourceApp() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+        manager.addRoutingRule(
+            name: "From Slack",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.apple.Safari",
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
+        )
+
+        let url = URL(string: "https://github.com/org/repo")!
+
+        // The ambient property is nil here (as it is in the tester, since it's only set
+        // during a live URL open and immediately defer-cleared) — without an explicit
+        // parameter this rule could never match outside a real open.
+        #expect(manager.currentSourceAppBundleId == nil)
+        #expect(manager.resolvedRoute(for: url) == nil)
+
+        // Passing the simulated source app explicitly must let the rule match.
+        let matched = manager.resolvedRoute(for: url, sourceApp: "com.tinyspeck.slackmacgap")
+        #expect(matched?.rule?.name == "From Slack")
+
+        // A mismatched explicit source app must still fail to match.
+        #expect(manager.resolvedRoute(for: url, sourceApp: "com.apple.mail") == nil)
+    }
+
     @Test("Routing host normalization accepts pasted full URLs")
     @MainActor
     func routingRuleHostNormalizationFromURL() {
@@ -882,6 +980,244 @@ struct BrowserManagerTests {
         #expect(newManager.routingRules[0].browserBundleId == "company.thebrowser.Browser")
         
         try FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test("Legacy singular sourceAppBundleId decodes into a one-item sourceAppBundleIDs array (FR-013)")
+    @MainActor
+    func legacySingleSourceDecodesToArray() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+
+        let legacyJSON = """
+        [{"id":"\(UUID().uuidString)","name":"Legacy","hostPattern":"github.com","browserBundleId":"com.google.Chrome","sourceAppBundleId":"com.tinyspeck.slackmacgap"}]
+        """
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("legacy_rules_\(UUID().uuidString).json")
+        try legacyJSON.data(using: .utf8)!.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        try manager.importRules(from: tempURL)
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].sourceAppBundleIDs == ["com.tinyspeck.slackmacgap"])
+    }
+
+    @Test("Export emits the plural sourceAppBundleIDs field, not the legacy singular one")
+    @MainActor
+    func exportEmitsPluralSourceAppField() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+        manager.addRoutingRule(
+            name: "Slack GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("export_shape_\(UUID().uuidString).json")
+        try manager.exportRules(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let data = try Data(contentsOf: tempURL)
+        let decoded = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        #expect(decoded?.first?["sourceAppBundleIDs"] as? [String] == ["com.tinyspeck.slackmacgap"])
+        #expect(decoded?.first?["sourceAppBundleId"] == nil)
+    }
+
+    @Test("Import skips a genuinely malformed element (missing required field) without failing the whole array (FR-014)")
+    @MainActor
+    func importSkipsMalformedElementWithoutFailingWholeArray() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        // Middle element is missing the required "hostPattern" key — a whole-array
+        // `[BrowserRoutingRule].self` decode would throw and import nothing at all.
+        let json = """
+        [
+            {"id":"\(UUID().uuidString)","name":"Good One","hostPattern":"a.example.com","browserBundleId":"com.apple.Safari"},
+            {"id":"\(UUID().uuidString)","name":"Missing Host","browserBundleId":"com.apple.Safari"},
+            {"id":"\(UUID().uuidString)","name":"Good Two","hostPattern":"b.example.com","browserBundleId":"com.apple.Safari"}
+        ]
+        """
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("malformed_rules_\(UUID().uuidString).json")
+        try json.data(using: .utf8)!.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let summary = try manager.importRules(from: tempURL)
+
+        #expect(summary.added == 2)
+        #expect(summary.invalid == 1)
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.routingRules.contains { $0.hostPattern == "a.example.com" })
+        #expect(manager.routingRules.contains { $0.hostPattern == "b.example.com" })
+    }
+
+    @Test("Import skips non-object array elements (null/string/number) without failing the whole array")
+    @MainActor
+    func importSkipsNonObjectElementsWithoutFailingWholeArray() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+        ]
+
+        // A whole-array `as? [[String: Any]]` cast returns nil the moment any element
+        // isn't an object — null, a bare string, or a bare number here — which used to
+        // fall through to a whole-array decode that throws and aborts the entire import.
+        let json = """
+        [
+            {"id":"\(UUID().uuidString)","name":"Good One","hostPattern":"a.example.com","browserBundleId":"com.apple.Safari"},
+            null,
+            "not an object",
+            42,
+            {"id":"\(UUID().uuidString)","name":"Good Two","hostPattern":"b.example.com","browserBundleId":"com.apple.Safari"}
+        ]
+        """
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("non_object_elements_\(UUID().uuidString).json")
+        try json.data(using: .utf8)!.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let summary = try manager.importRules(from: tempURL)
+
+        #expect(summary.added == 2)
+        #expect(summary.invalid == 3)
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.routingRules.contains { $0.hostPattern == "a.example.com" })
+        #expect(manager.routingRules.contains { $0.hostPattern == "b.example.com" })
+    }
+
+    @Test("Importing non-array JSON still throws instead of silently succeeding")
+    @MainActor
+    func importThrowsOnNonArrayTopLevelJSON() throws {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("not_an_array_\(UUID().uuidString).json")
+        try #"{"not": "an array"}"#.data(using: .utf8)!.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            try manager.importRules(from: tempURL)
+            Issue.record("Importing non-array JSON unexpectedly succeeded")
+        } catch {
+            // Expected: decode error propagated instead of silently treated as empty.
+        }
+    }
+
+    // MARK: - Migration-Time Merge Assist
+
+    @Test("Merge assist proposes merging consecutive same-destination single-source rules")
+    @MainActor
+    func mergeSuggestionProposesForSameDestination() {
+        let ruleA = BrowserRoutingRule(name: "Slack", hostPattern: "github.com", browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"])
+        let ruleB = BrowserRoutingRule(name: "Mail", hostPattern: "github.com", browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.apple.mail"])
+
+        let suggestions = BrowserManager.computeMergeSuggestions(for: [ruleA, ruleB])
+
+        #expect(suggestions.count == 1)
+        #expect(Set(suggestions[0].mergedSourceAppBundleIDs) == ["com.tinyspeck.slackmacgap", "com.apple.mail"])
+        #expect(suggestions[0].ruleIDs == [ruleA.id, ruleB.id])
+    }
+
+    @Test("Merge assist does not propose merging rules with different destinations")
+    @MainActor
+    func mergeSuggestionSkipsDifferentDestinations() {
+        let ruleA = BrowserRoutingRule(name: "Slack", hostPattern: "github.com", browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"])
+        let ruleB = BrowserRoutingRule(name: "Mail", hostPattern: "github.com", browserBundleId: "com.apple.Safari", sourceAppBundleIDs: ["com.apple.mail"])
+
+        let suggestions = BrowserManager.computeMergeSuggestions(for: [ruleA, ruleB])
+
+        #expect(suggestions.isEmpty)
+    }
+
+    @Test("Merge assist does not propose merging across an interleaved, differently-matching rule (order safety)")
+    @MainActor
+    func mergeSuggestionSkipsInterleavedDifferentRule() {
+        let ruleA = BrowserRoutingRule(name: "Slack", hostPattern: "example.com", browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"])
+        // Interleaved: same host, but no source restriction — a genuinely different match condition.
+        let interleaved = BrowserRoutingRule(name: "Catch All", hostPattern: "example.com", browserBundleId: "org.mozilla.firefox")
+        let ruleB = BrowserRoutingRule(name: "Mail", hostPattern: "example.com", browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.apple.mail"])
+
+        let suggestions = BrowserManager.computeMergeSuggestions(for: [ruleA, interleaved, ruleB])
+
+        #expect(suggestions.isEmpty)
+    }
+
+    @Test("Accepting a merge suggestion combines the rules and preserves routing behavior")
+    @MainActor
+    func acceptingMergeSuggestionCombinesRulesAndPreservesRouting() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+        manager.addRoutingRule(name: "Slack", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"])
+        manager.addRoutingRule(name: "Mail", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.apple.mail"])
+
+        let suggestions = BrowserManager.computeMergeSuggestions(for: manager.routingRules)
+        #expect(suggestions.count == 1)
+
+        #expect(manager.acceptRuleMergeSuggestion(suggestions[0]))
+        #expect(manager.routingRules.count == 1)
+        #expect(Set(manager.routingRules[0].sourceAppBundleIDs) == ["com.tinyspeck.slackmacgap", "com.apple.mail"])
+
+        let url = URL(string: "https://github.com/org/repo")!
+        manager.currentSourceAppBundleId = "com.tinyspeck.slackmacgap"
+        #expect(manager.resolvedRoute(for: url)?.browser.bundleId == "com.google.Chrome")
+        manager.currentSourceAppBundleId = "com.apple.mail"
+        #expect(manager.resolvedRoute(for: url)?.browser.bundleId == "com.google.Chrome")
+    }
+
+    @Test("Rejecting a merge suggestion leaves rules unchanged")
+    @MainActor
+    func rejectingMergeSuggestionLeavesRulesUnchanged() {
+        let defaults = makeTestDefaults()
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+        manager.addRoutingRule(name: "Slack", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"])
+        manager.addRoutingRule(name: "Mail", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.apple.mail"])
+
+        let suggestions = BrowserManager.computeMergeSuggestions(for: manager.routingRules)
+        manager.pendingRuleMergeSuggestions = suggestions
+        manager.rejectRuleMergeSuggestion(suggestions[0])
+
+        #expect(manager.routingRules.count == 2)
+        #expect(manager.pendingRuleMergeSuggestions.isEmpty)
+    }
+
+    @Test("Merge review suggestions are only computed once per install (hasSeenRuleMergeReview gate)")
+    @MainActor
+    func mergeReviewSuggestionsComputedOnce() {
+        // Suggestions are computed once at launch from *persisted* rules (migration-time,
+        // not a live recomputation on every edit) — seed persisted rules with one manager,
+        // then load them fresh with another to simulate the next launch.
+        let defaults = makeTestDefaults()
+        let seedManager = BrowserManager(defaults: defaults)
+        seedManager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+        ]
+        seedManager.addRoutingRule(name: "Slack", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"])
+        seedManager.addRoutingRule(name: "Mail", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "com.google.Chrome", sourceAppBundleIDs: ["com.apple.mail"])
+
+        let manager = BrowserManager(defaults: defaults)
+        #expect(!manager.pendingRuleMergeSuggestions.isEmpty)
+        manager.finishRuleMergeReview()
+        #expect(manager.pendingRuleMergeSuggestions.isEmpty)
+        #expect(manager.hasSeenRuleMergeReview)
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.pendingRuleMergeSuggestions.isEmpty)
     }
 
     // MARK: - Profile Support
@@ -1369,7 +1705,7 @@ struct BrowserManagerTests {
             hostPattern: "github.com",
             pathPrefix: nil,
             browserBundleId: "com.google.Chrome",
-            sourceAppBundleId: "not a bundle"
+            sourceAppBundleIDs: ["not a bundle"]
         )
         if case .failure(let error) = invalidSourceResult {
             #expect(error == .invalidSourceAppBundleId)
@@ -1383,12 +1719,12 @@ struct BrowserManagerTests {
             hostPattern: "github.com",
             pathPrefix: "orgs",
             browserBundleId: "com.google.Chrome",
-            sourceAppBundleId: "com.tinyspeck.slackmacgap"
+            sourceAppBundleIDs: ["com.tinyspeck.slackmacgap"]
         )
 
         #expect(manager.routingRules.count == 1)
         #expect(manager.routingRules[0].pathPrefix == "/orgs")
-        #expect(manager.routingRules[0].sourceAppBundleId == "com.tinyspeck.slackmacgap")
+        #expect(manager.routingRules[0].sourceAppBundleIDs == ["com.tinyspeck.slackmacgap"])
 
         let matchingURL = URL(string: "https://github.com/orgs/chowser")!
         manager.currentSourceAppBundleId = nil
@@ -1730,5 +2066,312 @@ struct BrowserManagerTests {
 
         let suffix = URL(string: "https://google.com.evil.com/search")!
         #expect(manager.resolvedRoute(for: suffix) == nil)
+    }
+
+    // MARK: - Fallback Policy (Phase 1)
+
+    @Test("Network privacy upgrade notice is only marked seen once, and stays seen (idempotent guard, not a UI-lifecycle flag)")
+    @MainActor
+    func networkPrivacyUpgradeNoticeMarkedSeenIsIdempotent() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        #expect(manager.hasSeenNetworkPrivacyUpgradeNotice == false)
+
+        manager.markNetworkPrivacyUpgradeNoticeSeen()
+        #expect(manager.hasSeenNetworkPrivacyUpgradeNotice == true)
+
+        // Calling again (e.g. a second dismiss action) must not throw or misbehave — the
+        // guard clause in markNetworkPrivacyUpgradeNoticeSeen() is what this test protects.
+        // The actual regression this notice shipped with was in the UI layer (ContentView's
+        // banner called this from `.onAppear` instead of only from the explicit dismiss
+        // button, so the banner vanished before a user could read it — see PR #40 review).
+        // That's not unit-testable without rendering the view; this test only guards the
+        // state-layer contract the UI fix depends on: marking seen is a one-way,
+        // explicit-action-only transition.
+        manager.markNetworkPrivacyUpgradeNoticeSeen()
+        #expect(manager.hasSeenNetworkPrivacyUpgradeNotice == true)
+    }
+
+    @Test("Fallback policy defaults to picker for fresh and existing installs")
+    @MainActor
+    func fallbackPolicyDefaultsToPicker() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        #expect(manager.fallbackPolicy.mode == .picker)
+        #expect(manager.fallbackRoute() == nil)
+    }
+
+    @Test("Fallback policy persists across manager instances")
+    @MainActor
+    func fallbackPolicyPersists() {
+        let defaults = makeTestDefaults()
+        let manager1 = BrowserManager(defaults: defaults)
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager1.configuredBrowsers = [chrome]
+        manager1.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: chrome.id, profile: nil)
+
+        let manager2 = BrowserManager(defaults: defaults)
+        #expect(manager2.fallbackPolicy.mode == .browser)
+        #expect(manager2.fallbackPolicy.browserID == chrome.id)
+    }
+
+    @Test("Unmatched link opens the configured fallback browser")
+    @MainActor
+    func fallbackRouteOpensConfiguredBrowser() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+        manager.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: chrome.id)
+
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://example.com")!,
+            using: manager,
+            forceShowPicker: false
+        )
+
+        #expect(route?.rule == nil)
+        #expect(route?.browser.bundleId == "com.google.Chrome")
+    }
+
+    @Test("Fallback falls back to picker when the configured browser was deleted")
+    @MainActor
+    func fallbackRouteMissingBrowserShowsPicker() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        manager.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: UUID())
+
+        #expect(manager.fallbackRoute() == nil)
+    }
+
+    @Test("Fallback falls back to picker when the configured browser is hidden")
+    @MainActor
+    func fallbackRouteHiddenBrowserShowsPicker() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+        manager.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: chrome.id)
+        manager.addHiddenBundleID("com.google.Chrome")
+
+        #expect(manager.fallbackRoute() == nil)
+    }
+
+    @Test("Fallback falls back to picker when the configured browser is disabled (FR-003)")
+    @MainActor
+    func fallbackRouteDisabledBrowserShowsPicker() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        var chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        chrome.isEnabled = false
+        manager.configuredBrowsers = [chrome]
+        manager.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: chrome.id)
+
+        #expect(manager.fallbackRoute() == nil)
+    }
+
+    @Test("Hold-Shift forces the picker even when fallback would open a browser")
+    @MainActor
+    func forcedPickerOverridesFallback() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        let chrome = BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")
+        manager.configuredBrowsers = [chrome]
+        manager.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: chrome.id)
+
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://example.com")!,
+            using: manager,
+            forceShowPicker: true
+        )
+
+        #expect(route == nil)
+    }
+
+    @Test("A matching routing rule takes precedence over fallback")
+    @MainActor
+    func matchedRuleTakesPrecedenceOverFallback() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        manager.configuredBrowsers = [
+            BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1"),
+            BrowserConfig(name: "Firefox", bundleId: "org.mozilla.firefox", shortcutKey: "2"),
+        ]
+        manager.addRoutingRule(
+            name: "GitHub",
+            hostPattern: "github.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome"
+        )
+        manager.fallbackPolicy = BrowserFallbackPolicy(mode: .browser, browserID: manager.configuredBrowsers[1].id)
+
+        let route = AppDelegate.resolveIncomingURLRoute(
+            for: URL(string: "https://github.com/org/repo")!,
+            using: manager,
+            forceShowPicker: false
+        )
+
+        #expect(route?.browser.bundleId == "com.google.Chrome")
+    }
+
+    // MARK: - Save-Time Regex Complexity Rejection (FR-028)
+
+    @Test("Catastrophic-backtracking regex patterns are rejected at save time")
+    @MainActor
+    func catastrophicRegexPatternsRejectedAtSave() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        manager.configuredBrowsers = [BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")]
+
+        for pattern in [
+            "(a+)+", "(a*)*", "(a+)*", "(ab+)+",
+            // Security review bypasses: interval quantifiers, outer and inner position.
+            "(a+){10,}", "(a{2,})+",
+            // Security review bypasses: overlapping/duplicate alternation branches.
+            "(a|a)*", "(a|ab)*",
+            // Security review bypass: directly-nested group under an outer quantifier.
+            "((a+))+",
+        ] {
+            let result = manager.addRoutingRule(
+                name: "Bad",
+                hostPattern: pattern,
+                pathPrefix: nil,
+                browserBundleId: "com.google.Chrome",
+                useRegex: true
+            )
+            if case .failure(let error) = result {
+                #expect(error == .regexTooComplex, "Pattern \(pattern) should be rejected as too complex")
+            } else {
+                Issue.record("Pattern \(pattern) unexpectedly passed save-time validation")
+            }
+        }
+        #expect(manager.routingRules.isEmpty)
+        #expect(BrowserManager.isDangerouslyComplexRegex("(a+)+"))
+        #expect(BrowserManager.isDangerouslyComplexRegex("(a+){10,}"))
+        #expect(BrowserManager.isDangerouslyComplexRegex("(a{2,})+"))
+        #expect(BrowserManager.isDangerouslyComplexRegex("(a|a)*"))
+        #expect(BrowserManager.isDangerouslyComplexRegex("(a|ab)*"))
+        #expect(BrowserManager.isDangerouslyComplexRegex("((a+))+"))
+    }
+
+    @Test("hostMatches caps regex input length as a runtime backstop, independent of the save-time heuristic's completeness")
+    @MainActor
+    func hostMatchesCapsRegexInputLength() {
+        // A pathologically long host is rejected outright before it ever reaches the
+        // regex engine, bounding worst-case backtracking regardless of pattern quality.
+        let longHost = String(repeating: "a", count: BrowserManager.maxRegexHostLength + 1)
+        #expect(!BrowserManager.hostMatches(longHost, pattern: ".*", useRegex: true))
+
+        // A host right at the cap still matches normally.
+        let boundaryHost = String(repeating: "a", count: BrowserManager.maxRegexHostLength)
+        #expect(BrowserManager.hostMatches(boundaryHost, pattern: ".*", useRegex: true))
+    }
+
+    @Test("Legitimate regex patterns are still accepted at save time")
+    @MainActor
+    func legitimateRegexPatternsStillAccepted() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        manager.configuredBrowsers = [BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")]
+
+        let result = manager.addRoutingRule(
+            name: "Fine",
+            hostPattern: ".*\\.example\\.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            useRegex: true
+        )
+        #expect(result.isSuccess)
+        #expect(manager.isValidRoutingHostPattern("(dev|staging)\\.company\\.com", useRegex: true) == true)
+        #expect(!BrowserManager.isDangerouslyComplexRegex(".*\\.example\\.com"))
+    }
+
+    @Test("Regression: already-persisted complex regex rules are not re-validated on load")
+    @MainActor
+    func persistedComplexRegexRuleNotRetroactivelyBroken() throws {
+        let defaults = makeTestDefaults()
+        // Simulate a rule saved before the FR-028 check existed by writing directly to
+        // persistence, bypassing addRoutingRule's validation.
+        let legacyRule = BrowserRoutingRule(
+            id: UUID(),
+            name: "Legacy",
+            hostPattern: "(a+)+\\.example\\.com",
+            pathPrefix: nil,
+            browserBundleId: "com.google.Chrome",
+            profile: nil,
+            useRegex: true
+        )
+        let encoded = try JSONEncoder().encode([legacyRule])
+        defaults.set(encoded, forKey: "routingRules")
+
+        let manager = BrowserManager(defaults: defaults)
+        manager.configuredBrowsers = [BrowserConfig(name: "Chrome", bundleId: "com.google.Chrome", shortcutKey: "1")]
+
+        #expect(manager.routingRules.count == 1)
+        #expect(manager.routingRules[0].useRegex == true)
+    }
+
+    // MARK: - Network Lookups / Privacy Controls (Phase 1)
+
+    @Test("Shortlink resolution defaults to off, including for existing-shaped installs")
+    @MainActor
+    func networkLookupsDefaultOff() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        #expect(manager.networkLookupsEnabled == false)
+    }
+
+    @Test("Disabled shortlink resolution makes no network request and returns the original URL")
+    @MainActor
+    func disabledShortlinkResolutionSkipsNetwork() async {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        manager.networkLookupsEnabled = false
+
+        let shortlink = URL(string: "https://bit.ly/does-not-matter")!
+        let start = ContinuousClock.now
+        let result = await manager.unshortenURL(shortlink)
+        let elapsed = start.duration(to: .now)
+
+        #expect(result == shortlink)
+        #expect(elapsed < .seconds(1), "Disabled resolution should return immediately without touching the network")
+    }
+
+    @Test("Shortlink allowlist covers built-in hosts and user-appended hosts only")
+    @MainActor
+    func shortlinkAllowlistCoversBuiltInAndUserHosts() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        #expect(manager.isAllowedShortenerHost("bit.ly"))
+        #expect(manager.isAllowedShortenerHost("t.co"))
+        #expect(!manager.isAllowedShortenerHost("not-a-shortener.example.com"))
+
+        manager.addUserShortenerHost("short.example.com")
+        #expect(manager.isAllowedShortenerHost("short.example.com"))
+        #expect(manager.isAllowedShortenerHost("SHORT.example.com"))
+
+        manager.removeUserShortenerHost("short.example.com")
+        #expect(!manager.isAllowedShortenerHost("short.example.com"))
+    }
+
+    @Test("Tracking cleanup toggle gates parameter stripping")
+    @MainActor
+    func trackingCleanupToggleGatesStripping() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        let url = URL(string: "https://example.com/page?utm_source=test&keep=1")!
+
+        manager.trackingCleanupEnabled = true
+        let cleaned = manager.cleanURL(url)
+        #expect(cleaned.query?.contains("utm_source") == false)
+        #expect(cleaned.query?.contains("keep=1") == true)
+
+        manager.trackingCleanupEnabled = false
+        let uncleaned = manager.cleanURL(url)
+        #expect(uncleaned == url)
+    }
+
+    // MARK: - MCP Constant-Time Token Comparison
+
+    @Test("Constant-time token comparison matches standard equality semantics")
+    func constantTimeTokenComparisonMatchesEquality() {
+        #expect(MCPServer.constantTimeEquals("abc123", "abc123"))
+        #expect(!MCPServer.constantTimeEquals("abc123", "abc124"))
+        #expect(!MCPServer.constantTimeEquals("abc123", "abc12"))
+        #expect(!MCPServer.constantTimeEquals("", "abc123"))
+        #expect(MCPServer.constantTimeEquals("", ""))
+    }
+}
+
+private extension Result {
+    var isSuccess: Bool {
+        if case .success = self { return true }
+        return false
     }
 }

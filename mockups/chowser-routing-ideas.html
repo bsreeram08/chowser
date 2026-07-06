@@ -1,0 +1,1437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chowser Routing Ideas Mockup</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #eef0f3;
+      --window: #f8f8f9;
+      --sidebar: #eceef2;
+      --surface: #ffffff;
+      --surface-2: #f4f5f7;
+      --line: #d7d9de;
+      --line-strong: #c2c6cd;
+      --text: #1d1d1f;
+      --muted: #656b74;
+      --faint: #8a9099;
+      --blue: #0a84ff;
+      --green: #248a3d;
+      --orange: #c75c00;
+      --red: #c9352b;
+      --purple: #7a43c8;
+      --radius: 8px;
+      --shadow: 0 22px 60px rgba(18, 24, 33, 0.18);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1d1e22;
+        --window: #28292d;
+        --sidebar: #222327;
+        --surface: #303136;
+        --surface-2: #27282d;
+        --line: #45474d;
+        --line-strong: #565961;
+        --text: #f4f4f6;
+        --muted: #b7bac1;
+        --faint: #898e98;
+        --shadow: 0 22px 60px rgba(0, 0, 0, 0.44);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .mockup-shell {
+      width: min(1180px, 100%);
+      display: grid;
+      gap: 14px;
+    }
+
+    .mockup-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      color: var(--muted);
+    }
+
+    .mockup-top h1 {
+      margin: 0;
+      color: var(--text);
+      font-size: 17px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .mockup-top p {
+      margin: 3px 0 0;
+      max-width: 760px;
+    }
+
+    .window {
+      min-height: 710px;
+      overflow: hidden;
+      background: var(--window);
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-rows: 40px minmax(0, 1fr);
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--window) 86%, var(--sidebar));
+    }
+
+    .lights {
+      display: flex;
+      gap: 7px;
+    }
+
+    .light {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
+
+    .red { background: #ff5f57; }
+    .yellow { background: #febc2e; }
+    .green { background: #28c840; }
+
+    .titlebar-title {
+      flex: 1;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 560;
+      padding-right: 54px;
+    }
+
+    .content-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 214px minmax(0, 1fr) 270px;
+    }
+
+    .sidebar {
+      background: var(--sidebar);
+      border-right: 1px solid var(--line);
+      padding: 14px 10px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 20px;
+    }
+
+    .sidebar-heading {
+      margin: 0 8px 7px;
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .nav-item {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 20px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background: color-mix(in srgb, var(--surface) 55%, transparent);
+    }
+
+    .nav-item.active {
+      background: color-mix(in srgb, var(--blue) 18%, var(--surface));
+      color: color-mix(in srgb, var(--blue) 72%, var(--text));
+      font-weight: 650;
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      display: grid;
+      place-items: center;
+      border-radius: 5px;
+      color: white;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .nav-blue { background: var(--blue); }
+    .nav-orange { background: var(--orange); }
+    .nav-green { background: var(--green); }
+    .nav-purple { background: var(--purple); }
+    .nav-gray { background: #777d87; }
+
+    .badge {
+      min-width: 20px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 10%, transparent);
+      color: var(--muted);
+      text-align: center;
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .main {
+      min-width: 0;
+      overflow: auto;
+      padding: 22px 26px 30px;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .title-block {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .section-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .detail-header h2 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .detail-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      max-width: 650px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      min-height: 28px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 4px 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      border-color: color-mix(in srgb, var(--blue) 60%, var(--line));
+      background: var(--blue);
+      color: white;
+      font-weight: 650;
+    }
+
+    .btn.icon {
+      width: 28px;
+      padding: 0;
+      justify-content: center;
+    }
+
+    .group {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .group-title {
+      padding: 12px 14px 9px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface-2) 82%, var(--surface));
+    }
+
+    .group-title h3 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .group-title p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: minmax(190px, 1fr) minmax(260px, 1.3fr);
+      gap: 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .row:last-child {
+      border-bottom: 0;
+    }
+
+    .row h4 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .row p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .control-line {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .control-line.left {
+      justify-content: flex-start;
+    }
+
+    select,
+    input[type="text"],
+    input[type="url"] {
+      min-height: 28px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 4px 8px;
+      min-width: 180px;
+    }
+
+    input.mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .switch {
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--line-strong);
+      position: relative;
+      border: 0;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .switch::after {
+      content: "";
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: white;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+      transition: transform 0.16s ease;
+    }
+
+    .switch.on {
+      background: var(--green);
+    }
+
+    .switch.on::after {
+      transform: translateX(18px);
+    }
+
+    .chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      max-width: 100%;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--blue) 13%, var(--surface-2));
+      border: 1px solid color-mix(in srgb, var(--blue) 28%, var(--line));
+      color: var(--text);
+      font-size: 11px;
+    }
+
+    .chip.gray {
+      background: var(--surface-2);
+      border-color: var(--line);
+      color: var(--muted);
+    }
+
+    .chip.green {
+      background: color-mix(in srgb, var(--green) 14%, var(--surface-2));
+      border-color: color-mix(in srgb, var(--green) 28%, var(--line));
+    }
+
+    .chip.orange {
+      background: color-mix(in srgb, var(--orange) 13%, var(--surface-2));
+      border-color: color-mix(in srgb, var(--orange) 28%, var(--line));
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(270px, 0.8fr);
+      gap: 14px;
+    }
+
+    .rule-row {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      padding: 14px;
+    }
+
+    .rule-top {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .app-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #d8eafd, #f8fafc);
+      color: #17446f;
+      border: 1px solid var(--line);
+      font-weight: 800;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .app-icon {
+        background: linear-gradient(135deg, #24384d, #33373e);
+        color: #dfeeff;
+      }
+    }
+
+    .rule-title {
+      min-width: 0;
+    }
+
+    .rule-title h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .rule-title p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      margin-left: 46px;
+    }
+
+    .field-label {
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 5px;
+    }
+
+    .mini-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      flex-wrap: wrap;
+    }
+
+    .tester {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .tester h3 {
+      margin: 0 0 9px;
+      font-size: 13px;
+    }
+
+    .pipeline {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .pipe-step {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .pipe-step strong {
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .picker-stage {
+      min-height: 430px;
+      display: grid;
+      place-items: center;
+      padding: 26px;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--line) 52%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--line) 52%, transparent) 1px, transparent 1px),
+        var(--surface-2);
+      background-size: 24px 24px;
+    }
+
+    .picker {
+      width: min(520px, 100%);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border: 1px solid var(--line-strong);
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+      overflow: hidden;
+    }
+
+    .picker-url {
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .picker-url input {
+      min-width: 0;
+      width: 100%;
+      background: transparent;
+      border-color: transparent;
+      padding-left: 0;
+    }
+
+    .browser-strip {
+      padding: 16px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .browser-tile {
+      width: 82px;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 6px;
+      border-radius: var(--radius);
+      cursor: pointer;
+    }
+
+    .browser-tile:hover {
+      background: color-mix(in srgb, var(--blue) 12%, transparent);
+    }
+
+    .browser-tile .app-icon {
+      margin: 0 auto 6px;
+    }
+
+    .browser-tile strong,
+    .browser-tile span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+    }
+
+    .browser-tile span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .picker-footer {
+      padding: 8px 14px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .side-panel {
+      background: var(--surface-2);
+      border-left: 1px solid var(--line);
+      padding: 18px 14px;
+      overflow: auto;
+    }
+
+    .decision {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .decision h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .decision-row {
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .decision-row:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .verdict {
+      align-self: start;
+      border-radius: 999px;
+      padding: 3px 7px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .keep {
+      color: var(--green);
+      background: color-mix(in srgb, var(--green) 14%, transparent);
+    }
+
+    .maybe {
+      color: var(--orange);
+      background: color-mix(in srgb, var(--orange) 14%, transparent);
+    }
+
+    .skip {
+      color: var(--red);
+      background: color-mix(in srgb, var(--red) 12%, transparent);
+    }
+
+    .decision-row p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .callout {
+      border: 1px solid color-mix(in srgb, var(--blue) 32%, var(--line));
+      background: color-mix(in srgb, var(--blue) 9%, var(--surface));
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .callout strong {
+      color: var(--text);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 980px) {
+      .page {
+        padding: 12px;
+      }
+
+      .content-grid {
+        grid-template-columns: 190px minmax(0, 1fr);
+      }
+
+      .side-panel {
+        display: none;
+      }
+
+      .split,
+      .row,
+      .rule-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .rule-grid {
+        margin-left: 0;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .window {
+        min-height: 760px;
+      }
+
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 8px;
+        overflow: auto;
+        padding: 10px;
+      }
+
+      .sidebar-section {
+        display: flex;
+        gap: 8px;
+        margin: 0;
+      }
+
+      .sidebar-heading,
+      .badge {
+        display: none;
+      }
+
+      .nav-item {
+        width: auto;
+        grid-template-columns: 18px auto;
+        white-space: nowrap;
+      }
+
+      .main {
+        padding: 18px 14px 24px;
+      }
+
+      .detail-header {
+        display: grid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="mockup-shell">
+      <div class="mockup-top">
+        <div>
+          <h1>Chowser feature ideas mockup</h1>
+          <p>A static prototype for fallback routing, typed URL rewrites, multi-source rules, and picker URL editing.</p>
+        </div>
+        <div class="chip gray">No app code changed</div>
+      </div>
+
+      <div class="window" role="application" aria-label="Chowser Settings mockup">
+        <div class="titlebar">
+          <div class="lights" aria-hidden="true">
+            <span class="light red"></span>
+            <span class="light yellow"></span>
+            <span class="light green"></span>
+          </div>
+          <div class="titlebar-title">Chowser Settings</div>
+        </div>
+
+        <div class="content-grid">
+          <aside class="sidebar" aria-label="Settings sections">
+            <div class="sidebar-section">
+              <p class="sidebar-heading">Configuration</p>
+              <button class="nav-item" data-view="rules">
+                <span class="nav-icon nav-orange">R</span>
+                <span>Rules</span>
+                <span class="badge">6</span>
+              </button>
+              <button class="nav-item active" data-view="rewrites">
+                <span class="nav-icon nav-green">W</span>
+                <span>Rewrites</span>
+                <span class="badge">3</span>
+              </button>
+              <button class="nav-item" data-view="behavior">
+                <span class="nav-icon nav-blue">B</span>
+                <span>Behavior</span>
+                <span class="badge">2</span>
+              </button>
+            </div>
+            <div class="sidebar-section">
+              <p class="sidebar-heading">Preview</p>
+              <button class="nav-item" data-view="picker">
+                <span class="nav-icon nav-purple">P</span>
+                <span>Picker</span>
+                <span class="badge">1</span>
+              </button>
+              <button class="nav-item" data-view="extension">
+                <span class="nav-icon nav-gray">E</span>
+                <span>Extension</span>
+                <span class="badge">0</span>
+              </button>
+            </div>
+          </aside>
+
+          <main class="main">
+            <section class="view" id="view-rewrites">
+              <header class="detail-header">
+                <div class="title-block">
+                  <span class="section-icon nav-green">W</span>
+                  <div>
+                    <h2>Rewrites</h2>
+                    <p>Typed transforms that run before routing, without adding a JavaScript config surface.</p>
+                  </div>
+                </div>
+                <div class="toolbar">
+                  <button class="btn">Import</button>
+                  <button class="btn primary">Add Rewrite</button>
+                </div>
+              </header>
+
+              <div class="split">
+                <div>
+                  <article class="rule-row">
+                    <div class="rule-top">
+                      <div class="app-icon">S</div>
+                      <div class="rule-title">
+                        <h3>Strip tracking parameters</h3>
+                        <p>Match: http://* and https://*</p>
+                      </div>
+                      <button class="switch on" aria-label="Enabled"></button>
+                    </div>
+                    <div class="rule-grid">
+                      <div>
+                        <div class="field-label">Action</div>
+                        <div class="mini-line">
+                          <span class="chip green">Remove query params</span>
+                          <span class="chip gray">utm_*</span>
+                          <span class="chip gray">fbclid</span>
+                          <span class="chip gray">gclid</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="field-label">Runs before</div>
+                        <div class="mini-line">
+                          <span class="chip orange">Rules</span>
+                          <span class="chip gray">Picker preview</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="rule-row">
+                    <div class="rule-top">
+                      <div class="app-icon">H</div>
+                      <div class="rule-title">
+                        <h3>Force HTTPS</h3>
+                        <p>Match: http://*</p>
+                      </div>
+                      <button class="switch on" aria-label="Enabled"></button>
+                    </div>
+                    <div class="rule-grid">
+                      <div>
+                        <div class="field-label">Action</div>
+                        <div class="mini-line">
+                          <span class="chip green">Set scheme</span>
+                          <span class="chip gray">https</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="field-label">Exception</div>
+                        <div class="mini-line">
+                          <span class="chip gray">localhost</span>
+                          <span class="chip gray">*.local</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="rule-row">
+                    <div class="rule-top">
+                      <div class="app-icon">T</div>
+                      <div class="rule-title">
+                        <h3>Teams web link to app link</h3>
+                        <p>Match: teams.microsoft.com/l/meetup-join/*</p>
+                      </div>
+                      <button class="switch" aria-label="Disabled"></button>
+                    </div>
+                    <div class="rule-grid">
+                      <div>
+                        <div class="field-label">Action</div>
+                        <div class="mini-line">
+                          <span class="chip green">Set scheme</span>
+                          <span class="chip gray">msteams</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="field-label">Status</div>
+                        <div class="mini-line">
+                          <span class="chip orange">Needs testing</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+
+                <aside class="tester">
+                  <h3>Rewrite tester</h3>
+                  <input id="rewriteInput" class="mono" type="url" value="http://x.com/sreeram?utm_source=mail&amp;gclid=123" aria-label="Rewrite tester URL">
+                  <div class="pipeline">
+                    <div class="pipe-step">
+                      <span class="num">1</span>
+                      <div><strong>Original</strong><br><span id="pipeOriginal">http://x.com/sreeram?utm_source=mail&amp;gclid=123</span></div>
+                    </div>
+                    <div class="pipe-step">
+                      <span class="num">2</span>
+                      <div><strong>Rewrite</strong><br><span id="pipeRewrite">https://x.com/sreeram</span></div>
+                    </div>
+                    <div class="pipe-step">
+                      <span class="num">3</span>
+                      <div><strong>Route</strong><br>Shows picker, no matching rule</div>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section class="view hidden" id="view-behavior">
+              <header class="detail-header">
+                <div class="title-block">
+                  <span class="section-icon nav-blue">B</span>
+                  <div>
+                    <h2>Behavior</h2>
+                    <p>Small policy switches kept in Chowser's existing General-style rows.</p>
+                  </div>
+                </div>
+              </header>
+
+              <div class="group">
+                <div class="group-title">
+                  <h3>No matching rule</h3>
+                  <p>Controls what happens after rewrites run and no rule matches.</p>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Default action</h4>
+                    <p>The picker stays the default. Fallback is opt-in.</p>
+                  </div>
+                  <div class="control-line">
+                    <select id="fallbackMode" aria-label="Default action">
+                      <option>Show picker</option>
+                      <option selected>Open fallback browser</option>
+                    </select>
+                    <select aria-label="Fallback browser">
+                      <option>Safari</option>
+                      <option selected>Google Chrome - Work</option>
+                      <option>Firefox</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Hold Shift to ask</h4>
+                    <p>Manual override still opens the picker.</p>
+                  </div>
+                  <div class="control-line">
+                    <button class="switch on" aria-label="Hold Shift to ask enabled"></button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="group">
+                <div class="group-title">
+                  <h3>Automatic URL work</h3>
+                  <p>Network-touching behavior gets explicit switches.</p>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Remove tracking parameters</h4>
+                    <p>Runs locally, before rewrites and routing.</p>
+                  </div>
+                  <div class="control-line">
+                    <button class="switch on" aria-label="Tracking removal enabled"></button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Resolve known shortlinks</h4>
+                    <p>Uses HEAD requests for hosts like t.co and bit.ly.</p>
+                  </div>
+                  <div class="control-line">
+                    <button class="switch on" aria-label="Shortlink resolution enabled"></button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Fetch link preview</h4>
+                    <p>Shows title, description, image, and favicon in the picker.</p>
+                  </div>
+                  <div class="control-line">
+                    <button class="switch on" aria-label="Link preview enabled"></button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="view hidden" id="view-rules">
+              <header class="detail-header">
+                <div class="title-block">
+                  <span class="section-icon nav-orange">R</span>
+                  <div>
+                    <h2>Rules</h2>
+                    <p>The rule row stays familiar. The source app field becomes chips instead of a single bundle ID.</p>
+                  </div>
+                </div>
+                <div class="toolbar">
+                  <button class="btn primary">Add Rule</button>
+                </div>
+              </header>
+
+              <article class="rule-row">
+                <div class="rule-top">
+                  <div class="app-icon">C</div>
+                  <div class="rule-title">
+                    <h3>Work docs from chat apps</h3>
+                    <p>Host: docs.google.com, drive.google.com</p>
+                  </div>
+                  <button class="switch on" aria-label="Enabled"></button>
+                </div>
+                <div class="rule-grid">
+                  <div>
+                    <div class="field-label">Browser</div>
+                    <div class="mini-line">
+                      <span class="chip">Google Chrome - Work</span>
+                      <span class="chip gray">Profile 1</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="field-label">Source apps</div>
+                    <div class="mini-line">
+                      <span class="chip">Slack x</span>
+                      <span class="chip">Mail x</span>
+                      <span class="chip">Outlook x</span>
+                      <button class="btn">Add Source</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="field-label">Path</div>
+                    <div class="mini-line"><span class="chip gray">Any path</span></div>
+                  </div>
+                  <div>
+                    <div class="field-label">Options</div>
+                    <div class="mini-line">
+                      <span class="chip gray">Regex off</span>
+                      <span class="chip gray">Private off</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <div class="group">
+                <div class="group-title">
+                  <h3>Rule tester</h3>
+                  <p>Shows source-aware matching, not just URL matching.</p>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Test link</h4>
+                    <p>Source app becomes part of the simulated result.</p>
+                  </div>
+                  <div class="control-line">
+                    <input class="mono" type="url" value="https://docs.google.com/document/d/abc" aria-label="Test URL">
+                    <select aria-label="Source app">
+                      <option selected>Slack</option>
+                      <option>Finder</option>
+                      <option>Messages</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Result</h4>
+                    <p>Matches Work docs from chat apps.</p>
+                  </div>
+                  <div class="control-line left">
+                    <span class="chip green">Opens Google Chrome - Work</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="group">
+                <div class="group-title">
+                  <h3>Future destinations</h3>
+                  <p>Keep browser/profile routing first, then widen targets deliberately.</p>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Desktop app target</h4>
+                    <p>Open matching project links in a configured native app.</p>
+                  </div>
+                  <div class="control-line left">
+                    <span class="chip gray">Later</span>
+                    <span class="chip">com.figma.Desktop</span>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Mail target</h4>
+                    <p>Choose a mail app for mail links without changing system defaults.</p>
+                  </div>
+                  <div class="control-line left">
+                    <span class="chip gray">Later</span>
+                    <span class="chip">Apple Mail</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="view hidden" id="view-picker">
+              <header class="detail-header">
+                <div class="title-block">
+                  <span class="section-icon nav-purple">P</span>
+                  <div>
+                    <h2>Picker</h2>
+                    <p>Only one new control: edit the URL before choosing a browser.</p>
+                  </div>
+                </div>
+              </header>
+
+              <div class="picker-stage">
+                <div class="picker" aria-label="Picker mockup">
+                  <div class="picker-url">
+                    <span aria-hidden="true">L</span>
+                    <input id="pickerUrl" class="mono" type="url" value="https://x.com/sreeram" aria-label="Editable URL">
+                    <div class="control-line">
+                      <button id="lockUrl" class="btn icon" aria-label="Lock URL">OK</button>
+                      <button class="btn icon" aria-label="Add rule">+</button>
+                    </div>
+                  </div>
+                  <div class="browser-strip">
+                    <button class="browser-tile">
+                      <span class="app-icon">S</span>
+                      <strong>Safari</strong>
+                      <span>1</span>
+                    </button>
+                    <button class="browser-tile">
+                      <span class="app-icon">C</span>
+                      <strong>Chrome</strong>
+                      <span>2 Work</span>
+                    </button>
+                    <button class="browser-tile">
+                      <span class="app-icon">F</span>
+                      <strong>Firefox</strong>
+                      <span>3</span>
+                    </button>
+                    <button class="browser-tile">
+                      <span class="app-icon">Z</span>
+                      <strong>Zen</strong>
+                      <span>4 Personal</span>
+                    </button>
+                  </div>
+                  <div class="picker-footer">
+                    <span>Rewritten by Force HTTPS</span>
+                    <span>P private | R rule | Esc close</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="group">
+                <div class="group-title">
+                  <h3>Profile polish</h3>
+                  <p>Profiles stay first-class destinations, with small markers for faster scanning.</p>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Profile marker</h4>
+                    <p>Optional short label or color for similarly named profiles.</p>
+                  </div>
+                  <div class="control-line left">
+                    <span class="chip">Chrome - Work</span>
+                    <span class="chip green">W</span>
+                    <span class="chip">Chrome - Personal</span>
+                    <span class="chip gray">P</span>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Profile hotkey</h4>
+                    <p>Open a configured profile directly, without a clicked link.</p>
+                  </div>
+                  <div class="control-line left">
+                    <span class="chip gray">Later</span>
+                    <span class="chip">Control Option 2</span>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Safari profiles</h4>
+                    <p>Support only if Chowser can launch a selected profile reliably.</p>
+                  </div>
+                  <div class="control-line left">
+                    <span class="chip gray">Feasibility check</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="view hidden" id="view-extension">
+              <header class="detail-header">
+                <div class="title-block">
+                  <span class="section-icon nav-gray">E</span>
+                  <div>
+                    <h2>Open with Chowser</h2>
+                    <p>The lazy version is a bookmarklet or tiny extension that calls Chowser's URL handoff path.</p>
+                  </div>
+                </div>
+              </header>
+
+              <div class="group">
+                <div class="group-title">
+                  <h3>Browser menu item</h3>
+                  <p>Appears in Chrome and Firefox as a right-click action.</p>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Open link with Chowser</h4>
+                    <p>Sends the selected link back into Chowser's picker and routing rules.</p>
+                  </div>
+                  <div class="control-line">
+                    <button class="btn primary">Install Helper</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>Bookmarklet</h4>
+                    <p>Zero-store fallback for users who only need the current page.</p>
+                  </div>
+                  <div class="control-line">
+                    <input class="mono" type="text" value="javascript:location='chowser://open?url='+encodeURIComponent(location.href)" aria-label="Bookmarklet">
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <h4>URL handoff</h4>
+                    <p>Developer-facing path for scripts, Shortcuts, and bookmarklets.</p>
+                  </div>
+                  <div class="control-line">
+                    <input class="mono" type="text" value="open 'chowser://open?url=https%3A%2F%2Fexample.com'" aria-label="URL handoff">
+                  </div>
+                </div>
+              </div>
+
+              <div class="callout">
+                <strong>Verdict:</strong> useful later, but it should not block the routing and rewrite work.
+              </div>
+            </section>
+          </main>
+
+          <aside class="side-panel" aria-label="Feature evaluation">
+            <div class="decision">
+              <h3>Evaluation</h3>
+              <div class="decision-row">
+                <span class="verdict keep">Keep</span>
+                <p><strong>Fallback browser.</strong> Tiny settings surface, high value for users who mostly route to one browser.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict keep">Keep</span>
+                <p><strong>Typed rewrites.</strong> Fixes messy links without importing a scripting runtime.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict keep">Keep</span>
+                <p><strong>Multiple source apps.</strong> Natural extension of Chowser's existing source-app rule support.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict maybe">Maybe</span>
+                <p><strong>Picker URL editing.</strong> Nice and small, but likely lower usage than fallback and rewrites.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict maybe">Maybe</span>
+                <p><strong>Open-with extension.</strong> Useful once the core link pipeline is clearly better than browser-native opening.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict maybe">Maybe</span>
+                <p><strong>Profile polish.</strong> Worth doing after core routing: markers, hotkeys, and Safari profile feasibility.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict maybe">Maybe</span>
+                <p><strong>Desktop and mail targets.</strong> Useful later, but they widen Chowser beyond browser routing.</p>
+              </div>
+              <div class="decision-row">
+                <span class="verdict skip">Skip</span>
+                <p><strong>JavaScript config.</strong> Powerful, but too much validation, sandboxing, and support cost for Chowser.</p>
+              </div>
+            </div>
+
+            <div class="decision">
+              <h3>Suggested order</h3>
+              <div class="pipeline">
+                <div class="pipe-step">
+                  <span class="num">1</span>
+                  <div><strong>Fallback browser</strong><br>Small model change, obvious UI.</div>
+                </div>
+                <div class="pipe-step">
+                  <span class="num">2</span>
+                  <div><strong>Source app chips</strong><br>Extends current rules without a new page.</div>
+                </div>
+                <div class="pipe-step">
+                  <span class="num">3</span>
+                  <div><strong>Typed rewrites</strong><br>New page, new data model, worth designing carefully.</div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const navItems = [...document.querySelectorAll(".nav-item")];
+    const views = [...document.querySelectorAll(".view")];
+
+    function showView(name) {
+      navItems.forEach((item) => item.classList.toggle("active", item.dataset.view === name));
+      views.forEach((view) => view.classList.toggle("hidden", view.id !== `view-${name}`));
+    }
+
+    navItems.forEach((item) => {
+      item.addEventListener("click", () => showView(item.dataset.view));
+    });
+
+    document.querySelectorAll(".switch").forEach((button) => {
+      button.addEventListener("click", () => button.classList.toggle("on"));
+    });
+
+    const rewriteInput = document.getElementById("rewriteInput");
+    const pipeOriginal = document.getElementById("pipeOriginal");
+    const pipeRewrite = document.getElementById("pipeRewrite");
+
+    function cleanDemoUrl(value) {
+      try {
+        const url = new URL(value);
+        if (url.protocol === "http:") url.protocol = "https:";
+        ["utm_source", "utm_medium", "utm_campaign", "gclid", "fbclid"].forEach((key) => url.searchParams.delete(key));
+        return url.toString();
+      } catch {
+        return "Invalid URL";
+      }
+    }
+
+    function updateRewriteDemo() {
+      pipeOriginal.textContent = rewriteInput.value;
+      pipeRewrite.textContent = cleanDemoUrl(rewriteInput.value);
+    }
+
+    rewriteInput.addEventListener("input", updateRewriteDemo);
+    updateRewriteDemo();
+
+    const lockUrl = document.getElementById("lockUrl");
+    const pickerUrl = document.getElementById("pickerUrl");
+    lockUrl.addEventListener("click", () => {
+      pickerUrl.toggleAttribute("readonly");
+      lockUrl.textContent = pickerUrl.hasAttribute("readonly") ? "Edit" : "OK";
+    });
+  </script>
+</body>
+</html>

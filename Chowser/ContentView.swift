@@ -32,6 +32,10 @@ struct ContentView: View {
     @State private var phoneMenuSelectedIndex = 0
     @State private var showingShortcutsInfo = false
     @State private var phoneHandoffAdapter = PhoneLinkHandoffAdapter()
+    @State private var isEditingURL = false
+    @State private var editableURLText = ""
+    @State private var urlEditError: String?
+    @FocusState private var urlFieldFocused: Bool
     /// Link-preview lifecycle. One value at a time — no impossible combos.
     enum PreviewState {
         case idle
@@ -94,18 +98,27 @@ struct ContentView: View {
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
         } else {
             VStack(alignment: .center, spacing: 0) {
-                // URL bubble — header of the panel
-                if let url = browserManager.currentURL {
-                    urlBubble(url: url)
+                if !browserManager.hasSeenNetworkPrivacyUpgradeNotice {
+                    networkPrivacyUpgradeNotice
                     Divider().opacity(0.5)
                 }
 
-                // Main browser bar or empty state
-                if browserManager.configuredBrowsers.isEmpty {
-                    emptyStatePill
+                if browserManager.isResolvingIncomingURL {
+                    resolvingRow
                 } else {
-                    browserBarPill
-                    shortcutsInfoRow
+                    // URL bubble — header of the panel
+                    if let url = browserManager.currentURL {
+                        urlBubble(url: url)
+                        Divider().opacity(0.5)
+                    }
+
+                    // Main browser bar or empty state
+                    if browserManager.configuredBrowsers.isEmpty {
+                        emptyStatePill
+                    } else {
+                        browserBarPill
+                        shortcutsInfoRow
+                    }
                 }
 
                 // Hidden test label for UI tests
@@ -136,6 +149,7 @@ struct ContentView: View {
                 syncPrivateModeRequest()
                 loadLinkPreview(for: browserManager.currentURL)
                 syncPhoneHandoff()
+                cancelURLEdit()
             }
             .onChange(of: browserManager.currentURLPrivateModeRequested) {
                 syncPrivateModeRequest()
@@ -221,6 +235,38 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Network Privacy Upgrade Notice
+
+    /// One-time notice (dual surface with Settings > Behavior) that shortlink resolution
+    /// and link-preview fetches are now off by default — a behavior change on upgrade
+    /// (docs/adr/0003). Shown once total, on whichever surface the user hits first.
+    private var networkPrivacyUpgradeNotice: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "network.slash")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.blue)
+
+            Text("Chowser no longer resolves shortlinks or fetches previews automatically. Turn it back on in Settings > Behavior.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+
+            Button {
+                browserManager.markNetworkPrivacyUpgradeNoticeSeen()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .accessibilityIdentifier("picker.networkPrivacyUpgradeNotice")
+    }
+
     // MARK: - URL Bubble
 
     private func urlBubble(url: URL) -> some View {
@@ -230,11 +276,22 @@ struct ContentView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Text(previewState.metadata?.finalURL.host ?? url.host ?? url.absoluteString)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            if isEditingURL {
+                TextField("https://example.com", text: $editableURLText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .focused($urlFieldFocused)
+                    .accessibilityIdentifier("picker.urlEditField")
+            } else {
+                Text(previewState.metadata?.finalURL.host ?? url.host ?? url.absoluteString)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .contentShape(Rectangle())
+                    .onTapGesture { beginEditingURL(url: url) }
+                    .accessibilityIdentifier("picker.urlEditTrigger")
+            }
 
             Spacer(minLength: 0)
 
@@ -305,6 +362,17 @@ struct ContentView: View {
             }
         }
 
+            if let urlEditError {
+                Label(urlEditError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("picker.urlEditError")
+            }
+
+            if !browserManager.currentRewriteTrace.isEmpty {
+                rewriteTraceView
+            }
+
             if browserManager.showLinkPreview {
                 previewRow
             }
@@ -312,6 +380,65 @@ struct ContentView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .accessibilityIdentifier("picker.urlDisplay")
+    }
+
+    // MARK: - URL Editing (FR-040/041/042/043)
+
+    /// FR-041: editing starts from the post-pipeline URL (already displayed here after
+    /// rewrites/shortlink/cleanup), not the original incoming URL.
+    private func beginEditingURL(url: URL) {
+        editableURLText = url.absoluteString
+        urlEditError = nil
+        isEditingURL = true
+        urlFieldFocused = true
+    }
+
+    private func cancelURLEdit() {
+        isEditingURL = false
+        urlEditError = nil
+        urlFieldFocused = false
+    }
+
+    /// `Return` while editing launches the currently keyboard-selected browser with the
+    /// edited URL (FR-040). Invalid edits show inline validation and never launch (FR-042).
+    private func commitURLEditAndLaunch() {
+        let trimmed = editableURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let newURL = URL(string: trimmed),
+              let scheme = newURL.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = newURL.host, !host.isEmpty else {
+            urlEditError = "Enter a valid http:// or https:// URL."
+            return
+        }
+
+        browserManager.currentURL = newURL
+        isEditingURL = false
+        urlEditError = nil
+        _ = openSelectedBrowser(usePrivateMode: effectivePrivateMode)
+    }
+
+    // MARK: - Rewrite Trace
+
+    /// Rewrite trace shown inline in the picker's existing preview area (Phase 3
+    /// cherry-pick) — one step per rule that actually fired, not a collapsed summary
+    /// (design review: hides which rule changed what).
+    private var rewriteTraceView: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(browserManager.currentRewriteTrace) { step in
+                HStack(spacing: 6) {
+                    Image(systemName: step.skipped ? "exclamationmark.triangle" : "arrow.triangle.2.circlepath")
+                        .font(.system(size: 9))
+                        .foregroundStyle(step.skipped ? Color.orange : Color.secondary)
+                    Text(step.skipped
+                        ? "\(step.ruleName): \(step.skipReason ?? "skipped")"
+                        : "\(step.ruleName): \(step.beforeURL.host ?? step.beforeURL.absoluteString) → \(step.afterURL.host ?? step.afterURL.absoluteString)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+        .accessibilityIdentifier("picker.rewriteTrace")
     }
 
     // MARK: - Send to Phone
@@ -708,6 +835,9 @@ struct ContentView: View {
         previewTask?.cancel()
         withAnimation(.easeOut(duration: 0.2)) { previewState = .idle }
         guard browserManager.showLinkPreview, let url else { return }
+        // FR-034: the preview fetch is a real GET to the link's host — it must respect the
+        // same off-by-default privacy posture as shortlink resolution, not a silent exception.
+        guard browserManager.networkLookupsEnabled else { return }
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
         // Single-use links: don't fetch (would burn the token) and tell the user why.
         if LinkMetadataFetcher.isLikelySingleUse(url) {
@@ -1110,6 +1240,10 @@ struct ContentView: View {
             keyHintChip(keys: ["H"], label: "Resolve", isDisabled: browserManager.currentURL == nil || isUnshortening) {
                 if !isUnshortening, browserManager.currentURL != nil { performManualUnshorten() }
             }
+            keyHintChip(keys: ["E"], label: "Edit URL", isDisabled: browserManager.currentURL == nil || isEditingURL) {
+                showingShortcutsInfo = false
+                if let url = browserManager.currentURL { beginEditingURL(url: url) }
+            }
             keyHintChip(keys: ["R"], label: "Rules", isDisabled: browserManager.currentURL == nil) {
                 if browserManager.currentURL != nil { showingConfigureRule = true }
             }
@@ -1124,9 +1258,13 @@ struct ContentView: View {
                 openPhoneActionMenu(url: url)
             }
             keyHintChip(keys: ["1-9"], label: "Open browser")
-            keyHintChip(keys: ["Esc"], label: "Close") {
+            // Esc means two different things depending on mode — the legend must say
+            // which one is active right now (design review: a static label is a spec bug).
+            keyHintChip(keys: ["Esc"], label: isEditingURL ? "Cancel edit" : "Close") {
                 showingShortcutsInfo = false
-                if showingConfigureRule { showingConfigureRule = false } else { dismissPicker() }
+                if isEditingURL { cancelURLEdit() }
+                else if showingConfigureRule { showingConfigureRule = false }
+                else { dismissPicker() }
             }
             keyHintChip(keys: ["↵"], label: "Launch", isAccent: true) {
                 showingShortcutsInfo = false
@@ -1170,6 +1308,34 @@ struct ContentView: View {
         } else {
             chip
         }
+    }
+
+    // MARK: - Resolving State
+
+    /// Shown while the pre-picker pipeline (rewrites → shortlink resolution → cleanup) is
+    /// still running — without this, a shortlink lookup taking up to the configured
+    /// timeout reads as an app hang (design review).
+    private var resolvingRow: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Resolving link…")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                if let host = browserManager.currentURL?.host {
+                    Text(host)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 24)
+        .accessibilityIdentifier("picker.resolvingState")
     }
 
     // MARK: - Empty State
@@ -1260,6 +1426,9 @@ struct ContentView: View {
         showingPhoneActionMenu = false
         showingPhoneQRSheet = false
         showingShortcutsInfo = false
+        isEditingURL = false
+        urlEditError = nil
+        browserManager.currentRewriteTrace = []
         phoneHandoffAdapter.stop()
         browserManager.currentURL = nil
         for window in NSApp.windows where window.isVisible && window.identifier?.rawValue == "picker" {
@@ -1318,6 +1487,17 @@ struct ContentView: View {
 
     private func handlePickerKeyDown(_ event: NSEvent) -> Bool {
         guard isPickerEvent(event) else { return false }
+
+        // Editing the URL field takes priority over every other shortcut (FR-043: browser
+        // shortcuts keep working when NOT editing — implicitly, they must NOT fire while
+        // editing, or typing "1" into the URL would open browser #1 instead).
+        if isEditingURL {
+            switch event.keyCode {
+            case 53: cancelURLEdit(); return true // Esc — cancel edit, keep picker open
+            case 36, 76: commitURLEditAndLaunch(); return true // Return / Enter
+            default: return false // let the text field handle normal typing
+            }
+        }
 
         // Send to Phone menu — while open, arrow keys move selection, Return/digits
         // activate it, Escape closes it. Swallows everything else so the browser list
@@ -1381,6 +1561,9 @@ struct ContentView: View {
                 return true
             case "h", "s":
                 if !isUnshortening, browserManager.currentURL != nil { performManualUnshorten() }
+                return true
+            case "e":
+                if let url = browserManager.currentURL { beginEditingURL(url: url) }
                 return true
             case "i":
                 guard let url = browserManager.currentURL,

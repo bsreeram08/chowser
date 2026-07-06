@@ -1,0 +1,3 @@
+# Shortlink resolution defaults to off, including for existing installs
+
+Shortlink resolution (unshortening bit.ly/t.co/etc.) is currently always-on and unconditional for every install. Advanced Routing makes it a togglable, off-by-default setting. We considered preserving on-behavior for existing installs on upgrade (migrate the toggle to "on") to avoid surprising current users. We chose uniform off-by-default for everyone instead: this is a privacy-sensitive default (unsolicited network calls before routing), and the PRD's stated privacy posture — "no-network is the default" — doesn't carve out an upgrade exception. Existing users lose auto-expansion of shortlinks after upgrading; the toggle is visible in Settings to turn it back on.

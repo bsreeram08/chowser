@@ -11,10 +11,14 @@ struct SettingsView: View {
     @State var showingResetConfirmation = false
     @State var browserSearchText = ""
     @State var ruleSearchText = ""
+    @State var rewriteSearchText = ""
     @State var newHiddenBundleId = ""
+    @State var newShortenerHost = ""
     @State var browserToEdit: BrowserConfig?
     @State var selectedRuleId: UUID?
     @State var preselectedRuleBrowserIdentity: String?
+    @State var showingRuleMergeReview = false
+    @State var showingAddRewriteSheet = false
     @State var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     @State var operationAlert: SettingsOperationAlert?
 
@@ -29,6 +33,8 @@ struct SettingsView: View {
     enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case browsers = "Browsers"
         case rules = "Rules"
+        case rewrites = "Rewrites"
+        case behavior = "Behavior"
         case appearance = "Appearance"
         case apps = "Apps"
         case general = "General"
@@ -39,6 +45,8 @@ struct SettingsView: View {
             switch self {
             case .browsers: return "globe"
             case .rules: return "point.topleft.down.curvedto.point.bottomright.up"
+            case .rewrites: return "arrow.triangle.2.circlepath"
+            case .behavior: return "arrow.triangle.branch"
             case .appearance: return "paintpalette"
             case .apps: return "app.badge"
             case .general: return "gearshape"
@@ -49,9 +57,11 @@ struct SettingsView: View {
             switch self {
             case .browsers: return "Picker options"
             case .rules: return "Automatic routing"
+            case .rewrites: return "URL transformations"
+            case .behavior: return "Fallback & privacy"
             case .appearance: return "Picker look"
             case .apps: return "Hidden handlers"
-            case .general: return "Behavior"
+            case .general: return "Startup & maintenance"
             }
         }
 
@@ -59,6 +69,8 @@ struct SettingsView: View {
             switch self {
             case .browsers: return "settings.sidebar.browsers"
             case .rules: return "settings.sidebar.rules"
+            case .rewrites: return "settings.sidebar.rewrites"
+            case .behavior: return "settings.sidebar.behavior"
             case .appearance: return "settings.sidebar.appearance"
             case .apps: return "settings.sidebar.apps"
             case .general: return "settings.sidebar.general"
@@ -84,6 +96,12 @@ struct SettingsView: View {
                 prefillURL: currentPrefillURL,
                 preselectedBrowserIdentity: preselectedRuleBrowserIdentity
             )
+        }
+        .sheet(isPresented: $showingRuleMergeReview) {
+            RuleMergeReviewSheet(manager: browserManager, isPresented: $showingRuleMergeReview)
+        }
+        .sheet(isPresented: $showingAddRewriteSheet) {
+            RewriteRuleEditorSheet(manager: browserManager, isPresented: $showingAddRewriteSheet)
         }
         .sheet(item: $browserToEdit) { browser in
             EditBrowserSheet(
@@ -130,6 +148,8 @@ struct SettingsView: View {
             Section("Configuration") {
                 sidebarRow(for: .browsers)
                 sidebarRow(for: .rules)
+                sidebarRow(for: .rewrites)
+                sidebarRow(for: .behavior)
                 sidebarRow(for: .appearance)
             }
 
@@ -149,6 +169,10 @@ struct SettingsView: View {
                 browsersSection
             case .rules:
                 rulesSection
+            case .rewrites:
+                rewritesSection
+            case .behavior:
+                behaviorSection
             case .appearance:
                 appearanceSection
             case .apps:
@@ -227,6 +251,8 @@ struct SettingsView: View {
         switch section {
         case .browsers: return .blue
         case .rules: return .orange
+        case .rewrites: return .indigo
+        case .behavior: return .teal
         case .appearance: return .pink
         case .apps: return .purple
         case .general: return .green
@@ -239,9 +265,11 @@ struct SettingsView: View {
             return browserManager.configuredBrowsers.count
         case .rules:
             return browserManager.routingRules.filter(\.isEnabled).count
+        case .rewrites:
+            return browserManager.rewriteRules.filter(\.isEnabled).count
         case .apps:
             return browserManager.hiddenBundleIDs.count
-        case .appearance, .general:
+        case .behavior, .appearance, .general:
             return 0
         }
     }

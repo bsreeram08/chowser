@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Shared Rule UI Components
 
@@ -55,6 +56,86 @@ struct DetailRow<Content: View>: View {
 }
 
 // MARK: - App Metadata Helper
+
+/// Chip row for a routing rule's source-app condition (Phase 2, FR-010/011). Zero
+/// chips renders as a single non-removable "Any source app" ghost chip so an empty
+/// list can't be mistaken for an unsaved/broken state (design review fix).
+struct SourceAppChipsView: View {
+    @Binding var bundleIDs: [String]
+    var onCommit: () -> Void = {}
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if bundleIDs.isEmpty {
+                    Text("Any source app")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.05), in: Capsule())
+                        .accessibilityIdentifier("settings.rule.sourceApp.anyChip")
+                } else {
+                    ForEach(bundleIDs, id: \.self) { bundleId in
+                        chip(for: bundleId)
+                    }
+                }
+
+                Button(action: addSourceApp) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 13))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.rule.sourceApp.addButton")
+            }
+        }
+    }
+
+    private func chip(for bundleId: String) -> some View {
+        HStack(spacing: 4) {
+            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
+                    .resizable()
+                    .frame(width: 12, height: 12)
+                Text((Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? bundleId)
+                    .font(.system(size: 11, weight: .medium))
+            } else {
+                Text(bundleId)
+                    .font(.system(size: 11, weight: .medium))
+            }
+
+            Button(action: { remove(bundleId) }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.accentColor.opacity(0.12), in: Capsule())
+        .accessibilityIdentifier("settings.rule.sourceApp.chip")
+    }
+
+    private func remove(_ bundleId: String) {
+        bundleIDs.removeAll { $0 == bundleId }
+        onCommit()
+    }
+
+    private func addSourceApp() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.applicationBundle]
+        guard panel.runModal() == .OK, let url = panel.url,
+              let bundleId = Bundle(url: url)?.bundleIdentifier,
+              !bundleIDs.contains(bundleId) else { return }
+        bundleIDs.append(bundleId)
+        onCommit()
+    }
+}
 
 struct AppBadgeView: View {
     let bundleId: String?

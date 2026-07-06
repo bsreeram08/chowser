@@ -40,6 +40,7 @@ struct ContentView: View {
     enum PreviewState {
         case idle
         case loading
+        case networkLookupsDisabled  // previews need networkLookupsEnabled, off by default (docs/adr/0003)
         case skippedSingleUse  // one-time link; fetching would burn the token
         case unavailable(Int)  // server returned an HTTP error (e.g. 404)
         case noPreview         // reached, but no usable metadata (JSON/API/bare page)
@@ -718,6 +719,18 @@ struct ContentView: View {
         switch previewState {
         case .idle:
             EmptyView()
+        case .networkLookupsDisabled:
+            HStack(spacing: 8) {
+                Image(systemName: "network.slash")
+                    .foregroundStyle(.secondary)
+                Text("Previews need network lookups, off by default. Turn on in Settings → Behavior.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 60, alignment: .leading)
+            .transition(.opacity)
         case .loading:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
@@ -851,7 +864,12 @@ struct ContentView: View {
         guard browserManager.showLinkPreview, let url else { return }
         // FR-034: the preview fetch is a real GET to the link's host — it must respect the
         // same off-by-default privacy posture as shortlink resolution, not a silent exception.
-        guard browserManager.networkLookupsEnabled else { return }
+        // Surfaced as an explicit state (not left at .idle/EmptyView) so turning previews on
+        // in Settings without also enabling network lookups doesn't look like a silent bug.
+        guard browserManager.networkLookupsEnabled else {
+            withAnimation(.easeOut(duration: 0.2)) { previewState = .networkLookupsDisabled }
+            return
+        }
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
         // Single-use links: don't fetch (would burn the token) and tell the user why.
         if LinkMetadataFetcher.isLikelySingleUse(url) {

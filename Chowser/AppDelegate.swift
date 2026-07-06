@@ -248,6 +248,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
         // The `return` statement was removed as part of the legacy functionality removal.
 
+        // chowser://settings — a fallback entry point independent of the menu bar icon.
+        // Chowser's only other UI entry point is the status item; if it's ever hidden
+        // (most commonly: squeezed off-screen by macOS menu-bar overflow on a crowded bar),
+        // there was previously no way back in short of a `defaults delete` + relaunch. This
+        // is reachable via Terminal (`open "chowser://settings"`), Shortcuts, or a browser
+        // address bar. Usage: open "chowser://settings"
+        if url.scheme == "chowser", url.host == "settings" {
+            isHandlingURL = false
+            openSettings()
+            return
+        }
+
         Task {
             // 1. Unshorten the URL if it's from a known shortener
             let unshortenedURL = await manager.unshortenURL(url)
@@ -280,32 +292,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
     
-    // applicationShouldHandleReopen is intentionally NOT implemented.
-    //
-    // Chowser is an LSUIElement (menu-bar-only) app with no Dock icon.
-    // This callback would only fire if somehow the app is re-activated via
-    // Dock or Exposé, which should never happen in normal use. Including it
-    // causes a race with URL-open events (macOS fires reopen before open:)
-    // and leads to erroneous Settings window launches during link clicks.
-    //
-    // If Settings needs to be opened, the user uses the menu bar icon.
-    
+    // Re-enabled (was previously skipped over a race with URL-open events — macOS can fire
+    // reopen before open:, which would pop Settings during a normal link click). Guarded on
+    // `isHandlingURL`, which already exists for exactly this purpose (see its doc comment at
+    // its declaration) but was never actually read anywhere until now. Without this, a user
+    // whose menu bar icon becomes inaccessible (most commonly hidden by macOS's own menu-bar
+    // overflow on a crowded bar) had no way back into Settings at all — this is the fallback
+    // a real user would actually stumble into: relaunching the app (Spotlight, Launchpad,
+    // Finder) while Chowser is already running.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        guard !isHandlingURL, !hasVisibleWindows else { return true }
+        openSettings()
+        return true
+    }
+
     // MARK: - Status Bar
-    
+
     private func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        
-        if let button = statusItem?.button {
-            let icon = BrowserManager.currentAppIcon().copy() as? NSImage
-            icon?.size = NSSize(width: 16, height: 16)
-            icon?.isTemplate = false
-            button.image = icon
-            button.toolTip = "Chowser — Browser Chooser"
+
+        // Defensive fallback: this doesn't catch the icon being hidden by menu-bar overflow
+        // (macOS gives no API signal for that), only outright creation failure — but if it
+        // ever does fail, falling back to a Dock icon means the user isn't silently locked
+        // out of Settings with zero UI at all.
+        guard let button = statusItem?.button else {
+            AppLogger.log("StatusBar", "statusItem creation failed — falling back to Dock icon so Settings stays reachable")
+            NSApp.setActivationPolicy(.regular)
+            openSettings()
+            return
         }
-        
+
+        let icon = BrowserManager.currentAppIcon().copy() as? NSImage
+        icon?.size = NSSize(width: 16, height: 16)
+        icon?.isTemplate = false
+        button.image = icon
+        button.toolTip = "Chowser — Browser Chooser"
+
         let menu = NSMenu()
         menu.delegate = self
-        
+
         statusItem?.menu = menu
     }
     

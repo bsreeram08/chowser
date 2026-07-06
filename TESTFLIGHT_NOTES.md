@@ -1,31 +1,36 @@
-# TestFlight Notes for Chowser 3.1.5 (Build 202606110001)
+# TestFlight Notes for Chowser 3.9.3 (Build 202607061600)
 
 ## Beta notes
 
-This TestFlight build reactivates Chowser as a native macOS menu-bar app. It focuses on reliability, safer local automation, and current macOS visuals without expanding into the post-TestFlight backlog.
+This build covers everything shipped since 3.9.0: Advanced Routing (fallback, multi-source rules, URL rewrites), network privacy defaults, App Mode, a much larger MCP API surface for AI-driven configuration, a predefined rewrite-rule catalog, a Handoff fix, and a privacy fix to diagnostic logging/bug reports.
 
 What to test:
 
-- Native macOS link routing from other apps into Chowser, including picker fallback and saved routing rules.
-- Browser profile discovery after granting access to browser profile folders from the app UI. Profile access grants should be recoverable if permission is missing, reset, or revoked.
-- App Store and TestFlight profile/private launch behavior should stay honest: browser selection and URL delivery are supported, but sandboxed builds do not promise delivery of profile, private, or custom launch arguments when macOS ignores those arguments.
-- MCP local API remains opt-in, localhost-only, and token-protected. Test with the API disabled by default, then enable it intentionally and use the visible token.
-- Liquid Glass polish appears only on selected custom picker/card/chip surfaces on the latest macOS, with readable fallbacks on macOS 14+ and with Reduce Transparency enabled.
+- **Fallback routing** (Settings → Behavior): set a fallback browser/profile, then open a link that matches no routing rule — it should open directly instead of showing the picker. Existing installs should default to picker-first (no fallback) until you turn it on.
+- **Multi-source routing rules**: create a rule matching several source apps (e.g. Slack + Mail). If you had rules before updating, check the one-time merge-review prompt offering to combine duplicate rules that only differed by source app.
+- **URL rewrites** (Settings → Rewrites): create a rewrite (strip a tracking param, force HTTPS, replace a host), use the live tester to confirm the before/after trace, then open a matching link and confirm the rewritten URL is what actually opens.
+- **Predefined rewrite catalog**: Settings → Rewrites → menu → "Check for Predefined Rewrites…" should fetch and offer to add the starter set (HTTPS upgrade, UTM/fbclid/gclid/msclkid/ttclid stripping). This was broken in 3.9.1 (decode failure on every check) — confirm it now works.
+- **Network privacy defaults**: on a fresh install or upgrade, shortlink resolution and link-preview fetches should be off by default, with a one-time notice explaining the change. Turn them back on in Settings → Behavior and confirm previews/unshortening resume.
+- **Picker URL editing**: in the picker, edit the shown URL before choosing a browser — confirm the edited URL is what opens.
+- **App Mode** (Settings → General, or during onboarding for fresh installs): switch between App (Dock icon) and Menu Bar (no Dock icon) — confirm activation policy actually changes and picking a mode sticks across relaunch. Existing installs upgrading from before 3.9.0 should see a one-time prompt asking which mode they want.
+- **Handoff**: open the "Send to Phone" menu on a link with a nearby paired Apple device signed into the same iCloud account — the Handoff icon should appear on the other device. This was silently unreliable before 3.9.3's activation-timing fix.
+- **MCP local API** (Settings → General → Local API Server): confirm it's off by default, token-protected, and localhost-only. With it running, `GET /settings` should return the full settings surface (App Mode, fallback policy, network privacy, launch-at-login, hidden apps, picker appearance) and `POST /settings` should actually change them in the running app. Also test `open "chowser://mcp/start"` / `open "chowser://mcp/stop"` from Terminal — the server should start/stop without opening Settings, and `~/Library/Application Support/Chowser/mcp-session.json` should appear/disappear with it.
+- **Bug reports** (Settings → General → About → Report a Bug): generate a report and confirm the log contains routing/launch events (rule name, destination browser) but never a visited hostname or local file path.
+- **Link previews with network lookups off** (the default): the picker should now explain why no preview shows and point to Settings → Behavior, instead of showing nothing.
 
 Out of scope for this beta:
 
 - Electrobun, Windows, and Linux builds.
-- Browser extensions, URL rewrite scripting, Focus/Shortcuts automation, mail/file handlers, rule history, and rule tester flows.
-- Public App Store release readiness. This build is for TestFlight reactivation and manual QA.
+- Public App Store release readiness beyond this TestFlight round — this build is for beta testing and manual QA.
 
 ## Manual Xcode Organizer upload checklist
 
-Do not use CI upload automation, Fastlane, altool, notarytool, or App Store Connect API keys for this T12 flow. Upload from Xcode Organizer only after the local checks pass.
+Do not use CI upload automation, Fastlane, altool, notarytool, or App Store Connect API keys for this flow. Upload from Xcode Organizer only after the local checks pass.
 
 ### 1. Confirm release metadata
 
-- Marketing version: `3.1.5`
-- Build number: `202606110001`
+- Marketing version: `3.9.3`
+- Build number: `202607061600`
 - Bundle ID: `in.sreerams.Chowser`
 - Team ID: `TH2VPAUX6Y`
 - App Store entitlements: `Chowser/ChowserAppStore.entitlements`
@@ -44,10 +49,6 @@ Unit tests:
 ```bash
 xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
 ```
-
-UI/E2E tests:
-
-Skipped for this release continuation by user instruction: “do not do e2e anymore”. Do not run UI/E2E tests before upload for this flow, and do not represent them as passing. The historical failed UI-test attempts and waiver are recorded in `RELEASE_VERIFICATION.md`.
 
 App Store/TestFlight archive:
 
@@ -69,6 +70,5 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 
 ### 4. Final human sanity check
 
-- Confirm the uploaded build number is `202606110001` and the version is `3.1.5`.
-- Paste the beta notes above into TestFlight.
-- Keep public App Store release messaging disabled until T14 manual QA evidence is complete.
+- Confirm the uploaded build number is `202607061600` and the version is `3.9.3`.
+- Paste the beta notes above into TestFlight's "What to Test" field.

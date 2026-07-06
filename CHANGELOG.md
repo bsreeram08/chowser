@@ -2,6 +2,11 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.3] - 2026-07-06
+
+### Fixed
+- **Link previews silently did nothing** when network lookups are off (the default since 3.9.0) — the picker now explains why and points to Settings → Behavior instead of showing nothing.
+
 ## [3.9.2] - 2026-07-06
 
 ### Fixed

@@ -93,8 +93,19 @@ struct RewriteActionFieldsState: Equatable {
 /// other fields — wiring a shared `FocusState` across this view boundary would need a
 /// generic focus binding for one extra behavior; upgrade if commit-on-blur is missed here.
 struct RewriteActionFieldsView: View {
+    // Self-contained focus tracking (rather than relying on a caller-supplied FocusState) so
+    // commit-on-blur works correctly wherever this view is embedded, including inside
+    // `SettingsRewriteRow`'s inline editor — a prior version relied on the parent row's
+    // `FocusedField` enum declaring cases for these fields, but never actually wired them
+    // with `.focused()`, so blur never committed an edit (found in Codex PR review).
+    private enum ActionField: Hashable {
+        case replaceHost, stripNames, stripPrefixes, setName, setValue
+    }
+
     @Binding var fields: RewriteActionFieldsState
     var onCommit: () -> Void = {}
+
+    @FocusState private var focusedField: ActionField?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -114,14 +125,15 @@ struct RewriteActionFieldsView: View {
                 TextField("newhost.example.com", text: $fields.replaceHost)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
+                    .focused($focusedField, equals: .replaceHost)
                     .onSubmit(onCommit)
             }
             .onChange(of: fields.replaceHostEnabled) { _, _ in onCommit() }
 
-            actionTextField(label: "Strip query parameters by name", placeholder: "utm_source, utm_campaign", text: $fields.stripParamNames, onCommit: onCommit)
+            actionTextField(label: "Strip query parameters by name", placeholder: "utm_source, utm_campaign", text: $fields.stripParamNames, focusValue: .stripNames, focus: $focusedField, onCommit: onCommit)
                 .accessibilityIdentifier("settings.rewrite.stripParamsField")
 
-            actionTextField(label: "Strip query parameters by prefix", placeholder: "utm_, hsa_", text: $fields.stripParamPrefixes, onCommit: onCommit)
+            actionTextField(label: "Strip query parameters by prefix", placeholder: "utm_, hsa_", text: $fields.stripParamPrefixes, focusValue: .stripPrefixes, focus: $focusedField, onCommit: onCommit)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Add / replace query parameter")
@@ -132,12 +144,14 @@ struct RewriteActionFieldsView: View {
                         .font(.system(size: 12, design: .monospaced))
                         .padding(8)
                         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                        .focused($focusedField, equals: .setName)
                         .onSubmit(onCommit)
                     TextField("value", text: $fields.setParamValue)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .monospaced))
                         .padding(8)
                         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                        .focused($focusedField, equals: .setValue)
                         .onSubmit(onCommit)
                 }
             }
@@ -145,6 +159,10 @@ struct RewriteActionFieldsView: View {
             Toggle("Remove fragment (#...)", isOn: $fields.removeFragmentEnabled)
                 .toggleStyle(.checkbox)
                 .onChange(of: fields.removeFragmentEnabled) { _, _ in onCommit() }
+        }
+        .onChange(of: focusedField) { oldValue, newValue in
+            guard oldValue != nil, newValue == nil else { return }
+            onCommit()
         }
     }
 
@@ -161,7 +179,7 @@ struct RewriteActionFieldsView: View {
         }
     }
 
-    private func actionTextField(label: String, placeholder: String, text: Binding<String>, onCommit: @escaping () -> Void) -> some View {
+    private func actionTextField(label: String, placeholder: String, text: Binding<String>, focusValue: ActionField, focus: FocusState<ActionField?>.Binding, onCommit: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .font(.system(size: 12, weight: .medium))
@@ -170,6 +188,7 @@ struct RewriteActionFieldsView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .padding(8)
                 .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                .focused(focus, equals: focusValue)
                 .onSubmit(onCommit)
         }
     }

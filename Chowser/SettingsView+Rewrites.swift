@@ -158,8 +158,12 @@ extension SettingsView {
 /// `SettingsRuleRow` (routing rules) already uses, per design review: rewrite rows are
 /// "structurally the same kind of row" as routing rules, not a separate modal-edit flow.
 private struct SettingsRewriteRow: View {
+    // Action-field focus (replaceHost/stripNames/stripPrefixes/setName/setValue) is now
+    // tracked inside `RewriteActionFieldsView` itself, not here — see its own `ActionField`
+    // enum. Those cases used to live in this enum but were never wired to a `.focused()`
+    // modifier, so blur never committed an action-field edit (found in Codex PR review).
     enum FocusedField: Hashable {
-        case name, host, path, replaceHost, stripNames, stripPrefixes, setName, setValue
+        case name, host, path
     }
 
     let rule: URLRewriteRule

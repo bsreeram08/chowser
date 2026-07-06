@@ -2070,6 +2070,27 @@ struct BrowserManagerTests {
 
     // MARK: - Fallback Policy (Phase 1)
 
+    @Test("Network privacy upgrade notice is only marked seen once, and stays seen (idempotent guard, not a UI-lifecycle flag)")
+    @MainActor
+    func networkPrivacyUpgradeNoticeMarkedSeenIsIdempotent() {
+        let manager = BrowserManager(defaults: makeTestDefaults())
+        #expect(manager.hasSeenNetworkPrivacyUpgradeNotice == false)
+
+        manager.markNetworkPrivacyUpgradeNoticeSeen()
+        #expect(manager.hasSeenNetworkPrivacyUpgradeNotice == true)
+
+        // Calling again (e.g. a second dismiss action) must not throw or misbehave — the
+        // guard clause in markNetworkPrivacyUpgradeNoticeSeen() is what this test protects.
+        // The actual regression this notice shipped with was in the UI layer (ContentView's
+        // banner called this from `.onAppear` instead of only from the explicit dismiss
+        // button, so the banner vanished before a user could read it — see PR #40 review).
+        // That's not unit-testable without rendering the view; this test only guards the
+        // state-layer contract the UI fix depends on: marking seen is a one-way,
+        // explicit-action-only transition.
+        manager.markNetworkPrivacyUpgradeNoticeSeen()
+        #expect(manager.hasSeenNetworkPrivacyUpgradeNotice == true)
+    }
+
     @Test("Fallback policy defaults to picker for fresh and existing installs")
     @MainActor
     func fallbackPolicyDefaultsToPicker() {

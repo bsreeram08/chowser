@@ -265,9 +265,6 @@ struct ContentView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .accessibilityIdentifier("picker.networkPrivacyUpgradeNotice")
-        .onAppear {
-            browserManager.markNetworkPrivacyUpgradeNoticeSeen()
-        }
     }
 
     // MARK: - URL Bubble

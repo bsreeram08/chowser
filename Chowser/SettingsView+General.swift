@@ -250,6 +250,7 @@ struct MCPServerSettingsRow: View {
     @State private var tokenCopied = false
 
     private let server = MCPServer.shared
+    @Bindable private var manager = BrowserManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -302,6 +303,24 @@ struct MCPServerSettingsRow: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Start automatically at launch")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Or set from Terminal: defaults write in.sreerams.Chowser mcpAutoStartEnabled -bool true")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer()
+                Toggle("", isOn: $manager.mcpAutoStartEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier("settings.mcpAutoStart")
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

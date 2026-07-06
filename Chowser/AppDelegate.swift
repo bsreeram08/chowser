@@ -88,6 +88,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let manager = BrowserManager.shared
         NSApp.setActivationPolicy(manager.appMode == .app ? .regular : .accessory)
 
+        if manager.mcpAutoStartEnabled {
+            MCPServer.shared.start()
+        }
+
         if manager.appMode == .menuBar {
             setupStatusBar()
         } else {

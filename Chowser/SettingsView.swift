@@ -21,6 +21,8 @@ struct SettingsView: View {
     @State var showingAddRewriteSheet = false
     @State var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     @State var operationAlert: SettingsOperationAlert?
+    @State var pendingRewriteCatalog: RewriteCatalog?
+    @State var isCheckingRewriteCatalog = false
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -140,7 +142,36 @@ struct SettingsView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .alert(item: $pendingRewriteCatalog) { catalog in
+            Alert(
+                title: Text("New Predefined Rewrites Available"),
+                message: Text("\(catalog.rules.count) predefined rewrite rules found — tracking-parameter cleanup, HTTPS upgrade, and more. Add them now?"),
+                primaryButton: .default(Text("Apply")) {
+                    let added = RewriteCatalogService.shared.apply(catalog, manager: browserManager)
+                    selectedSection = .rewrites
+                    operationAlert = SettingsOperationAlert(title: "Rewrites Added", message: "Added \(added) new rewrite rule(s).")
+                },
+                secondaryButton: .cancel(Text("Not Now")) {
+                    browserManager.lastSeenRewriteCatalogVersion = catalog.version
+                }
+            )
+        }
         .accessibilityIdentifier("settings.root")
+    }
+
+    func checkForRewriteCatalogUpdates() {
+        guard !isCheckingRewriteCatalog else { return }
+        isCheckingRewriteCatalog = true
+        Task {
+            let catalog = await RewriteCatalogService.shared.checkForUpdates(manager: browserManager)
+            isCheckingRewriteCatalog = false
+            guard let catalog else {
+                operationAlert = SettingsOperationAlert(title: "Up to Date", message: "No new predefined rewrites right now.")
+                return
+            }
+            RewriteCatalogService.shared.notifyUpdateAvailable(catalog)
+            pendingRewriteCatalog = catalog
+        }
     }
 
     private var settingsSidebar: some View {

@@ -28,6 +28,14 @@ extension SettingsView {
                         Button(action: importRewrites) {
                             Label("Import Rewrites…", systemImage: "square.and.arrow.down")
                         }
+
+                        Divider()
+
+                        Button(action: checkForRewriteCatalogUpdates) {
+                            Label("Check for Predefined Rewrites…", systemImage: "sparkle.magnifyingglass")
+                        }
+                        .disabled(isCheckingRewriteCatalog)
+                        .accessibilityIdentifier("settings.checkRewriteCatalogButton")
                     } label: {
                         Label("Rewrite Actions", systemImage: "ellipsis.circle")
                             .labelStyle(.iconOnly)

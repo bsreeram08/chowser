@@ -361,6 +361,18 @@ final class MCPServer {
                     "description": "Remove a rewrite rule by id. Query param: ?id=<uuid>",
                     "query_params": ["id (required): rewrite UUID from GET /rewrites"],
                 ],
+                [
+                    "method": "GET", "path": "/settings",
+                    "auth": true,
+                    "description": "Read app-level settings: App Mode, fallback routing policy, and network privacy preferences.",
+                    "response_fields": ["appMode", "fallbackPolicy { mode, browserId?, profile? }", "networkLookupsEnabled", "userShortenerHosts", "shortlinkResolutionTimeout", "trackingCleanupEnabled"],
+                ],
+                [
+                    "method": "POST", "path": "/settings",
+                    "auth": true,
+                    "description": "Update one or more app-level settings. Only include the keys you want to change — omitted keys are left as-is.",
+                    "body_fields": ["appMode? (\"app\" or \"menuBar\")", "fallbackPolicy? { mode (\"picker\" or \"browser\"), browserId? (required when mode is \"browser\" — must be an existing browser's id), profile? }", "networkLookupsEnabled?", "userShortenerHosts? ([String])", "shortlinkResolutionTimeout? (seconds)", "trackingCleanupEnabled?"],
+                ],
             ]
             return httpResponse(status: 200, body: [
                 "status": "ok",
@@ -476,9 +488,81 @@ final class MCPServer {
             manager.removeRewriteRule(id: uuid)
             return httpResponse(status: 200, body: ["status": "deleted", "id": idStr])
 
+        // MARK: - Settings
+        case ("GET", "/settings"):
+            var fallback: [String: Any] = ["mode": manager.fallbackPolicy.mode.rawValue]
+            if let browserID = manager.fallbackPolicy.browserID { fallback["browserId"] = browserID.uuidString }
+            if let profile = manager.fallbackPolicy.profile { fallback["profile"] = profile }
+            return httpResponse(status: 200, body: [
+                "appMode": manager.appMode.rawValue,
+                "fallbackPolicy": fallback,
+                "networkLookupsEnabled": manager.networkLookupsEnabled,
+                "userShortenerHosts": Array(manager.userShortenerHosts),
+                "shortlinkResolutionTimeout": manager.shortlinkResolutionTimeout,
+                "trackingCleanupEnabled": manager.trackingCleanupEnabled,
+            ])
+
+        case ("POST", "/settings"):
+            guard let body = body else {
+                return httpResponse(status: 400, body: ["error": "Missing request body"])
+            }
+            return handleUpdateSettings(body: body, manager: manager)
+
         default:
             return httpResponse(status: 404, body: ["error": "Not found", "path": path, "method": method])
         }
+    }
+
+    private func handleUpdateSettings(body: Data, manager: BrowserManager) -> Data {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return httpResponse(status: 400, body: ["error": "Invalid JSON"])
+        }
+
+        if let rawMode = json["appMode"] as? String {
+            guard let mode = ChowserAppMode(rawValue: rawMode) else {
+                return httpResponse(status: 400, body: ["error": "Invalid appMode. Must be \"app\" or \"menuBar\"", "appMode": rawMode])
+            }
+            manager.appMode = mode
+        }
+
+        if let rawPolicy = json["fallbackPolicy"] as? [String: Any] {
+            guard let rawMode = rawPolicy["mode"] as? String,
+                  let mode = BrowserFallbackPolicy.Mode(rawValue: rawMode) else {
+                return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.mode. Must be \"picker\" or \"browser\""])
+            }
+            var browserID: UUID?
+            if let idStr = rawPolicy["browserId"] as? String {
+                guard let uuid = UUID(uuidString: idStr) else {
+                    return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.browserId", "browserId": idStr])
+                }
+                browserID = uuid
+            }
+            if mode == .browser {
+                guard let browserID, manager.configuredBrowsers.contains(where: { $0.id == browserID }) else {
+                    return httpResponse(status: 400, body: ["error": "fallbackPolicy.browserId is required and must reference an existing browser when mode is \"browser\""])
+                }
+            }
+            manager.fallbackPolicy = BrowserFallbackPolicy(
+                mode: mode,
+                browserID: browserID,
+                profile: rawPolicy["profile"] as? String
+            )
+        }
+
+        if let enabled = json["networkLookupsEnabled"] as? Bool {
+            manager.networkLookupsEnabled = enabled
+        }
+        if let hosts = json["userShortenerHosts"] as? [String] {
+            manager.userShortenerHosts = Set(hosts)
+        }
+        if let timeout = json["shortlinkResolutionTimeout"] as? Double {
+            manager.shortlinkResolutionTimeout = timeout
+        }
+        if let cleanup = json["trackingCleanupEnabled"] as? Bool {
+            manager.trackingCleanupEnabled = cleanup
+        }
+
+        return httpResponse(status: 200, body: ["status": "updated"])
     }
 
     private func handleAddOrUpdateBrowser(body: Data, manager: BrowserManager) -> Data {

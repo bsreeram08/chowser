@@ -40,7 +40,20 @@ final class OnboardingManager {
     static func resetOnboarding(in defaults: UserDefaults) {
         defaults.removeObject(forKey: completionDefaultsKey)
     }
-    
+
+    /// Clamps a desired window content size to the screen it'll appear on (minus a margin
+    /// for the menu bar / Dock), so a hardcoded design-time size never exceeds an actual
+    /// display — generic to any window, not specific to any one onboarding screen.
+    private static func clampedContentSize(preferred: NSSize) -> NSSize {
+        let visible = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1280, height: 800)
+        let margin: CGFloat = 40
+        return NSSize(
+            width: min(preferred.width, visible.width - margin),
+            height: min(preferred.height, visible.height - margin)
+        )
+    }
+
+
     func showOnboardingWindow(completion: @escaping () -> Void) {
         // Force the app to act like a regular app so the window comes to the very front
         // and gains focus, because LSUIElement apps usually stay out of the way.
@@ -68,8 +81,9 @@ final class OnboardingManager {
         window.titleVisibility = .hidden
         window.backgroundColor = NSColor.windowBackgroundColor
         
-        // Size it beautifully
-        window.setContentSize(NSSize(width: 500, height: 600))
+        // Size it beautifully — clamped to fit the actual screen, since the design-time
+        // 500x600 target can exceed a smaller display's usable height.
+        window.setContentSize(Self.clampedContentSize(preferred: NSSize(width: 500, height: 600)))
         window.center()
         window.isReleasedWhenClosed = false
         
@@ -127,7 +141,7 @@ final class OnboardingManager {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.backgroundColor = NSColor.windowBackgroundColor
-        window.setContentSize(NSSize(width: 500, height: 420))
+        window.setContentSize(Self.clampedContentSize(preferred: NSSize(width: 500, height: 420)))
         window.center()
         window.isReleasedWhenClosed = false
 

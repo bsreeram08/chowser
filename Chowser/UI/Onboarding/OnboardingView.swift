@@ -68,7 +68,9 @@ struct OnboardingView: View {
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentStep)
         }
-        .frame(width: 500, height: 600)
+        // Flexible, not fixed — a hardcoded exact size fights the window's own clamp to
+        // the actual screen (OnboardingManager.clampedContentSize) on smaller displays.
+        .frame(minWidth: 400, idealWidth: 500, maxWidth: 500, minHeight: 300, idealHeight: 600, maxHeight: 600)
     }
     
     private func goNext() {

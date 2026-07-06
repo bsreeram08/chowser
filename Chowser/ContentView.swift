@@ -226,9 +226,18 @@ struct ContentView: View {
     /// Best-effort Handoff advertising, scoped to the picker's current URL — starts/updates
     /// while a valid HTTP(S) URL is showing, stops otherwise. `startOrUpdate` itself is a
     /// no-op for non-HTTP(S) URLs, so no extra validation is needed here.
+    ///
+    /// Unlike the explicit "Send to Phone" action (`openPhoneActionMenu`), this ambient
+    /// path never forces activation — the picker's non-activating panel deliberately
+    /// avoids stealing focus just to show a URL. Handoff only advertises for the
+    /// frontmost app, so gate on `NSApp.isActive` instead of firing unconditionally and
+    /// silently never actually broadcasting.
     private func syncPhoneHandoff() {
         // Never broadcast a link the user marked private to every iCloud-paired device.
-        if let url = browserManager.currentURL, !browserManager.currentURLPrivateModeRequested, !effectivePrivateMode {
+        if let url = browserManager.currentURL,
+           !browserManager.currentURLPrivateModeRequested,
+           !effectivePrivateMode,
+           NSApp.isActive {
             phoneHandoffAdapter.startOrUpdate(url)
         } else {
             phoneHandoffAdapter.stop()
@@ -476,8 +485,13 @@ struct ContentView: View {
         showingPhoneActionMenu = true
         guard !isPreview, !AppEnvironment.isUITesting else { return }
         NSApp.activate(ignoringOtherApps: true)
-        if !browserManager.currentURLPrivateModeRequested && !effectivePrivateMode {
-            phoneHandoffAdapter.startOrUpdate(url)
+        guard !browserManager.currentURLPrivateModeRequested, !effectivePrivateMode else { return }
+        // activate(ignoringOtherApps:) returns before the frontmost transition actually
+        // lands — becomeCurrent() called in the same tick can still see the previous app
+        // as frontmost and silently fail to advertise. Defer one runloop tick.
+        let adapter = phoneHandoffAdapter
+        DispatchQueue.main.async {
+            adapter.startOrUpdate(url)
         }
     }
 

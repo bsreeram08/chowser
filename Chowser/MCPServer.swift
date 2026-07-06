@@ -249,7 +249,22 @@ final class MCPServer {
         guard isRunning, !authToken.isEmpty, let requestToken else {
             return false
         }
-        return requestToken == authToken
+        return Self.constantTimeEquals(requestToken, authToken)
+    }
+
+    /// Loopback-only and requires local code execution already, but comparing tokens
+    /// byte-by-byte instead of short-circuiting on the first mismatch closes the timing
+    /// side-channel cheaply while this file is already being touched.
+    static func constantTimeEquals(_ a: String, _ b: String) -> Bool {
+        let aBytes = Array(a.utf8)
+        let bBytes = Array(b.utf8)
+        guard aBytes.count == bBytes.count else { return false }
+
+        var diff: UInt8 = 0
+        for i in 0..<aBytes.count {
+            diff |= aBytes[i] ^ bBytes[i]
+        }
+        return diff == 0
     }
 
     private nonisolated func unauthorizedResponse() -> Data {
@@ -314,19 +329,37 @@ final class MCPServer {
                     "method": "GET", "path": "/rules",
                     "auth": true,
                     "description": "List all routing rules. Requires Authorization: Bearer <token>.",
-                    "response_fields": ["id", "name", "hostPattern", "browserBundleId", "isEnabled", "usePrivateMode", "useRegex", "pathPrefix?", "profile?", "sourceAppBundleId?"],
+                    "response_fields": ["id", "name", "hostPattern", "browserBundleId", "isEnabled", "usePrivateMode", "useRegex", "pathPrefix?", "profile?", "sourceAppBundleIDs (always present, may be empty)", "sourceAppBundleId? (legacy, present only when sourceAppBundleIDs has exactly one entry)"],
                 ],
                 [
                     "method": "POST", "path": "/rules",
                     "auth": true,
-                    "description": "Create a new rule (201), or update an existing one by including its id in the body (200). The target browser must already exist. useRegex=true treats hostPattern as a regex.",
-                    "body_fields": ["hostPattern (required)", "browserBundleId (required)", "id? (provide to update existing rule)", "name?", "pathPrefix?", "profile?", "sourceAppBundleId?", "usePrivateMode?", "useRegex?", "isEnabled?"],
+                    "description": "Create a new rule (201), or update an existing one by including its id in the body (200). The target browser must already exist. useRegex=true treats hostPattern as a regex. Empty/omitted sourceAppBundleIDs means the rule matches any source app.",
+                    "body_fields": ["hostPattern (required)", "browserBundleId (required)", "id? (provide to update existing rule)", "name?", "pathPrefix?", "profile?", "sourceAppBundleIDs? ([String], preferred)", "sourceAppBundleId? (legacy single-string, still accepted)", "usePrivateMode?", "useRegex?", "isEnabled?"],
                 ],
                 [
                     "method": "DELETE", "path": "/rules",
                     "auth": true,
                     "description": "Remove a routing rule by id. Query param: ?id=<uuid>",
                     "query_params": ["id (required): rule UUID from GET /rules"],
+                ],
+                [
+                    "method": "GET", "path": "/rewrites",
+                    "auth": true,
+                    "description": "List all URL rewrite rules, applied in order before routing rules (FR-021/022). Requires Authorization: Bearer <token>.",
+                    "response_fields": ["id", "name", "isEnabled", "match { schemes, hostPattern, useRegex, pathPrefix?, sourceAppBundleIDs }", "actions ([{type, ...}], see POST /rewrites for shapes)"],
+                ],
+                [
+                    "method": "POST", "path": "/rewrites",
+                    "auth": true,
+                    "description": "Create a new rewrite rule (201), or update an existing one by including its id in the body (200). Mirrors /rules' create-or-update shape.",
+                    "body_fields": ["hostPattern (required)", "id? (provide to update existing rewrite)", "name?", "useRegex?", "pathPrefix?", "schemes? ([String], e.g. [\"https\"]; empty/omitted means any scheme)", "sourceAppBundleIDs?", "isEnabled?", "actions? ([Object]) — each is {type, ...}: {type:\"forceScheme\",scheme}, {type:\"replaceHost\",host}, {type:\"stripQueryParameters\",names:[String]}, {type:\"stripQueryParameterPrefixes\",prefixes:[String]}, {type:\"setQueryParameter\",name,value}, {type:\"removeFragment\"}"],
+                ],
+                [
+                    "method": "DELETE", "path": "/rewrites",
+                    "auth": true,
+                    "description": "Remove a rewrite rule by id. Query param: ?id=<uuid>",
+                    "query_params": ["id (required): rewrite UUID from GET /rewrites"],
                 ],
             ]
             return httpResponse(status: 200, body: [
@@ -335,6 +368,7 @@ final class MCPServer {
                 "version": version,
                 "browsers_count": manager.configuredBrowsers.count,
                 "rules_count": manager.routingRules.count,
+                "rewrites_count": manager.rewriteRules.count,
                 "auth_header": "Authorization",
                 "auth_scheme": "Bearer",
                 "endpoints": endpoints,
@@ -392,7 +426,10 @@ final class MCPServer {
                 ]
                 if let prefix = rule.pathPrefix { dict["pathPrefix"] = prefix }
                 if let profile = rule.profile { dict["profile"] = profile }
-                if let source = rule.sourceAppBundleId { dict["sourceAppBundleId"] = source }
+                // Dual-field compatibility window (pinned to drop at the next major
+                // version): singular only when there's exactly one source app.
+                dict["sourceAppBundleIDs"] = rule.sourceAppBundleIDs
+                if rule.sourceAppBundleIDs.count == 1 { dict["sourceAppBundleId"] = rule.sourceAppBundleIDs[0] }
                 return dict
             }
             return httpResponse(status: 200, body: ["rules": rules])
@@ -411,6 +448,32 @@ final class MCPServer {
                 return httpResponse(status: 404, body: ["error": "Rule not found"])
             }
             manager.removeRoutingRule(id: uuid)
+            return httpResponse(status: 200, body: ["status": "deleted", "id": idStr])
+
+        // MARK: - Rewrites
+        case ("GET", "/rewrites"):
+            let encoder = JSONEncoder()
+            let rewrites = manager.rewriteRules.compactMap { rule -> [String: Any]? in
+                guard let data = try? encoder.encode(rule),
+                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return dict
+            }
+            return httpResponse(status: 200, body: ["rewrites": rewrites])
+
+        case ("POST", "/rewrites"):
+            guard let body = body else {
+                return httpResponse(status: 400, body: ["error": "Missing request body"])
+            }
+            return handleAddOrUpdateRewrite(body: body, manager: manager)
+
+        case ("DELETE", "/rewrites"):
+            guard let idStr = queryParams["id"], let uuid = UUID(uuidString: idStr) else {
+                return httpResponse(status: 400, body: ["error": "Missing or invalid 'id' query parameter"])
+            }
+            guard manager.rewriteRules.contains(where: { $0.id == uuid }) else {
+                return httpResponse(status: 404, body: ["error": "Rewrite not found"])
+            }
+            manager.removeRewriteRule(id: uuid)
             return httpResponse(status: 200, body: ["status": "deleted", "id": idStr])
 
         default:
@@ -546,7 +609,16 @@ final class MCPServer {
         let name = json["name"] as? String ?? hostPattern
         let pathPrefix = json["pathPrefix"] as? String
         let profile = json["profile"] as? String
-        let sourceAppBundleId = json["sourceAppBundleId"] as? String
+        // Write-path parity: accept the plural array as well as the legacy singular
+        // field, so multi-source rules can be created/edited via MCP, not just listed.
+        let sourceAppBundleIDs: [String]
+        if let ids = json["sourceAppBundleIDs"] as? [String] {
+            sourceAppBundleIDs = ids
+        } else if let legacy = json["sourceAppBundleId"] as? String, !legacy.isEmpty {
+            sourceAppBundleIDs = [legacy]
+        } else {
+            sourceAppBundleIDs = []
+        }
         let usePrivateMode = json["usePrivateMode"] as? Bool ?? false
         let useRegex = json["useRegex"] as? Bool ?? false
         let isEnabled = json["isEnabled"] as? Bool ?? true
@@ -566,7 +638,7 @@ final class MCPServer {
             updated.pathPrefix = pathPrefix
             updated.browserBundleId = browserBundleId
             updated.profile = profile
-            updated.sourceAppBundleId = sourceAppBundleId
+            updated.sourceAppBundleIDs = sourceAppBundleIDs
             updated.usePrivateMode = usePrivateMode
             updated.useRegex = useRegex
             updated.isEnabled = isEnabled
@@ -589,7 +661,7 @@ final class MCPServer {
             pathPrefix: pathPrefix,
             browserBundleId: browserBundleId,
             profile: profile,
-            sourceAppBundleId: sourceAppBundleId,
+            sourceAppBundleIDs: sourceAppBundleIDs,
             usePrivateMode: usePrivateMode,
             useRegex: useRegex
         )
@@ -603,6 +675,62 @@ final class MCPServer {
             ])
         case .failure(let error):
             return routingRuleValidationResponse(error, browserBundleId: browserBundleId)
+        }
+    }
+
+    /// Write-path parity with /rules: mirrors the create-or-update shape. The `actions`
+    /// array is re-serialized and decoded through `URLRewriteAction`'s existing tagged-union
+    /// Codable rather than hand-parsing each of the 6 action shapes here.
+    private func handleAddOrUpdateRewrite(body: Data, manager: BrowserManager) -> Data {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let hostPattern = json["hostPattern"] as? String else {
+            return httpResponse(status: 400, body: ["error": "Invalid JSON. Required field: hostPattern"])
+        }
+
+        let name = json["name"] as? String ?? hostPattern
+        let useRegex = json["useRegex"] as? Bool ?? false
+        let pathPrefix = json["pathPrefix"] as? String
+        let schemes = json["schemes"] as? [String] ?? []
+        let sourceAppBundleIDs = json["sourceAppBundleIDs"] as? [String] ?? []
+        let isEnabled = json["isEnabled"] as? Bool ?? true
+
+        var actions: [URLRewriteAction] = []
+        if let actionsJSON = json["actions"],
+           let actionsData = try? JSONSerialization.data(withJSONObject: actionsJSON),
+           let decodedActions = try? JSONDecoder().decode([URLRewriteAction].self, from: actionsData) {
+            actions = decodedActions
+        }
+
+        let match = URLRewriteMatch(schemes: schemes, hostPattern: hostPattern, useRegex: useRegex, pathPrefix: pathPrefix, sourceAppBundleIDs: sourceAppBundleIDs)
+
+        if let idStr = json["id"] as? String {
+            guard let uuid = UUID(uuidString: idStr) else {
+                return httpResponse(status: 400, body: ["error": "Invalid rewrite id", "id": idStr])
+            }
+            guard var existing = manager.rewriteRules.first(where: { $0.id == uuid }) else {
+                return httpResponse(status: 404, body: ["error": "Rewrite not found", "id": idStr])
+            }
+            existing.name = name
+            existing.match = match
+            existing.actions = actions
+            existing.isEnabled = isEnabled
+
+            switch manager.updateRewriteRule(existing) {
+            case .success(let rule):
+                return httpResponse(status: 200, body: ["status": "updated", "id": rule.id.uuidString])
+            case .failure(let error):
+                return httpResponse(status: 422, body: ["error": error.message])
+            }
+        }
+
+        var newRule = URLRewriteRule(name: name, match: match, actions: actions)
+        newRule.isEnabled = isEnabled
+
+        switch manager.addRewriteRule(newRule) {
+        case .success(let rule):
+            return httpResponse(status: 201, body: ["status": "created", "id": rule.id.uuidString])
+        case .failure(let error):
+            return httpResponse(status: 422, body: ["error": error.message])
         }
     }
 

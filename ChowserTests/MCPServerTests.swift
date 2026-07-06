@@ -689,4 +689,140 @@ struct MCPServerTests {
             #expect(!rules3.contains { $0["id"] as? String == ruleId })
         }
     }
+
+    @Test("POST /rules accepts plural sourceAppBundleIDs; GET /rules emits both fields")
+    func rulesSourceAppBundleIDsWritePathParity() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let uniqueBundle = "com.chowser.sourceappstest.\(UUID().uuidString.prefix(8))"
+
+            let (_, browserBody) = try await post("/browsers", token: token,
+                body: ["name": "Source Apps Test Browser", "bundleId": uniqueBundle])
+            let browserId = browserBody["id"] as? String
+
+            // Create with the plural field only
+            let (createStatus, createBody) = try await post("/rules", token: token, body: [
+                "hostPattern": "sourceapps-test.example.com",
+                "browserBundleId": uniqueBundle,
+                "sourceAppBundleIDs": ["com.tinyspeck.slackmacgap", "com.apple.mail"],
+            ])
+            #expect(createStatus == 201)
+            let ruleId = createBody["id"] as? String
+            #expect(ruleId != nil)
+
+            let (_, rulesBody) = try await get("/rules", token: token)
+            let rules = rulesBody["rules"] as? [[String: Any]] ?? []
+            let created = rules.first { $0["id"] as? String == ruleId }
+            #expect((created?["sourceAppBundleIDs"] as? [String])?.sorted() == ["com.apple.mail", "com.tinyspeck.slackmacgap"])
+            // Multi-source rules have no singular field (compat window only covers exactly one source).
+            #expect(created?["sourceAppBundleId"] == nil)
+
+            // Update down to a single source — singular compat field should reappear
+            let (updateStatus, _) = try await post("/rules", token: token, body: [
+                "id": ruleId!,
+                "hostPattern": "sourceapps-test.example.com",
+                "browserBundleId": uniqueBundle,
+                "sourceAppBundleIDs": ["com.tinyspeck.slackmacgap"],
+            ])
+            #expect(updateStatus == 200)
+
+            let (_, rulesBody2) = try await get("/rules", token: token)
+            let rules2 = rulesBody2["rules"] as? [[String: Any]] ?? []
+            let updated = rules2.first { $0["id"] as? String == ruleId }
+            #expect(updated?["sourceAppBundleId"] as? String == "com.tinyspeck.slackmacgap")
+            #expect(updated?["sourceAppBundleIDs"] as? [String] == ["com.tinyspeck.slackmacgap"])
+
+            // Legacy singular field on write is still accepted
+            let (legacyStatus, _) = try await post("/rules", token: token, body: [
+                "id": ruleId!,
+                "hostPattern": "sourceapps-test.example.com",
+                "browserBundleId": uniqueBundle,
+                "sourceAppBundleId": "com.apple.mail",
+            ])
+            #expect(legacyStatus == 200)
+
+            let (_, rulesBody3) = try await get("/rules", token: token)
+            let rules3 = rulesBody3["rules"] as? [[String: Any]] ?? []
+            let legacyUpdated = rules3.first { $0["id"] as? String == ruleId }
+            #expect(legacyUpdated?["sourceAppBundleIDs"] as? [String] == ["com.apple.mail"])
+
+            _ = try await delete("/rules?id=\(ruleId!)", token: token)
+            if let bid = browserId {
+                _ = try await delete("/browsers?id=\(bid)", token: token)
+            }
+        }
+    }
+
+    // MARK: - Rewrites (Phase 3)
+
+    @Test("GET /rewrites without token returns 401")
+    func getRewritesUnauthorized() async throws {
+        try await withServer {
+            let (status, _) = try await get("/rewrites", token: nil)
+            #expect(status == 401)
+        }
+    }
+
+    @Test("POST /rewrites missing hostPattern returns 400")
+    func postRewritesMissingHostPattern() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let (status, _) = try await post("/rewrites", token: token, body: ["name": "No host"])
+            #expect(status == 400)
+        }
+    }
+
+    @Test("DELETE /rewrites with non-existent id returns 404")
+    func deleteRewritesNotFound() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let (status, _) = try await delete("/rewrites?id=\(UUID().uuidString)", token: token)
+            #expect(status == 404)
+        }
+    }
+
+    @Test("POST /rewrites creates a rewrite with actions; POST with id updates it; DELETE removes it")
+    func rewritesCRUD() async throws {
+        try await withServer {
+            let token = MCPServer.shared.authToken
+            let uniqueHost = "rewrites-test-\(UUID().uuidString.prefix(8)).example.com"
+
+            let (createStatus, createBody) = try await post("/rewrites", token: token, body: [
+                "name": "Strip UTM",
+                "hostPattern": uniqueHost,
+                "actions": [
+                    ["type": "forceScheme", "scheme": "https"],
+                    ["type": "stripQueryParameterPrefixes", "prefixes": ["utm_"]],
+                ] as [[String: Any]],
+            ])
+            #expect(createStatus == 201)
+            let rewriteId = createBody["id"] as? String
+            #expect(rewriteId != nil)
+
+            let (_, listBody) = try await get("/rewrites", token: token)
+            let rewrites = listBody["rewrites"] as? [[String: Any]] ?? []
+            let created = rewrites.first { $0["id"] as? String == rewriteId }
+            #expect(created?["name"] as? String == "Strip UTM")
+            #expect((created?["actions"] as? [[String: Any]])?.count == 2)
+
+            let (updateStatus, _) = try await post("/rewrites", token: token, body: [
+                "id": rewriteId!,
+                "hostPattern": uniqueHost,
+                "actions": [["type": "removeFragment"]] as [[String: Any]],
+            ])
+            #expect(updateStatus == 200)
+
+            let (_, listBody2) = try await get("/rewrites", token: token)
+            let rewrites2 = listBody2["rewrites"] as? [[String: Any]] ?? []
+            let updated = rewrites2.first { $0["id"] as? String == rewriteId }
+            #expect((updated?["actions"] as? [[String: Any]])?.count == 1)
+
+            let (deleteStatus, _) = try await delete("/rewrites?id=\(rewriteId!)", token: token)
+            #expect(deleteStatus == 200)
+
+            let (_, listBody3) = try await get("/rewrites", token: token)
+            let rewrites3 = listBody3["rewrites"] as? [[String: Any]] ?? []
+            #expect(!rewrites3.contains { $0["id"] as? String == rewriteId })
+        }
+    }
 }

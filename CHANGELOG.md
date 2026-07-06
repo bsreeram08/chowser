@@ -2,6 +2,12 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.2] - 2026-07-06
+
+### Fixed
+- **"Check for Predefined Rewrites" always failed to decode the catalog.** 5 of the 6 hosted starter rules omitted an optional field, and Swift's default JSON decoding doesn't apply a field's default value to a missing key — it fails the whole response. Now tolerant of missing optional fields, matching the pattern already used elsewhere in the app.
+- **Diagnostic logs and bug reports no longer record any visited hostname or local file path**, ever — previously, routing/launch/Handoff/AirDrop log lines included the destination host (and, for local files, the full file path), which could end up in a bug report attached to a public GitHub issue. Logs now record only the routing decision itself (rule name, destination browser).
+
 ## [3.9.1] - 2026-07-06
 
 ### Added

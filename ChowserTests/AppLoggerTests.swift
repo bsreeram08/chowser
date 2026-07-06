@@ -40,7 +40,7 @@ struct AppLoggerTests {
             let report = try String(contentsOf: reportURL, encoding: .utf8)
             #expect(report.contains("Chowser Bug Report"))
             #expect(report.contains("App version:"))
-            #expect(report.contains("hostnames"))
+            #expect(report.contains("never a visited hostname"))
             #expect(report.contains(marker))
             #expect(report.contains("[ERROR] [Test]"))
         }

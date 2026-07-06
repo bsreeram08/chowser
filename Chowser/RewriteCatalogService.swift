@@ -12,6 +12,26 @@ struct RewriteCatalogEntry: Codable {
     var actions: [URLRewriteAction] = []
 }
 
+extension RewriteCatalogEntry {
+    /// Tolerant decode: only `name`/`hostPattern` are required — synthesized Decodable
+    /// does NOT apply a property's `= default` for a missing key, it throws
+    /// `keyNotFound`, so any catalog entry omitting an optional field (e.g. `schemes`)
+    /// would fail the whole array decode. Matches the tolerant-Codable pattern already
+    /// established for `URLRewriteMatch`/`BrowserRoutingRule`.
+    private enum CodingKeys: String, CodingKey {
+        case name, hostPattern, useRegex, schemes, actions
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        hostPattern = try c.decode(String.self, forKey: .hostPattern)
+        useRegex = (try c.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
+        schemes = (try c.decodeIfPresent([String].self, forKey: .schemes)) ?? []
+        actions = (try c.decodeIfPresent([URLRewriteAction].self, forKey: .actions)) ?? []
+    }
+}
+
 struct RewriteCatalog: Codable, Identifiable {
     var version: Int
     var updatedAt: String

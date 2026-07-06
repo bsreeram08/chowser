@@ -188,7 +188,7 @@ extension SettingsView {
 
                         SettingsRow(
                             title: "Report a Bug",
-                            subtitle: "Collects recent logs — including hostnames of sites Chowser handled — into a report file and opens a GitHub issue. Review the file before attaching it."
+                            subtitle: "Collects recent logs — routing/launch events only, never a visited hostname or file path — into a report file and opens a GitHub issue."
                         ) {
                             Button("Report a Bug…") {
                                 AppLogger.startBugReport()

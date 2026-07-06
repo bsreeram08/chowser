@@ -1289,7 +1289,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         }
         if !result.steps.isEmpty {
             let summary = result.steps.map { "\($0.ruleName)\($0.skipped ? " (skipped: \($0.skipReason ?? "invalid output"))" : "")" }
-            AppLogger.log("Route", "Rewrite pipeline for \(url.host ?? url.absoluteString): \(summary.joined(separator: " → "))")
+            AppLogger.log("Route", "Rewrite pipeline: \(summary.joined(separator: " → "))")
         }
         return result
     }
@@ -2024,10 +2024,8 @@ struct BrowserFallbackPolicy: Codable, Equatable {
             mode: launchMode
         )
 
-        // Private mode means "leave no local record" — log the launch without the destination.
-        AppLogger.log("Launch", usePrivateMode
-            ? "Opening private link in \(bundleId)"
-            : "Opening \(url.host ?? url.absoluteString) in \(bundleId) profile=\(profile ?? "-")")
+        // No hostname/URL recorded, private mode or not — only the destination browser.
+        AppLogger.log("Launch", "Opening link in \(bundleId) profile=\(profile ?? "-")")
 
         #if APP_STORE
         // Sandboxed: attempt to pass launch args via OpenConfiguration (macOS may ignore

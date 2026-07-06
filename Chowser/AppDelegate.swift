@@ -324,8 +324,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 // before this one's routing decision runs (TOCTOU, found in review).
                 let route = Self.resolveIncomingURLRoute(for: cleanedURL, using: manager, forceShowPicker: forceShowPicker, sourceApp: sourceAppBundleId)
 
-                let routePrivate = (route?.rule?.usePrivateMode ?? false) || clipboardPrivateModeRequested
-                AppLogger.log("Route", "Received \(routePrivate ? "private link" : (cleanedURL.host ?? cleanedURL.absoluteString)) → \(route.map { "rule '\($0.rule?.name ?? "auto")' → \($0.browser.bundleId)" } ?? "picker")")
+                // No hostname/URL in the log — routing decisions are diagnosable from the
+                // rule name and destination browser alone, without recording what was visited.
+                AppLogger.log("Route", "Received link → \(route.map { "rule '\($0.rule?.name ?? "auto")' → \($0.browser.bundleId)" } ?? "picker")")
 
                 if let route {
                     manager.currentURL = nil

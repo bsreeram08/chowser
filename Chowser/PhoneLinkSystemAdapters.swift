@@ -61,12 +61,12 @@ final class PhoneLinkAirDropAdapter: PhoneLinkAirDropSharing {
         }
         guard let sharingService = sharingServiceProvider(),
               sharingService.canPerform(withItems: [url as NSURL]) else {
-            AppLogger.error("AirDrop", "AirDrop unavailable for \(url.host ?? url.absoluteString)")
+            AppLogger.error("AirDrop", "AirDrop unavailable")
             lastShareStatusForTesting = .unavailable
             return .unavailable
         }
 
-        AppLogger.log("AirDrop", "Sharing \(url.host ?? url.absoluteString)")
+        AppLogger.log("AirDrop", "Sharing link")
         sharingService.perform(withItems: [url as NSURL])
         lastShareStatusForTesting = .shared
         return .shared
@@ -122,7 +122,7 @@ final class PhoneLinkHandoffAdapter: PhoneLinkHandoffManaging {
         activity.isEligibleForHandoff = true
         activity.becomeCurrent()
         currentActivity = activity
-        AppLogger.log("Handoff", "Advertising \(url.host ?? url.absoluteString)")
+        AppLogger.log("Handoff", "Advertising link")
     }
 
     func stop() {

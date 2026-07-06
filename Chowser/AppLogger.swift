@@ -75,8 +75,8 @@ enum AppLogger {
         macOS: \(osVersion)
         Generated: \(timestampFormatter.string(from: Date()))
 
-        NOTE: The log below includes the hostnames of links Chowser handled in the
-        last two days. Review before sharing.
+        NOTE: The log below records routing/launch events (rule name, destination
+        browser) from the last two days — never a visited hostname or file path.
 
         Logs (last 2 days)
         ------------------
@@ -96,9 +96,10 @@ enum AppLogger {
         }
     }
 
-    /// Reveals the bug-report file in Finder and opens a prefilled GitHub issue.
-    /// Logs are attached by dragging the revealed file into the issue — GitHub URLs
-    /// can't carry a day of logs in the query string.
+    /// Reveals the bug-report file in Finder and opens a prefilled GitHub issue. Logs
+    /// never record a visited hostname or local file path (Route/Launch/Handoff/AirDrop
+    /// events log the rule name and destination browser only) — safe to attach without
+    /// a review gate, unlike an earlier version of this feature.
     @MainActor
     static func startBugReport() {
         guard let reportURL = createBugReportFile() else { return }

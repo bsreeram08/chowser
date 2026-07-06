@@ -51,6 +51,75 @@ struct WelcomeStepView: View {
     }
 }
 
+// MARK: - App Mode Step
+
+/// New-feature announcement, same shape whether it's shown during onboarding for a new
+/// install or as a standalone one-time screen for an existing install after updating
+/// (`OnboardingManager.showAppModeQuestionWindow`) — generic "here's a new setting," not
+/// framed around any specific problem it happens to also solve.
+struct AppModeStepView: View {
+    let manager: BrowserManager
+    let nextAction: () -> Void
+
+    @State private var selectedMode: ChowserAppMode
+
+    init(manager: BrowserManager, nextAction: @escaping () -> Void) {
+        self.manager = manager
+        self.nextAction = nextAction
+        self._selectedMode = State(initialValue: manager.appMode)
+    }
+
+    var body: some View {
+        VStack(spacing: 30) {
+            Spacer()
+
+            Image(systemName: "menubar.dock.rectangle")
+                .font(.system(size: 60))
+                .foregroundStyle(Color.blue.gradient)
+                .shadow(color: Color.blue.opacity(0.3), radius: 10, y: 5)
+
+            VStack(spacing: 12) {
+                Text("New: App Mode")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+
+                Text("Choose how Chowser lives on your Mac. You can change this anytime in Settings → General.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Picker("", selection: $selectedMode) {
+                Text("App").tag(ChowserAppMode.app)
+                Text("Menu Bar").tag(ChowserAppMode.menuBar)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 200)
+
+            Spacer()
+
+            Button(action: {
+                manager.appMode = selectedMode
+                manager.hasBeenAskedAppMode = true
+                nextAction()
+            }) {
+                Text("Continue")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 40)
+            .padding(.bottom, 40)
+        }
+    }
+}
+
 // MARK: - Default Browser Step
 struct DefaultBrowserStepView: View {
     let nextAction: () -> Void

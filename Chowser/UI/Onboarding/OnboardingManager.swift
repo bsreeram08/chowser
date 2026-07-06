@@ -83,17 +83,58 @@ final class OnboardingManager {
     private func closeOnboardingWindow() {
         onboardingWindowController?.window?.orderOut(nil)
         onboardingWindowController = nil
-        
-        // Return to background accessory mode
-        NSApp.setActivationPolicy(.accessory)
+
+        // Respect the mode chosen in AppModeStepView instead of always reverting to
+        // accessory — App Mode users keep their Dock icon after onboarding closes.
+        NSApp.setActivationPolicy(BrowserManager.shared.appMode == .app ? .regular : .accessory)
     }
-    
+
     private func markOnboardingComplete() {
         hasCompletedOnboarding = true
     }
-    
+
     // For debugging/testing
     func resetOnboarding() {
         Self.resetOnboarding(in: defaults)
+    }
+
+    /// One-time prompt for existing installs upgrading into App Mode support — the
+    /// onboarding flow only runs for brand-new installs, so this is the equivalent ask
+    /// for everyone who already completed onboarding before this feature existed.
+    private var appModeQuestionWindowController: NSWindowController?
+
+    func showAppModeQuestionWindow(completion: @escaping () -> Void) {
+        NSApp.setActivationPolicy(.regular)
+
+        if appModeQuestionWindowController != nil {
+            appModeQuestionWindowController?.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let view = AppModeStepView(manager: BrowserManager.shared, nextAction: { [weak self] in
+            guard let self else { return }
+            self.appModeQuestionWindowController?.window?.orderOut(nil)
+            self.appModeQuestionWindowController = nil
+            NSApp.setActivationPolicy(BrowserManager.shared.appMode == .app ? .regular : .accessory)
+            completion()
+        })
+
+        let hostingController = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Chowser"
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.backgroundColor = NSColor.windowBackgroundColor
+        window.setContentSize(NSSize(width: 500, height: 420))
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let controller = NSWindowController(window: window)
+        appModeQuestionWindowController = controller
+
+        controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

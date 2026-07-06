@@ -39,6 +39,9 @@ struct OnboardingView: View {
                     WelcomeStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                 case 1:
+                    AppModeStepView(manager: BrowserManager.shared, nextAction: goNext)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                case 2:
                     if isDefaultBrowser {
                         Color.clear.onAppear {
                             DispatchQueue.main.async { goNext() }
@@ -47,16 +50,16 @@ struct OnboardingView: View {
                         DefaultBrowserStepView(nextAction: goNext)
                             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     }
-                case 2:
+                case 3:
                     BrowsersStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                case 3:
+                case 4:
                     AISetupStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                case 4:
+                case 5:
                     RulesStepView(nextAction: goNext)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                case 5:
+                case 6:
                     FinishStepView(doneAction: onComplete)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                 default:

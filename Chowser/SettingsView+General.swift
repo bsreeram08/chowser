@@ -62,6 +62,27 @@ extension SettingsView {
                 VStack(alignment: .leading, spacing: 16) {
                     SettingsGroup("Startup") {
                         SettingsRow(
+                            title: "App Mode",
+                            subtitle: manager.appMode == .app
+                                ? "Dock icon, appears in Cmd-Tab."
+                                : "Menu bar only, no Dock icon."
+                        ) {
+                            Picker("", selection: $manager.appMode) {
+                                Text("App").tag(ChowserAppMode.app)
+                                Text("Menu Bar").tag(ChowserAppMode.menuBar)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(width: 160)
+                            .onChange(of: manager.appMode) { _, newMode in
+                                NSApp.setActivationPolicy(newMode == .app ? .regular : .accessory)
+                            }
+                            .accessibilityIdentifier("settings.appMode")
+                        }
+
+                        SettingsDivider()
+
+                        SettingsRow(
                             title: "Launch Chowser at login",
                             subtitle: "Start automatically when you sign in."
                         ) {

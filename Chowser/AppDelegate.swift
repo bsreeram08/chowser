@@ -47,7 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         if !OnboardingManager.shared.hasCompletedOnboarding {
-            // First time launch: show onboarding
+            // First time launch: show onboarding (includes the App Mode question)
             OnboardingManager.shared.showOnboardingWindow {
                 // Once onboarding is complete, setup the rest of the application
                 self.setupApplicationState()
@@ -56,15 +56,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     self.openSettings()
                 }
             }
+        } else if !BrowserManager.shared.hasBeenAskedAppMode {
+            // Existing install, new feature: ask once, standalone, rather than silently
+            // defaulting either way.
+            OnboardingManager.shared.showAppModeQuestionWindow {
+                self.generateStateAndSetupSystem()
+            }
         } else {
             generateStateAndSetupSystem()
         }
     }
-    
+
     private func generateStateAndSetupSystem() {
         setupApplicationState()
         // Removed: handleCLIImportArguments()
-        
+
         if AppEnvironment.shouldOpenSettingsOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self.revealSettingsWindow(retries: 8)
@@ -78,10 +84,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
-    
     private func setupApplicationState() {
-        setupStatusBar()
+        let manager = BrowserManager.shared
+        NSApp.setActivationPolicy(manager.appMode == .app ? .regular : .accessory)
 
+        if manager.appMode == .menuBar {
+            setupStatusBar()
+        } else {
+            // App Mode has no status item to click, so there's no picker-adjacent affordance
+            // to discover Settings from — show it directly, same as the new-user first-launch
+            // auto-open below.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.openSettings()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

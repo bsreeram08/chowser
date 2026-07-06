@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-06",
+  "rules": [
+    {
+      "name": "Force HTTPS",
+      "hostPattern": "*",
+      "useRegex": false,
+      "schemes": ["http"],
+      "actions": [{ "type": "forceScheme", "scheme": "https" }]
+    },
+    {
+      "name": "Strip UTM Tracking Parameters",
+      "hostPattern": "*",
+      "useRegex": false,
+      "actions": [{ "type": "stripQueryParameterPrefixes", "prefixes": ["utm_"] }]
+    },
+    {
+      "name": "Strip Facebook Click ID",
+      "hostPattern": "*",
+      "useRegex": false,
+      "actions": [{ "type": "stripQueryParameters", "names": ["fbclid"] }]
+    },
+    {
+      "name": "Strip Google Click ID",
+      "hostPattern": "*",
+      "useRegex": false,
+      "actions": [{ "type": "stripQueryParameters", "names": ["gclid", "gclsrc", "dclid"] }]
+    },
+    {
+      "name": "Strip Microsoft Click ID",
+      "hostPattern": "*",
+      "useRegex": false,
+      "actions": [{ "type": "stripQueryParameters", "names": ["msclkid"] }]
+    },
+    {
+      "name": "Strip TikTok Click ID",
+      "hostPattern": "*",
+      "useRegex": false,
+      "actions": [{ "type": "stripQueryParameters", "names": ["ttclid"] }]
+    }
+  ]
+}

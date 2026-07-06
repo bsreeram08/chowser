@@ -211,6 +211,8 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         static let hasSeenNetworkPrivacyUpgradeNoticeKey = "hasSeenNetworkPrivacyUpgradeNotice"
         static let hasSeenRuleMergeReviewKey = "hasSeenRuleMergeReview"
         static let rewriteRulesKey = "rewriteRules"
+        static let mcpAutoStartEnabledKey = "mcpAutoStartEnabled"
+        static let lastSeenRewriteCatalogVersionKey = "lastSeenRewriteCatalogVersion"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -359,6 +361,25 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     func markNetworkPrivacyUpgradeNoticeSeen() {
         guard !hasSeenNetworkPrivacyUpgradeNotice else { return }
         hasSeenNetworkPrivacyUpgradeNotice = true
+    }
+
+    /// Off by default — the MCP server is opt-in. Settable from Settings, or from
+    /// Terminal for support/debugging without opening the UI:
+    /// `defaults write in.sreerams.Chowser mcpAutoStartEnabled -bool true`, matching
+    /// the existing `defaults delete in.sreerams.Chowser hasCompletedOnboarding`
+    /// support pattern. Applied by `AppDelegate.setupApplicationState()` on launch.
+    var mcpAutoStartEnabled: Bool = false {
+        didSet {
+            defaults.set(mcpAutoStartEnabled, forKey: Constants.mcpAutoStartEnabledKey)
+        }
+    }
+
+    /// Highest predefined rewrite-catalog version the user has been notified about or
+    /// applied (`RewriteCatalogService`). 0 means never checked.
+    var lastSeenRewriteCatalogVersion: Int = 0 {
+        didSet {
+            defaults.set(lastSeenRewriteCatalogVersion, forKey: Constants.lastSeenRewriteCatalogVersionKey)
+        }
     }
 
     /// Whether the one-time rule-merge-assist review has been shown (accepted/rejected/
@@ -537,6 +558,8 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         hasBeenAskedAppMode = defaults.bool(forKey: Constants.hasBeenAskedAppModeKey)
         loadFallbackPolicy()
         loadNetworkPrivacyPreferences()
+        mcpAutoStartEnabled = defaults.bool(forKey: Constants.mcpAutoStartEnabledKey)
+        lastSeenRewriteCatalogVersion = defaults.integer(forKey: Constants.lastSeenRewriteCatalogVersionKey)
         hasSeenRuleMergeReview = defaults.bool(forKey: Constants.hasSeenRuleMergeReviewKey)
         if !hasSeenRuleMergeReview {
             pendingRuleMergeSuggestions = Self.computeMergeSuggestions(for: routingRules)

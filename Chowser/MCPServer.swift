@@ -39,10 +39,36 @@ final class MCPServer {
 
     private init() {}
 
+    /// Written on start, removed on stop — lets an agent that started the server via
+    /// `chowser://mcp/start` (no GUI, shell/fetch tools only) discover the port and
+    /// token without any UI interaction. Local file, not networked; same trust level
+    /// as the server itself (localhost-only).
+    private static var sessionFileURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        // Isolated under UI testing so a test run never clobbers a real running
+        // instance's session file (both would otherwise share one path).
+        let subpath = AppEnvironment.isUITesting ? "Chowser-UITests/mcp-session.json" : "Chowser/mcp-session.json"
+        return base.appendingPathComponent(subpath, isDirectory: false)
+    }
+
+    private func writeSessionFile() {
+        let payload: [String: Any] = ["port": port, "authToken": authToken, "authHeader": "Authorization: Bearer \(authToken)"]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) else { return }
+        let url = Self.sessionFileURL
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    private func removeSessionFile() {
+        try? FileManager.default.removeItem(at: Self.sessionFileURL)
+    }
+
     func start(port: UInt16 = 24245) {
         guard !isRunning else { return }
         self.port = port
-        self.authToken = UUID().uuidString
+        self.authToken = AppEnvironment.fixedMCPAuthToken ?? UUID().uuidString
 
         let params = NWParameters.tcp
         params.acceptLocalOnly = true
@@ -65,6 +91,7 @@ final class MCPServer {
                 Task { @MainActor in
                     guard let s = capturedSelf else { return }
                     s.isRunning = true
+                    s.writeSessionFile()
                     print("Chowser MCP: Server listening on localhost:\(s.port)")
                 }
             case .failed(let error):
@@ -103,6 +130,7 @@ final class MCPServer {
         connections.removeAll()
         isRunning = false
         authToken = ""
+        removeSessionFile()
         print("Chowser MCP: Server stopped")
     }
 
@@ -361,6 +389,18 @@ final class MCPServer {
                     "description": "Remove a rewrite rule by id. Query param: ?id=<uuid>",
                     "query_params": ["id (required): rewrite UUID from GET /rewrites"],
                 ],
+                [
+                    "method": "GET", "path": "/settings",
+                    "auth": true,
+                    "description": "Read every app-level setting Chowser's Settings UI exposes — everything here is also editable by hand in Settings, this is the full surface for AI-driven configuration.",
+                    "response_fields": ["appMode", "fallbackPolicy { mode, browserId?, profile? }", "networkLookupsEnabled", "userShortenerHosts", "shortlinkResolutionTimeout", "trackingCleanupEnabled", "mcpAutoStartEnabled", "launchAtLogin", "skipExistingImportedRules", "skipExistingImportedBrowsers", "hiddenBundleIDs", "picker { iconSize, showLabels, layoutMode, appearanceMode, tintHex, backgroundOpacity, cornerRadius, accentHex, qrCodeAccentHex, dimInactiveBrowsers, colorScheme, showLinkPreview, densityPreference }"],
+                ],
+                [
+                    "method": "POST", "path": "/settings",
+                    "auth": true,
+                    "description": "Update one or more app-level settings — the full Settings UI surface. Only include the keys you want to change; everything else is left as-is. AGENT GUIDANCE: when a user asks to configure Chowser conversationally (\"turn on dark mode for the picker\", \"stop launching at login\", \"hide the picker labels\"), call GET /settings first to see current values, then POST just the fields that changed. Ask before changing anything the user didn't explicitly request.",
+                    "body_fields": ["appMode? (\"app\" or \"menuBar\")", "fallbackPolicy? { mode (\"picker\" or \"browser\"), browserId? (required when mode is \"browser\" — must be an existing browser's id), profile? }", "networkLookupsEnabled?", "userShortenerHosts? ([String])", "shortlinkResolutionTimeout? (seconds)", "trackingCleanupEnabled?", "mcpAutoStartEnabled?", "launchAtLogin?", "skipExistingImportedRules?", "skipExistingImportedBrowsers?", "hiddenBundleIDs? ([String], full replacement)", "picker? { iconSize? (\"small\"/\"medium\"/\"large\"), showLabels?, layoutMode? (\"icons\"/\"list\"), appearanceMode? (\"auto\"/\"custom\"), tintHex?, backgroundOpacity? (0-1), cornerRadius?, accentHex?, qrCodeAccentHex?, dimInactiveBrowsers?, colorScheme? (\"system\"/\"light\"/\"dark\"), showLinkPreview?, densityPreference? (\"default\"/\"compact\") }"],
+                ],
             ]
             return httpResponse(status: 200, body: [
                 "status": "ok",
@@ -476,9 +516,131 @@ final class MCPServer {
             manager.removeRewriteRule(id: uuid)
             return httpResponse(status: 200, body: ["status": "deleted", "id": idStr])
 
+        // MARK: - Settings
+        case ("GET", "/settings"):
+            var fallback: [String: Any] = ["mode": manager.fallbackPolicy.mode.rawValue]
+            if let browserID = manager.fallbackPolicy.browserID { fallback["browserId"] = browserID.uuidString }
+            if let profile = manager.fallbackPolicy.profile { fallback["profile"] = profile }
+            return httpResponse(status: 200, body: [
+                "appMode": manager.appMode.rawValue,
+                "fallbackPolicy": fallback,
+                "networkLookupsEnabled": manager.networkLookupsEnabled,
+                "userShortenerHosts": Array(manager.userShortenerHosts),
+                "shortlinkResolutionTimeout": manager.shortlinkResolutionTimeout,
+                "trackingCleanupEnabled": manager.trackingCleanupEnabled,
+                "mcpAutoStartEnabled": manager.mcpAutoStartEnabled,
+                "launchAtLogin": manager.launchAtLogin,
+                "skipExistingImportedRules": manager.skipExistingImportedRules,
+                "skipExistingImportedBrowsers": manager.skipExistingImportedBrowsers,
+                "hiddenBundleIDs": Array(manager.hiddenBundleIDs),
+                "picker": [
+                    "iconSize": manager.pickerIconSize,
+                    "showLabels": manager.pickerShowLabels,
+                    "layoutMode": manager.pickerLayoutMode,
+                    "appearanceMode": manager.pickerAppearanceMode,
+                    "tintHex": manager.pickerTintHex,
+                    "backgroundOpacity": manager.pickerBackgroundOpacity,
+                    "cornerRadius": manager.pickerCornerRadius,
+                    "accentHex": manager.pickerAccentHex,
+                    "qrCodeAccentHex": manager.qrCodeAccentHex,
+                    "dimInactiveBrowsers": manager.pickerDimInactiveBrowsers,
+                    "colorScheme": manager.pickerColorScheme,
+                    "showLinkPreview": manager.showLinkPreview,
+                    "densityPreference": manager.densityPreference,
+                ],
+            ])
+
+        case ("POST", "/settings"):
+            guard let body = body else {
+                return httpResponse(status: 400, body: ["error": "Missing request body"])
+            }
+            return handleUpdateSettings(body: body, manager: manager)
+
         default:
             return httpResponse(status: 404, body: ["error": "Not found", "path": path, "method": method])
         }
+    }
+
+    private func handleUpdateSettings(body: Data, manager: BrowserManager) -> Data {
+        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return httpResponse(status: 400, body: ["error": "Invalid JSON"])
+        }
+
+        if let rawMode = json["appMode"] as? String {
+            guard let mode = ChowserAppMode(rawValue: rawMode) else {
+                return httpResponse(status: 400, body: ["error": "Invalid appMode. Must be \"app\" or \"menuBar\"", "appMode": rawMode])
+            }
+            manager.appMode = mode
+        }
+
+        if let rawPolicy = json["fallbackPolicy"] as? [String: Any] {
+            guard let rawMode = rawPolicy["mode"] as? String,
+                  let mode = BrowserFallbackPolicy.Mode(rawValue: rawMode) else {
+                return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.mode. Must be \"picker\" or \"browser\""])
+            }
+            var browserID: UUID?
+            if let idStr = rawPolicy["browserId"] as? String {
+                guard let uuid = UUID(uuidString: idStr) else {
+                    return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.browserId", "browserId": idStr])
+                }
+                browserID = uuid
+            }
+            if mode == .browser {
+                guard let browserID, manager.configuredBrowsers.contains(where: { $0.id == browserID }) else {
+                    return httpResponse(status: 400, body: ["error": "fallbackPolicy.browserId is required and must reference an existing browser when mode is \"browser\""])
+                }
+            }
+            manager.fallbackPolicy = BrowserFallbackPolicy(
+                mode: mode,
+                browserID: browserID,
+                profile: rawPolicy["profile"] as? String
+            )
+        }
+
+        if let enabled = json["networkLookupsEnabled"] as? Bool {
+            manager.networkLookupsEnabled = enabled
+        }
+        if let hosts = json["userShortenerHosts"] as? [String] {
+            manager.userShortenerHosts = Set(hosts)
+        }
+        if let timeout = json["shortlinkResolutionTimeout"] as? Double {
+            manager.shortlinkResolutionTimeout = timeout
+        }
+        if let cleanup = json["trackingCleanupEnabled"] as? Bool {
+            manager.trackingCleanupEnabled = cleanup
+        }
+        if let autoStart = json["mcpAutoStartEnabled"] as? Bool {
+            manager.mcpAutoStartEnabled = autoStart
+        }
+        if let launch = json["launchAtLogin"] as? Bool {
+            manager.launchAtLogin = launch
+        }
+        if let skip = json["skipExistingImportedRules"] as? Bool {
+            manager.skipExistingImportedRules = skip
+        }
+        if let skip = json["skipExistingImportedBrowsers"] as? Bool {
+            manager.skipExistingImportedBrowsers = skip
+        }
+        if let hidden = json["hiddenBundleIDs"] as? [String] {
+            manager.hiddenBundleIDs = Set(hidden)
+        }
+        if let picker = json["picker"] as? [String: Any] {
+            if let v = picker["iconSize"] as? String { manager.pickerIconSize = v }
+            if let v = picker["showLabels"] as? Bool { manager.pickerShowLabels = v }
+            if let v = picker["layoutMode"] as? String { manager.pickerLayoutMode = v }
+            if let v = picker["appearanceMode"] as? String { manager.pickerAppearanceMode = v }
+            if let v = picker["tintHex"] as? String { manager.pickerTintHex = v }
+            if let v = picker["backgroundOpacity"] as? Double { manager.pickerBackgroundOpacity = v }
+            if let v = picker["cornerRadius"] as? Double { manager.pickerCornerRadius = v }
+            if let v = picker["accentHex"] as? String { manager.pickerAccentHex = v }
+            if let v = picker["qrCodeAccentHex"] as? String { manager.qrCodeAccentHex = v }
+            if let v = picker["dimInactiveBrowsers"] as? Bool { manager.pickerDimInactiveBrowsers = v }
+            if let v = picker["colorScheme"] as? String { manager.pickerColorScheme = v }
+            if let v = picker["showLinkPreview"] as? Bool { manager.showLinkPreview = v }
+            if let v = picker["densityPreference"] as? String { manager.densityPreference = v }
+        }
+
+        return httpResponse(status: 200, body: ["status": "updated"])
     }
 
     private func handleAddOrUpdateBrowser(body: Data, manager: BrowserManager) -> Data {

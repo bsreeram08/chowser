@@ -88,6 +88,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let manager = BrowserManager.shared
         NSApp.setActivationPolicy(manager.appMode == .app ? .regular : .accessory)
 
+        if manager.mcpAutoStartEnabled {
+            MCPServer.shared.start()
+        }
+
         if manager.appMode == .menuBar {
             setupStatusBar()
         } else {
@@ -261,6 +265,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if url.scheme == "chowser", url.host == "settings" {
             isHandlingURL = false
             openSettings()
+            return
+        }
+
+        // chowser://mcp/start and chowser://mcp/stop — lets an AI agent with only shell
+        // access (e.g. Claude Code) turn the local API on, do configuration tasks, and
+        // turn it back off, without any GUI interaction. `open "chowser://mcp/start"`
+        // starts the server and writes ~/Library/Application Support/Chowser/mcp-session.json
+        // (port + token) that the agent's shell can read directly — see MCPServer.start().
+        if url.scheme == "chowser", url.host == "mcp" {
+            isHandlingURL = false
+            if url.path == "/start" {
+                MCPServer.shared.start()
+            } else if url.path == "/stop" {
+                MCPServer.shared.stop()
+            }
             return
         }
 

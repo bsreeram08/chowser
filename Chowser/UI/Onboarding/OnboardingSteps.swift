@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AppKit
 
 // MARK: - Welcome Step
 struct WelcomeStepView: View {
@@ -385,15 +386,17 @@ struct AISetupStepView: View {
     /// Full prompt: remote template + API credentials appended.
     private var setupPrompt: String {
         let base = fetchedTemplate ?? """
-I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac. It's a browser chooser app with an opt-in, localhost-only MCP-style HTTP API server for configuration.
+I have installed Chowser (bundle ID: in.sreerams.Chowser) on my Mac. It's a browser chooser app with an opt-in, localhost-only HTTP API server for configuration.
 
 Your goal is to configure my browsers and routing rules.
 
-1. **Authenticate**: Use `Authorization: Bearer <token>` on every request, including `GET /status`, `GET /browsers`, and `GET /rules`.
-2. **Discover API Schema**: Call `GET /status` to see endpoints and required JSON fields.
-3. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari).
+0. **Check your tools first**: if you have no shell/filesystem access and no HTTP fetch tool, say so and stop — you can't complete this. If you have HTTP fetch but no filesystem access (e.g. a plain chat app), skip step 3's filesystem scan and ask me for my browsers/profiles directly instead.
+1. **Authenticate**: every request needs the exact header `Authorization: Bearer <token>` (the token is below) — no other header name works.
+2. **Discover API Schema**: Call `GET /status` — its `endpoints` field lists every available endpoint and required JSON fields for this running version.
+3. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari), or ask me if you can't scan the filesystem.
 4. **Configure**: Use `POST /browsers` to add profiles and `POST /rules` to set routing. Use the credentials below.
-5. **Confirm**: Show a summary and ask for confirmation before making changes.
+5. **Rewrites (optional)**: Chowser publishes predefined URL rewrite rules at https://chowser.sreerams.in/rewrite-catalog.json — offer these if relevant, apply via `POST /rewrites`, only with my confirmation.
+6. **Confirm**: Show a summary and ask for confirmation before making any changes.
 
 **Note**: Direct profile switching is unsupported for Arc and Dia browsers; do not attempt to configure specific profiles for these apps.
 """
@@ -426,6 +429,13 @@ Your goal is to configure my browsers and routing rules.
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    Button("Chowser also publishes predefined rewrite rules — browse them") {
+                        NSWorkspace.shared.open(RewriteCatalogService.catalogURL)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accentColor)
                 }
 
                 if server.isRunning {

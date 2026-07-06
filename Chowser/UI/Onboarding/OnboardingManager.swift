@@ -41,55 +41,49 @@ final class OnboardingManager {
         defaults.removeObject(forKey: completionDefaultsKey)
     }
 
-    /// Clamps a desired window content size to the screen it'll appear on (minus a margin
-    /// for the menu bar / Dock), so a hardcoded design-time size never exceeds an actual
-    /// display — generic to any window, not specific to any one onboarding screen.
-    private static func clampedContentSize(preferred: NSSize) -> NSSize {
-        let visible = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1280, height: 800)
-        let margin: CGFloat = 40
-        return NSSize(
-            width: min(preferred.width, visible.width - margin),
-            height: min(preferred.height, visible.height - margin)
-        )
-    }
-
-
     func showOnboardingWindow(completion: @escaping () -> Void) {
         // Force the app to act like a regular app so the window comes to the very front
         // and gains focus, because LSUIElement apps usually stay out of the way.
         NSApp.setActivationPolicy(.regular)
-        
+
         if onboardingWindowController != nil {
             onboardingWindowController?.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        
+
         let view = OnboardingView(onComplete: { [weak self] in
             guard let self = self else { return }
             self.markOnboardingComplete()
             self.closeOnboardingWindow()
             completion()
         })
-        
-        let hostingController = NSHostingController(rootView: view)
-        
-        let window = NSWindow(contentViewController: hostingController)
+
+        // NSHostingView + sizingOptions, not NSHostingController + a hardcoded
+        // setContentSize — the exact pattern the picker panel already uses
+        // (AppDelegate.createPickerPanel). The window sizes itself to OnboardingView's
+        // actual content (which is itself `.fixedSize(vertical: true)`), so there's no
+        // design-time pixel guess that can exceed a smaller screen.
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.sizingOptions = [.preferredContentSize]
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
         window.title = "Welcome to Chowser"
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.backgroundColor = NSColor.windowBackgroundColor
-        
-        // Size it beautifully — clamped to fit the actual screen, since the design-time
-        // 500x600 target can exceed a smaller display's usable height.
-        window.setContentSize(Self.clampedContentSize(preferred: NSSize(width: 500, height: 600)))
         window.center()
         window.isReleasedWhenClosed = false
-        
+
         let controller = NSWindowController(window: window)
         onboardingWindowController = controller
-        
+
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -134,14 +128,20 @@ final class OnboardingManager {
             completion()
         })
 
-        let hostingController = NSHostingController(rootView: view)
-        let window = NSWindow(contentViewController: hostingController)
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.sizingOptions = [.preferredContentSize]
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
         window.title = "Chowser"
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.backgroundColor = NSColor.windowBackgroundColor
-        window.setContentSize(Self.clampedContentSize(preferred: NSSize(width: 500, height: 420)))
         window.center()
         window.isReleasedWhenClosed = false
 

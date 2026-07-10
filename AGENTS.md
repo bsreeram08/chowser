@@ -60,7 +60,7 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 ### Patterns
 
 - Settings window is **not** a SwiftUI `Settings` scene — it's an `NSWindowController` wrapping `NSHostingController<SettingsView>`. This avoids SwiftUI auto-presenting the window on app activation.
-- `AppDelegate` intentionally does **not** implement `applicationShouldHandleReopen` (would race with URL-open events).
+- `applicationShouldHandleReopen` may only schedule the cancellable deferred reopen in `AppDelegate`; URL-open handling must cancel it before routing.
 - Browser launching with profiles uses `Process` + `/usr/bin/open -n -a` rather than `NSWorkspace.openApplication`, because Chromium hands off to existing processes and drops `--profile-directory` in the handoff path.
 - `UserDefaults` suite is overridden to `in.sreerams.Chowser.UITests` during UI tests to isolate state.
 - UserDefaults writes for browsers and rules are **debounced at 0.3s** via `DispatchWorkItem` to avoid I/O stutter during drag-to-reorder.

@@ -47,6 +47,20 @@ enum AppEnvironment {
         return isUITesting ? uiTestDefaultsSuiteName : nil
     }
 
+    nonisolated static var automatedTestLogsDirectory: URL? {
+        let environment = ProcessInfo.processInfo.environment
+        if isUITesting,
+           let path = environment["CHOWSER_LOGS_DIRECTORY"],
+           !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        if environment["XCTestConfigurationFilePath"] != nil {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("chowser-unit-tests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+        }
+        return nil
+    }
+
     nonisolated static func makeDefaultStore() -> UserDefaults {
         guard let suiteName = defaultsSuiteName else {
             return .standard

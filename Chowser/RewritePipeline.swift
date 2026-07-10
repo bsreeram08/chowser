@@ -46,13 +46,16 @@ struct URLRewriteMatch: Codable, Equatable {
     var pathPrefix: String?
     /// Empty means "any source app" (reuses Phase 2's matching semantics).
     var sourceAppBundleIDs: [String] = []
+    /// Hosts (or host patterns) excluded from this rule. Tolerant-Codable: defaults to
+    /// empty so older catalogs / hand-written rules need not specify it.
+    var excludeHostPatterns: [String] = []
 }
 
 extension URLRewriteMatch {
     /// Tolerant decode: only `hostPattern` is required, everything else defaults —
     /// matches the "tolerant Codable" pattern already established for `BrowserRoutingRule`.
     private enum CodingKeys: String, CodingKey {
-        case schemes, hostPattern, useRegex, pathPrefix, sourceAppBundleIDs
+        case schemes, hostPattern, useRegex, pathPrefix, sourceAppBundleIDs, excludeHostPatterns
     }
 
     init(from decoder: Decoder) throws {
@@ -62,6 +65,7 @@ extension URLRewriteMatch {
         useRegex = (try c.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
         pathPrefix = try c.decodeIfPresent(String.self, forKey: .pathPrefix)
         sourceAppBundleIDs = (try c.decodeIfPresent([String].self, forKey: .sourceAppBundleIDs)) ?? []
+        excludeHostPatterns = (try c.decodeIfPresent([String].self, forKey: .excludeHostPatterns)) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -71,6 +75,7 @@ extension URLRewriteMatch {
         try c.encode(useRegex, forKey: .useRegex)
         try c.encodeIfPresent(pathPrefix, forKey: .pathPrefix)
         try c.encode(sourceAppBundleIDs, forKey: .sourceAppBundleIDs)
+        try c.encode(excludeHostPatterns, forKey: .excludeHostPatterns)
     }
 }
 
@@ -181,6 +186,25 @@ enum RewritePipeline {
         return Result(finalURL: current, steps: steps)
     }
 
+    /// Returns true for loopback / local hosts that must never be force-upgraded to HTTPS
+    /// (e.g. `http://localhost:3000` → `https://localhost:3000` would break local dev
+    /// servers). Pure/synchronous: no DNS lookup, so it's safe inside the rewrite pipeline.
+    /// Covers exact `localhost`, the `localhost.*` namespace (e.g. `localhost.dev`),
+    /// `*.local` mDNS, the entire 127.0.0.0/8 block, `::1`, IPv4-mapped loopback, and
+    /// link-local (169.254.* / fe80:*) addresses. Anything not obviously local should be
+    /// excluded per-rule via `URLRewriteMatch.excludeHostPatterns` instead.
+    static func isLoopbackHost(_ host: String) -> Bool {
+        let h = host.lowercased()
+        if h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "0.0.0.0" { return true }
+        if h.hasPrefix("localhost.") { return true }      // localhost.dev, localhost.internal, …
+        if h.hasSuffix(".local") { return true }          // mDNS
+        if h.hasPrefix("127.") { return true }            // entire 127.0.0.0/8 loopback block
+        if h.hasPrefix("::ffff:127.") { return true }     // IPv4-mapped loopback
+        if h.hasPrefix("169.254.") { return true }        // IPv4 link-local
+        if h.hasPrefix("fe80:") { return true }           // IPv6 link-local
+        return false
+    }
+
     static func matches(_ match: URLRewriteMatch, url: URL, sourceApp: String?) -> Bool {
         guard let host = url.host?.lowercased(), !host.isEmpty else { return false }
 
@@ -189,6 +213,11 @@ enum RewritePipeline {
         }
 
         guard BrowserManager.hostMatches(host, pattern: match.hostPattern, useRegex: match.useRegex) else { return false }
+
+        if !match.excludeHostPatterns.isEmpty,
+           match.excludeHostPatterns.contains(where: { BrowserManager.hostMatches(host, pattern: $0, useRegex: false) }) {
+            return false
+        }
 
         let path = url.path.isEmpty ? "/" : url.path
         guard BrowserManager.pathMatches(path, prefix: match.pathPrefix) else { return false }
@@ -220,6 +249,11 @@ enum RewritePipeline {
 
         switch action {
         case .forceScheme(let scheme):
+            // Never force-upgrade loopback hosts to HTTPS — that breaks local dev
+            // servers (http://localhost:3000 → https would fail to connect).
+            if let host = url.host, RewritePipeline.isLoopbackHost(host) {
+                return url
+            }
             components.scheme = scheme
         case .replaceHost(let host):
             components.host = host

@@ -210,6 +210,7 @@ struct RewriteRuleEditorSheet: View {
     @State private var useRegex = false
     @State private var pathPrefix = ""
     @State private var sourceAppBundleIDs: [String] = []
+    @State private var excludeHostPatterns: String = ""
     @State private var schemeFilter = RewriteSchemeFilter.any
     @State private var actionFields = RewriteActionFieldsState()
 
@@ -293,6 +294,13 @@ struct RewriteRuleEditorSheet: View {
                                 .labelsHidden()
                                 .accessibilityIdentifier("settings.addRewrite.schemePicker")
                             }
+
+                            DetailRow(label: "Exclude Hosts") {
+                                TextField("localhost.dev, 127.0.0.1, *.local", text: $excludeHostPatterns)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .accessibilityIdentifier("settings.addRewrite.excludeHostsField")
+                            }
                         }
                     }
 
@@ -352,12 +360,14 @@ struct RewriteRuleEditorSheet: View {
     }
 
     private func save() {
+        let exclusions = excludeHostPatterns.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         let match = URLRewriteMatch(
             schemes: schemeFilter.schemes,
             hostPattern: hostPattern,
             useRegex: useRegex,
             pathPrefix: pathPrefix.isEmpty ? nil : pathPrefix,
-            sourceAppBundleIDs: sourceAppBundleIDs
+            sourceAppBundleIDs: sourceAppBundleIDs,
+            excludeHostPatterns: exclusions
         )
 
         let newRule = URLRewriteRule(name: name, match: match, actions: actionFields.buildActions())

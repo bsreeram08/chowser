@@ -9,6 +9,7 @@ struct RewriteCatalogEntry: Codable {
     var hostPattern: String
     var useRegex: Bool = false
     var schemes: [String] = []
+    var excludeHostPatterns: [String] = []
     var actions: [URLRewriteAction] = []
 }
 
@@ -19,7 +20,7 @@ extension RewriteCatalogEntry {
     /// would fail the whole array decode. Matches the tolerant-Codable pattern already
     /// established for `URLRewriteMatch`/`BrowserRoutingRule`.
     private enum CodingKeys: String, CodingKey {
-        case name, hostPattern, useRegex, schemes, actions
+        case name, hostPattern, useRegex, schemes, excludeHostPatterns, actions
     }
 
     init(from decoder: Decoder) throws {
@@ -28,6 +29,7 @@ extension RewriteCatalogEntry {
         hostPattern = try c.decode(String.self, forKey: .hostPattern)
         useRegex = (try c.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
         schemes = (try c.decodeIfPresent([String].self, forKey: .schemes)) ?? []
+        excludeHostPatterns = (try c.decodeIfPresent([String].self, forKey: .excludeHostPatterns)) ?? []
         actions = (try c.decodeIfPresent([URLRewriteAction].self, forKey: .actions)) ?? []
     }
 }
@@ -49,6 +51,7 @@ final class RewriteCatalogService {
     static let shared = RewriteCatalogService()
 
     static let catalogURL = URL(string: "https://chowser.sreerams.in/rewrite-catalog.json")!
+    static let catalogPageURL = URL(string: "https://chowser.sreerams.in/rewrites")!
 
     private init() {}
 
@@ -64,6 +67,22 @@ final class RewriteCatalogService {
             return nil
         }
         guard catalog.version > manager.lastSeenRewriteCatalogVersion else { return nil }
+        return catalog
+    }
+
+    /// Fetches the catalog **without** the version gate. Used for explicit user actions
+    /// ("Check for Updates" / "Browse Predefined Rewrites") so rules can be re-reviewed —
+    /// and re-added — even after the version has already been seen/applied.
+    func fetchCatalog() async -> RewriteCatalog? {
+        guard let (data, response) = try? await URLSession.shared.data(from: Self.catalogURL),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            AppLogger.error("RewriteCatalog", "Fetch failed for \(Self.catalogURL.absoluteString)")
+            return nil
+        }
+        guard let catalog = try? JSONDecoder().decode(RewriteCatalog.self, from: data) else {
+            AppLogger.error("RewriteCatalog", "Failed to decode catalog response")
+            return nil
+        }
         return catalog
     }
 
@@ -89,7 +108,8 @@ final class RewriteCatalogService {
 
     /// Adds every catalog rule not already present (matched by name), skipping the rest.
     /// Returns the number actually added. Marks the catalog version seen regardless, so
-    /// a user who declines isn't asked about the same version again.
+    /// a user who declines isn't asked about the same version again. Records each added
+    /// rule's name in `manager.catalogAppliedRuleNames` for later deletion detection.
     @discardableResult
     func apply(_ catalog: RewriteCatalog, manager: BrowserManager) -> Int {
         var added = 0
@@ -97,11 +117,44 @@ final class RewriteCatalogService {
             guard !manager.rewriteRules.contains(where: { $0.name == entry.name }) else { continue }
             let rule = URLRewriteRule(
                 name: entry.name,
-                match: URLRewriteMatch(schemes: entry.schemes, hostPattern: entry.hostPattern, useRegex: entry.useRegex),
+                match: URLRewriteMatch(
+                    schemes: entry.schemes,
+                    hostPattern: entry.hostPattern,
+                    useRegex: entry.useRegex,
+                    excludeHostPatterns: entry.excludeHostPatterns
+                ),
                 actions: entry.actions
             )
             if case .success = manager.addRewriteRule(rule) {
                 added += 1
+                manager.catalogAppliedRuleNames.insert(entry.name)
+            }
+        }
+        manager.lastSeenRewriteCatalogVersion = catalog.version
+        return added
+    }
+
+    /// Adds only the checked catalog rules (matched by name), skipping collisions. Returns
+    /// the number actually added. Marks the catalog version seen. Records each added rule's
+    /// name in `manager.catalogAppliedRuleNames` for later deletion detection.
+    @discardableResult
+    func applySelected(_ catalog: RewriteCatalog, manager: BrowserManager, selectedNames: Set<String>) -> Int {
+        var added = 0
+        for entry in catalog.rules where selectedNames.contains(entry.name) {
+            guard !manager.rewriteRules.contains(where: { $0.name == entry.name }) else { continue }
+            let rule = URLRewriteRule(
+                name: entry.name,
+                match: URLRewriteMatch(
+                    schemes: entry.schemes,
+                    hostPattern: entry.hostPattern,
+                    useRegex: entry.useRegex,
+                    excludeHostPatterns: entry.excludeHostPatterns
+                ),
+                actions: entry.actions
+            )
+            if case .success = manager.addRewriteRule(rule) {
+                added += 1
+                manager.catalogAppliedRuleNames.insert(entry.name)
             }
         }
         manager.lastSeenRewriteCatalogVersion = catalog.version

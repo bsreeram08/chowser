@@ -1,12 +1,13 @@
 {
-  "version": 1,
-  "updatedAt": "2026-07-06",
+  "version": 2,
+  "updatedAt": "2026-07-08",
   "rules": [
     {
       "name": "Force HTTPS",
       "hostPattern": "*",
       "useRegex": false,
       "schemes": ["http"],
+      "excludeHostPatterns": ["localhost", "127.0.0.1", "*.local"],
       "actions": [{ "type": "forceScheme", "scheme": "https" }]
     },
     {

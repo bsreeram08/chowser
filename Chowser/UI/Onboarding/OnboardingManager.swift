@@ -52,8 +52,10 @@ final class OnboardingManager {
             return
         }
 
-        let view = OnboardingView(onComplete: { [weak self] in
+        let view = OnboardingView(onComplete: { [weak self] selectedMode in
             guard let self = self else { return }
+            guard self.applySelectedAppMode(selectedMode) else { return }
+            BrowserManager.shared.hasBeenAskedAppMode = true
             self.markOnboardingComplete()
             self.closeOnboardingWindow()
             completion()
@@ -91,10 +93,6 @@ final class OnboardingManager {
     private func closeOnboardingWindow() {
         onboardingWindowController?.window?.orderOut(nil)
         onboardingWindowController = nil
-
-        // Respect the mode chosen in AppModeStepView instead of always reverting to
-        // accessory — App Mode users keep their Dock icon after onboarding closes.
-        NSApp.setActivationPolicy(BrowserManager.shared.appMode == .app ? .regular : .accessory)
     }
 
     private func markOnboardingComplete() {
@@ -120,11 +118,12 @@ final class OnboardingManager {
             return
         }
 
-        let view = AppModeStepView(manager: BrowserManager.shared, nextAction: { [weak self] in
+        let view = AppModeStepView(manager: BrowserManager.shared, nextAction: { [weak self] selectedMode in
             guard let self else { return }
+            guard self.applySelectedAppMode(selectedMode) else { return }
+            BrowserManager.shared.hasBeenAskedAppMode = true
             self.appModeQuestionWindowController?.window?.orderOut(nil)
             self.appModeQuestionWindowController = nil
-            NSApp.setActivationPolicy(BrowserManager.shared.appMode == .app ? .regular : .accessory)
             completion()
         })
 
@@ -150,5 +149,16 @@ final class OnboardingManager {
 
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func applySelectedAppMode(_ mode: ChowserAppMode) -> Bool {
+        guard case .failure(let error) = AppDelegate.transitionAppMode(to: mode) else { return true }
+
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Could Not Change App Mode"
+        alert.informativeText = error.localizedDescription
+        alert.runModal()
+        return false
     }
 }

@@ -33,3 +33,9 @@ _Avoid_: URL cleaning (too broad — cleanup is specifically the tracking-parame
 
 **Route Pipeline**:
 The fixed order URLs pass through before launch: rewrite rules → shortlink resolution → tracking cleanup → routing-rule match → fallback (if no match).
+
+**App Mode**:
+Chowser runs as a regular macOS app with a Dock icon, Cmd-Tab presence, and native application menus. It does not show a menu-bar status item.
+
+**Menu Bar Mode**:
+Chowser runs as an accessory app with a menu-bar status item and no Dock icon. It exposes the same core commands as App Mode through the status-item menu.

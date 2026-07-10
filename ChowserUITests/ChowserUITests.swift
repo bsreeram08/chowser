@@ -3,6 +3,7 @@ import AppKit
 
 final class ChowserUITests: XCTestCase {
     private var app: XCUIApplication!
+    private var logsDirectory: URL!
     private let chowserBundleIdentifier = "in.sreerams.Chowser"
 
     override func setUpWithError() throws {
@@ -11,6 +12,9 @@ final class ChowserUITests: XCTestCase {
         terminateRunningChowserApps()
 
         app = XCUIApplication()
+        logsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chowser-ui-tests-\(UUID().uuidString)", isDirectory: true)
+        app.launchEnvironment["CHOWSER_LOGS_DIRECTORY"] = logsDirectory.path
         app.launchEnvironment["CHOWSER_DEFAULTS_SUITE"] = "in.sreerams.Chowser.UITests.\(UUID().uuidString)"
         app.launchArguments = [
             "-UITesting",
@@ -29,6 +33,10 @@ final class ChowserUITests: XCTestCase {
         }
 
         terminateRunningChowserApps(timeout: 2)
+        if let logsDirectory {
+            try? FileManager.default.removeItem(at: logsDirectory)
+        }
+        logsDirectory = nil
         app = nil
     }
 
@@ -232,6 +240,41 @@ final class ChowserUITests: XCTestCase {
 
         // Dismiss the menu by pressing Escape
         app.typeKey(.escape, modifierFlags: [])
+    }
+
+    func testAppModeRoundTripKeepsBothModesReachableAndRecordsDiagnostics() throws {
+        let ui = ChowserAppDriver(app: app)
+
+        ui.openSettings()
+        ui.openGeneralSection()
+
+        let appMode = app.buttons["settings.appMode.app"]
+        let menuBarMode = app.buttons["settings.appMode.menuBar"]
+        XCTAssertTrue(appMode.waitForExistence(timeout: 5))
+        XCTAssertTrue(menuBarMode.waitForExistence(timeout: 5))
+
+        menuBarMode.click()
+        XCTAssertEqual(menuBarMode.value as? String, "selected")
+
+        appMode.click()
+        XCTAssertEqual(appMode.value as? String, "selected")
+
+        menuBarMode.click()
+        XCTAssertEqual(menuBarMode.value as? String, "selected")
+
+        appMode.click()
+        XCTAssertEqual(appMode.value as? String, "selected")
+
+        let diagnosticsButton = app.buttons["settings.diagnosticsButton"]
+        XCTAssertTrue(diagnosticsButton.waitForExistence(timeout: 5))
+        diagnosticsButton.click()
+
+        let events = app.descendants(matching: .any).matching(identifier: "diagnosticsRecentEvents").firstMatch
+        XCTAssertTrue(events.waitForExistence(timeout: 5))
+        let eventText = events.value as? String ?? ""
+        XCTAssertTrue(eventText.contains("status-item-created"), "Diagnostics should record creation of the menu-bar item.")
+        XCTAssertTrue(eventText.contains("status-item-removed"), "Diagnostics should record removal of the menu-bar item.")
+        XCTAssertTrue(eventText.contains("activation-policy-transition-did-complete"), "Diagnostics should record completed transitions.")
     }
 
     func testAddRuleWithBrowserPickerSelection() throws {

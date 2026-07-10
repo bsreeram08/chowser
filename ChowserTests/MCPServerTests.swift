@@ -160,6 +160,122 @@ struct MCPServerTests {
 
     // MARK: - Authenticated GET Endpoints
 
+    @Test("POST /settings validates the full request before changing App Mode")
+    func settingsValidationIsAtomic() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let originalMode = manager.appMode
+            let requestedMode: ChowserAppMode = originalMode == .app ? .menuBar : .app
+
+            let (status, _) = try await post(
+                "/settings",
+                token: MCPServer.shared.authToken,
+                body: [
+                    "appMode": requestedMode.rawValue,
+                    "fallbackPolicy": ["mode": "not-a-policy"],
+                ]
+            )
+
+            #expect(status == 400)
+            #expect(manager.appMode == originalMode)
+        }
+    }
+
+    @Test("POST /settings rejects malformed fields before changing App Mode")
+    func settingsTypeValidationIsAtomic() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let originalMode = manager.appMode
+            let requestedMode: ChowserAppMode = originalMode == .app ? .menuBar : .app
+
+            let (status, _) = try await post(
+                "/settings",
+                token: MCPServer.shared.authToken,
+                body: [
+                    "appMode": requestedMode.rawValue,
+                    "networkLookupsEnabled": "false",
+                ]
+            )
+
+            #expect(status == 400)
+            #expect(manager.appMode == originalMode)
+        }
+    }
+
+    @Test("POST /settings applies a complete typed settings payload")
+    func settingsTypedPayloadApplies() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let previousNetworkLookups = manager.networkLookupsEnabled
+            let previousHosts = manager.userShortenerHosts
+            let previousTimeout = manager.shortlinkResolutionTimeout
+            let previousIconSize = manager.pickerIconSize
+            let previousLayout = manager.pickerLayoutMode
+            let previousOpacity = manager.pickerBackgroundOpacity
+            let previousRadius = manager.pickerCornerRadius
+            let previousDensity = manager.densityPreference
+            defer {
+                manager.networkLookupsEnabled = previousNetworkLookups
+                manager.userShortenerHosts = previousHosts
+                manager.shortlinkResolutionTimeout = previousTimeout
+                manager.pickerIconSize = previousIconSize
+                manager.pickerLayoutMode = previousLayout
+                manager.pickerBackgroundOpacity = previousOpacity
+                manager.pickerCornerRadius = previousRadius
+                manager.densityPreference = previousDensity
+            }
+
+            let (status, _) = try await post(
+                "/settings",
+                token: MCPServer.shared.authToken,
+                body: [
+                    "networkLookupsEnabled": true,
+                    "userShortenerHosts": ["links.example"],
+                    "shortlinkResolutionTimeout": 2.5,
+                    "picker": [
+                        "iconSize": "large",
+                        "layoutMode": "list",
+                        "backgroundOpacity": 0.7,
+                        "cornerRadius": 20.0,
+                        "densityPreference": "comfortable",
+                    ],
+                ]
+            )
+
+            #expect(status == 200)
+            #expect(manager.networkLookupsEnabled)
+            #expect(manager.userShortenerHosts == ["links.example"])
+            #expect(manager.shortlinkResolutionTimeout == 2.5)
+            #expect(manager.pickerIconSize == "large")
+            #expect(manager.pickerLayoutMode == "list")
+            #expect(manager.pickerBackgroundOpacity == 0.7)
+            #expect(manager.pickerCornerRadius == 20)
+            #expect(manager.densityPreference == "comfortable")
+        }
+    }
+
+    @Test("POST /settings rejects out-of-range picker values atomically")
+    func settingsRangeValidationIsAtomic() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let previousNetworkLookups = manager.networkLookupsEnabled
+            let previousOpacity = manager.pickerBackgroundOpacity
+
+            let (status, _) = try await post(
+                "/settings",
+                token: MCPServer.shared.authToken,
+                body: [
+                    "networkLookupsEnabled": !previousNetworkLookups,
+                    "picker": ["backgroundOpacity": 0.1],
+                ]
+            )
+
+            #expect(status == 400)
+            #expect(manager.networkLookupsEnabled == previousNetworkLookups)
+            #expect(manager.pickerBackgroundOpacity == previousOpacity)
+        }
+    }
+
     @Test("GET /status returns 200 with app info and full endpoint schema")
     func statusEndpoint() async throws {
         try await withServer {

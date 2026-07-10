@@ -1,6 +1,6 @@
 import { Github } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const APP_STORE_URL = "https://apps.apple.com/in/app/chowser/id6760034779";
@@ -16,8 +16,17 @@ export const Navbar = () => {
                     <span className="font-bold text-xl tracking-tight text-foreground">Chowser</span>
                 </Link>
                 <div className="flex items-center gap-1 sm:gap-6">
-                    <a href="/#agentic-setup">
-                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">AI Setup</Button>
+                    <Link to="/guide" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground hover:text-foreground")}>
+                        Guide
+                    </Link>
+                    <Link to="/rewrites" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden md:inline-flex text-muted-foreground hover:text-foreground")}>
+                        Rewrites
+                    </Link>
+                    <Link to="/lab/picker-prototypes" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden lg:inline-flex text-muted-foreground hover:text-foreground")}>
+                        Lab
+                    </Link>
+                    <a href="/#agentic-setup" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden sm:inline-flex text-muted-foreground hover:text-foreground")}>
+                        AI Setup
                     </a>
                     <div className="w-px h-4 bg-border/20 hidden sm:block mx-2" />
                     <a

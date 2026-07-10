@@ -1,6 +1,6 @@
 # Chowser Docs
 
-A modern landing page and documentation site for Chowser, built with React, Vite, and shadcn/ui.
+The public product and documentation site for Chowser, built with React, Vite, and shadcn/ui and deployed to GitHub Pages.
 
 ## Tech Stack
 
@@ -54,8 +54,9 @@ This will generate a `dist` folder ready for deployment.
 
 - **Modern Landing Page**: Sleek UI to introduce the Chowser macOS app.
 - **Agentic Setup Guide**: Comprehensive instructions for AI-driven configuration.
+- **Product Guide**: Task-oriented setup, routing, rewrite, App Mode, and diagnostics documentation.
+- **Hosted Rewrite Catalog**: A human-readable `/rewrites` page backed by the same `/rewrite-catalog.json` feed consumed by Chowser.
 - **Responsive Design**: fully optimized for mobile and desktop screens.
-- **Dark Mode**: built-in dark mode support via `next-themes`.
 
 ## Project Structure
 
@@ -63,7 +64,8 @@ This will generate a `dist` folder ready for deployment.
 docs/
 ├── public/                 # Static assets
 │   ├── CNAME               # Custom domain configuration for GitHub Pages
-│   └── agentic-setup.md    # Markdown file for the AI prompt
+│   ├── agentic-setup.md    # Markdown file for the AI prompt
+│   └── rewrite-catalog.json # Machine-readable predefined rewrite rules
 ├── src/                    # Source code
 │   ├── App.tsx             # Root React component
 │   ├── main.tsx            # Entry point
@@ -71,7 +73,7 @@ docs/
 │   ├── components/         # Reusable UI components (shadcn ui + custom)
 │   ├── hooks/              # Custom React hooks
 │   ├── lib/                # Utility functions
-│   └── pages/              # Page components (Home, AgenticSetup, etc.)
+│   └── pages/              # Home, Guide, Rewrite Catalog, Privacy, and lab pages
 ├── package.json            # Project metadata and dependencies
 ├── vite.config.ts          # Vite configuration
 └── tsconfig.json           # TypeScript configuration

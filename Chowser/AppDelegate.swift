@@ -36,6 +36,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var pickerPanel: ChowserPanel?
     private var settingsWindowController: NSWindowController?
     private var pendingReopenWorkItem: DispatchWorkItem?
+    private var lastURLOpenUptime = -TimeInterval.infinity
+
+    private static let deferredReopenDelay: TimeInterval = 0.2
 
     private(set) static weak var shared: AppDelegate?
 
@@ -261,6 +264,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     func application(_ application: NSApplication, open urls: [URL]) {
         cancelPendingReopen()
+        lastURLOpenUptime = ProcessInfo.processInfo.systemUptime
         let manager = BrowserManager.shared
 
         guard let url = urls.first else {
@@ -373,7 +377,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         cancelPendingReopen()
-        guard !hasVisibleWindows else { return true }
+        let secondsSinceLastURLOpen = ProcessInfo.processInfo.systemUptime - lastURLOpenUptime
+        guard Self.shouldScheduleDeferredReopen(
+            hasVisibleWindows: hasVisibleWindows,
+            secondsSinceLastURLOpen: secondsSinceLastURLOpen
+        ) else { return true }
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -382,8 +390,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self.openSettings()
         }
         pendingReopenWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.deferredReopenDelay, execute: workItem)
         return true
+    }
+
+    static func shouldScheduleDeferredReopen(
+        hasVisibleWindows: Bool,
+        secondsSinceLastURLOpen: TimeInterval
+    ) -> Bool {
+        !hasVisibleWindows && secondsSinceLastURLOpen >= deferredReopenDelay
     }
 
     private func cancelPendingReopen() {

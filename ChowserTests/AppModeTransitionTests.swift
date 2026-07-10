@@ -3,6 +3,22 @@ import Testing
 @testable import Chowser
 
 struct AppModeTransitionTests {
+    @Test("Reopen is deferred only when no URL open is in flight")
+    func reopenSuppression() {
+        #expect(!AppDelegate.shouldScheduleDeferredReopen(
+            hasVisibleWindows: false,
+            secondsSinceLastURLOpen: 0.1
+        ))
+        #expect(!AppDelegate.shouldScheduleDeferredReopen(
+            hasVisibleWindows: true,
+            secondsSinceLastURLOpen: 10
+        ))
+        #expect(AppDelegate.shouldScheduleDeferredReopen(
+            hasVisibleWindows: false,
+            secondsSinceLastURLOpen: 10
+        ))
+    }
+
     @Test("Menu Bar transition creates status item before hiding the Dock icon")
     @MainActor
     func menuBarTransitionOrder() {

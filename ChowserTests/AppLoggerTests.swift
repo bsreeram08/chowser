@@ -60,8 +60,9 @@ struct AppLoggerTests {
             #expect(snapshot.recentEvents.contains("session-end-clean id=\(session.id.uuidString)"))
 
             AppLogger.resetDiagnosticsStateForTesting()
-            let nextSession = AppLogger.beginSession(presentationMode: "menu bar")
+            let nextSession = AppLogger.beginSession(presentationMode: ChowserAppMode.menuBar.rawValue)
             #expect(!nextSession.previousSessionEndedUnexpectedly)
+            #expect(AppLogger.diagnosticsSnapshot().recentEvents.contains("presentation-mode=menu-bar"))
         }
     }
 

@@ -5,7 +5,7 @@ Task: T14 full release verification and manual upload readiness
 
 ## Summary
 
-T14 automated release verification was run with isolated DerivedData paths under `/var/folders/qr/y7mw06t17dl1yhmxfh0sn_7r0000gn/T/opencode/`. Product source code, project settings, entitlements, tests, CI, export/upload tooling, and `chowser-electrobun/` were not modified.
+T14 automated release verification was run with isolated DerivedData paths under `/var/folders/qr/y7mw06t17dl1yhmxfh0sn_7r0000gn/T/opencode/`. Product source code, project settings, entitlements, tests, CI, and export/upload tooling were not modified.
 
 Scope change: after the UI-test attempts below failed, the user explicitly said “do not do e2e anymore”. UI/E2E tests are therefore waived/skipped by user instruction for this release continuation. They are not green and should not be represented as passed. Required automated release gates now rely on the Release build, unit tests, App Store/TestFlight archive, and archive metadata.
 

@@ -5,7 +5,7 @@ Status: Draft
 Date: 2026-07-05  
 Release boundary: Post-TestFlight discovery; out of scope for the 3.1.5 TestFlight reactivation unless explicitly reopened.  
 Related mockup: `mockups/chowser-routing-ideas.html`  
-Platform scope: native macOS (Swift/AppKit/SwiftUI) only. `chowser-electrobun/` (cross-platform Win/Linux/macOS rewrite of the same domain model) is paused/dead as of this PRD — Advanced Routing does not ship there. Its README's "full feature parity" claim is stale; tracked as a doc-cleanup TODO, not this PRD's concern.  
+Platform scope: native macOS (Swift/AppKit/SwiftUI) only. The former Electrobun cross-platform prototype has been removed and is no longer supported; Advanced Routing does not ship there.
 
 ## Summary
 
@@ -554,7 +554,7 @@ Do not build an executable config model. Chowser's advantage is native configura
 | 6 | Cherry-pick: MCP rewrite CRUD | Auto-approved | P2 blast radius | Extends existing `/rules`-shaped endpoints | Added to Phase 3 |
 | 7 | Cherry-pick: Finicky JS-config import bridge | Deferred | P3 pragmatic | Real engineering cost (JS-subset parser), not blast radius | TODOS.md |
 | 8 | Cherry-pick: auto-test rewrites against recent URL history | Deferred | Borderline blast radius (3-5 files) | Genuinely optional polish, not core | TODOS.md |
-| 9 | chowser-electrobun platform status | **User Challenge** (asked directly, not auto-decided) | — | High blast-radius ambiguity the CEO review couldn't resolve alone | Confirmed dead/paused, native-only; PRD + TODOS.md updated |
+| 9 | Electrobun platform status | **User Challenge** (asked directly, not auto-decided) | — | High blast-radius ambiguity the CEO review couldn't resolve alone | Confirmed removed/no support, native-only |
 | 10 | Shortlink-off-by-default silent regression | Auto-fixed | P1 completeness | Real gap: breaking change with no user-visible notice | Added in-app notice requirement |
 | 11 | Send-to-phone FR staleness (already shipped v3.8.0) | Auto-fixed | Mechanical | Factual error in PRD text | Corrected FR-060 + use case |
 | 12 | MCP dual-field exit criteria unpinned | Auto-fixed | P5 explicit | "Later" invites permanent legacy fields | Pinned to next major version |
@@ -575,8 +575,8 @@ Do not build an executable config model. Chowser's advantage is native configura
 |            MEGA PLAN REVIEW — CEO PHASE COMPLETION SUMMARY         |
 +====================================================================+
 | Mode selected        | SELECTIVE EXPANSION                          |
-| System Audit         | No TODOS.md pre-existing; chowser-electrobun |
-|                       | found unmentioned — resolved as dead/paused  |
+| System Audit         | Electrobun found unmentioned — resolved as    |
+|                       | removed/no support, native-only              |
 | Step 0               | Premises confirmed; Approach B reused        |
 | Section 1  (Arch)    | 1 issue found (ReDoS) — fixed                |
 | Section 2  (Errors)  | 1 GAP found (non-tolerant Codable) — fixed   |
@@ -607,7 +607,7 @@ Do not build an executable config model. Chowser's advantage is native configura
 | Outside voice         | Codex unavailable (usage limit) — Claude     |
 |                       | subagent ran solo [subagent-only]            |
 | Unresolved decisions  | 0 — all resolved (2 required direct user     |
-|                       | input: electrobun status, phase sequencing)  |
+|                       | input: platform status, phase sequencing)    |
 +====================================================================+
 ```
 

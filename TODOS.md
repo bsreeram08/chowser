@@ -34,14 +34,3 @@ Deferred work surfaced during `/autoplan` review of `ADVANCED_ROUTING_PRD.md` (2
 **Effort:** M (human) → S (CC+gstack).
 **Priority:** P3.
 **Depends on:** Phase 3 (rewrite tester) shipping first.
-
-## Fix chowser-electrobun README's stale "full feature parity" claim
-
-**What:** `chowser-electrobun/README.md` claims "Full feature parity across all platforms," but the directory has been untouched since 2026-03-26 while the native Swift app shipped v3.7.1, v3.7.2, and v3.8.0 since then. The claim is now false.
-**Why:** Stale documentation makes false promises to anyone (including future-you) evaluating the cross-platform build.
-**Pros:** Cheap, one-line fix; prevents confusion about platform strategy going forward.
-**Cons:** None.
-**Context:** Surfaced during `/autoplan` CEO review of `ADVANCED_ROUTING_PRD.md`. Advanced Routing PRD now states platform scope is native-macOS-only and Electrobun is paused — this TODO is just the doc cleanup that follows from that decision.
-**Effort:** S (human) → S (CC+gstack, minutes).
-**Priority:** P2.
-**Depends on:** None.

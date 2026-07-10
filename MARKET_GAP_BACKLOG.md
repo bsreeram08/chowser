@@ -4,7 +4,7 @@ This backlog captures product gaps that are useful for future discovery but are 
 
 ## Current release boundary
 
-Chowser 3.1.5 is a native macOS TestFlight reactivation only. It does not include Electrobun, Windows, Linux, CI upload automation, or a public App Store launch claim. T14 owns manual QA for the signed sandbox build, browser launch behavior, MCP curl checks, onboarding, routing, private clipboard behavior, and Liquid Glass/fallback visuals.
+Chowser 3.1.5 is a native macOS TestFlight reactivation only. It does not include Windows, Linux, CI upload automation, or a public App Store launch claim. The former Electrobun prototype has been removed and is no longer supported. T14 owns manual QA for the signed sandbox build, browser launch behavior, MCP curl checks, onboarding, routing, private clipboard behavior, and Liquid Glass/fallback visuals.
 
 ## Post-TestFlight market gaps
 

@@ -562,183 +562,14 @@ final class MCPServer {
     }
 
     private func handleUpdateSettings(body: Data, manager: BrowserManager) -> Data {
-        guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
-            return httpResponse(status: 400, body: ["error": "Invalid JSON"])
+        do {
+            try MCPSettingsUpdate.decodeAndValidate(body, using: manager).apply(to: manager)
+            return httpResponse(status: 200, body: ["status": "updated"])
+        } catch let error as MCPSettingsUpdateError {
+            return httpResponse(status: error.httpStatus, body: error.responseBody(currentMode: manager.appMode))
+        } catch {
+            return httpResponse(status: 400, body: ["error": "Invalid settings payload"])
         }
-
-        func invalidType(_ key: String, expected: String) -> Data {
-            httpResponse(status: 400, body: ["error": "Invalid \(key). Expected \(expected)"])
-        }
-
-        let booleanKeys = [
-            "networkLookupsEnabled", "trackingCleanupEnabled", "mcpAutoStartEnabled",
-            "launchAtLogin", "skipExistingImportedRules", "skipExistingImportedBrowsers",
-        ]
-        for key in booleanKeys where json[key] != nil && !(json[key] is Bool) {
-            return invalidType(key, expected: "a boolean")
-        }
-        for key in ["userShortenerHosts", "hiddenBundleIDs"] where json[key] != nil && !(json[key] is [String]) {
-            return invalidType(key, expected: "an array of strings")
-        }
-        if json["appMode"] != nil && !(json["appMode"] is String) {
-            return invalidType("appMode", expected: "\"app\" or \"menuBar\"")
-        }
-        if json["fallbackPolicy"] != nil && !(json["fallbackPolicy"] is [String: Any]) {
-            return invalidType("fallbackPolicy", expected: "an object")
-        }
-        if json["shortlinkResolutionTimeout"] != nil && !(json["shortlinkResolutionTimeout"] is Double) {
-            return invalidType("shortlinkResolutionTimeout", expected: "a number from 0.5 through 5.0")
-        }
-        if let timeout = json["shortlinkResolutionTimeout"] as? Double,
-           !(0.5...5.0).contains(timeout) {
-            return invalidType("shortlinkResolutionTimeout", expected: "a number from 0.5 through 5.0")
-        }
-
-        let requestedPicker: [String: Any]?
-        if let rawPicker = json["picker"] {
-            guard let picker = rawPicker as? [String: Any] else {
-                return invalidType("picker", expected: "an object")
-            }
-            let pickerBooleanKeys = ["showLabels", "dimInactiveBrowsers", "showLinkPreview"]
-            for key in pickerBooleanKeys where picker[key] != nil && !(picker[key] is Bool) {
-                return invalidType("picker.\(key)", expected: "a boolean")
-            }
-            let pickerStringKeys = ["iconSize", "layoutMode", "appearanceMode", "tintHex", "accentHex", "qrCodeAccentHex", "colorScheme", "densityPreference"]
-            for key in pickerStringKeys where picker[key] != nil && !(picker[key] is String) {
-                return invalidType("picker.\(key)", expected: "a string")
-            }
-            if let value = picker["iconSize"] as? String, !["small", "medium", "large"].contains(value) {
-                return invalidType("picker.iconSize", expected: "small, medium, or large")
-            }
-            if let value = picker["layoutMode"] as? String, !["icons", "list"].contains(value) {
-                return invalidType("picker.layoutMode", expected: "icons or list")
-            }
-            if let value = picker["appearanceMode"] as? String, !["auto", "custom"].contains(value) {
-                return invalidType("picker.appearanceMode", expected: "auto or custom")
-            }
-            if let value = picker["colorScheme"] as? String, !["system", "light", "dark"].contains(value) {
-                return invalidType("picker.colorScheme", expected: "system, light, or dark")
-            }
-            if let value = picker["densityPreference"] as? String, !["compact", "default", "comfortable"].contains(value) {
-                return invalidType("picker.densityPreference", expected: "compact, default, or comfortable")
-            }
-            if picker["backgroundOpacity"] != nil && !(picker["backgroundOpacity"] is Double) {
-                return invalidType("picker.backgroundOpacity", expected: "a number from 0.2 through 1.0")
-            }
-            if let value = picker["backgroundOpacity"] as? Double, !(0.2...1.0).contains(value) {
-                return invalidType("picker.backgroundOpacity", expected: "a number from 0.2 through 1.0")
-            }
-            if picker["cornerRadius"] != nil && !(picker["cornerRadius"] is Double) {
-                return invalidType("picker.cornerRadius", expected: "a number from 8 through 28")
-            }
-            if let value = picker["cornerRadius"] as? Double, !(8.0...28.0).contains(value) {
-                return invalidType("picker.cornerRadius", expected: "a number from 8 through 28")
-            }
-            requestedPicker = picker
-        } else {
-            requestedPicker = nil
-        }
-
-        let requestedAppMode: ChowserAppMode?
-        if let rawMode = json["appMode"] as? String {
-            guard let mode = ChowserAppMode(rawValue: rawMode) else {
-                return httpResponse(status: 400, body: ["error": "Invalid appMode. Must be \"app\" or \"menuBar\"", "appMode": rawMode])
-            }
-            requestedAppMode = mode
-        } else {
-            requestedAppMode = nil
-        }
-
-        let requestedFallbackPolicy: BrowserFallbackPolicy?
-        if let rawPolicy = json["fallbackPolicy"] as? [String: Any] {
-            if rawPolicy["browserId"] != nil && !(rawPolicy["browserId"] is String) {
-                return invalidType("fallbackPolicy.browserId", expected: "a UUID string")
-            }
-            if rawPolicy["profile"] != nil && !(rawPolicy["profile"] is String) {
-                return invalidType("fallbackPolicy.profile", expected: "a string")
-            }
-            guard let rawMode = rawPolicy["mode"] as? String,
-                  let mode = BrowserFallbackPolicy.Mode(rawValue: rawMode) else {
-                return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.mode. Must be \"picker\" or \"browser\""])
-            }
-            var browserID: UUID?
-            if let idStr = rawPolicy["browserId"] as? String {
-                guard let uuid = UUID(uuidString: idStr) else {
-                    return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.browserId", "browserId": idStr])
-                }
-                browserID = uuid
-            }
-            if mode == .browser {
-                guard let browserID, manager.configuredBrowsers.contains(where: { $0.id == browserID }) else {
-                    return httpResponse(status: 400, body: ["error": "fallbackPolicy.browserId is required and must reference an existing browser when mode is \"browser\""])
-                }
-            }
-            requestedFallbackPolicy = BrowserFallbackPolicy(
-                mode: mode,
-                browserID: browserID,
-                profile: rawPolicy["profile"] as? String
-            )
-        } else {
-            requestedFallbackPolicy = nil
-        }
-
-        // Validate the complete request before applying side effects so a later 400
-        // cannot leave the Dock/status-item state partially changed.
-        if let requestedAppMode,
-           case .failure(let error) = AppDelegate.transitionAppMode(to: requestedAppMode) {
-            return httpResponse(status: 500, body: [
-                "error": error.localizedDescription,
-                "appMode": manager.appMode.rawValue,
-            ])
-        }
-        if let requestedFallbackPolicy {
-            manager.fallbackPolicy = requestedFallbackPolicy
-        }
-
-        if let enabled = json["networkLookupsEnabled"] as? Bool {
-            manager.networkLookupsEnabled = enabled
-        }
-        if let hosts = json["userShortenerHosts"] as? [String] {
-            manager.userShortenerHosts = Set(hosts)
-        }
-        if let timeout = json["shortlinkResolutionTimeout"] as? Double {
-            manager.shortlinkResolutionTimeout = timeout
-        }
-        if let cleanup = json["trackingCleanupEnabled"] as? Bool {
-            manager.trackingCleanupEnabled = cleanup
-        }
-        if let autoStart = json["mcpAutoStartEnabled"] as? Bool {
-            manager.mcpAutoStartEnabled = autoStart
-        }
-        if let launch = json["launchAtLogin"] as? Bool {
-            manager.launchAtLogin = launch
-        }
-        if let skip = json["skipExistingImportedRules"] as? Bool {
-            manager.skipExistingImportedRules = skip
-        }
-        if let skip = json["skipExistingImportedBrowsers"] as? Bool {
-            manager.skipExistingImportedBrowsers = skip
-        }
-        if let hidden = json["hiddenBundleIDs"] as? [String] {
-            manager.hiddenBundleIDs = Set(hidden)
-        }
-        if let picker = requestedPicker {
-            if let v = picker["iconSize"] as? String { manager.pickerIconSize = v }
-            if let v = picker["showLabels"] as? Bool { manager.pickerShowLabels = v }
-            if let v = picker["layoutMode"] as? String { manager.pickerLayoutMode = v }
-            if let v = picker["appearanceMode"] as? String { manager.pickerAppearanceMode = v }
-            if let v = picker["tintHex"] as? String { manager.pickerTintHex = v }
-            if let v = picker["backgroundOpacity"] as? Double { manager.pickerBackgroundOpacity = v }
-            if let v = picker["cornerRadius"] as? Double { manager.pickerCornerRadius = v }
-            if let v = picker["accentHex"] as? String { manager.pickerAccentHex = v }
-            if let v = picker["qrCodeAccentHex"] as? String { manager.qrCodeAccentHex = v }
-            if let v = picker["dimInactiveBrowsers"] as? Bool { manager.pickerDimInactiveBrowsers = v }
-            if let v = picker["colorScheme"] as? String { manager.pickerColorScheme = v }
-            if let v = picker["showLinkPreview"] as? Bool { manager.showLinkPreview = v }
-            if let v = picker["densityPreference"] as? String { manager.densityPreference = v }
-        }
-
-        return httpResponse(status: 200, body: ["status": "updated"])
     }
 
     private func handleAddOrUpdateBrowser(body: Data, manager: BrowserManager) -> Data {
@@ -1027,4 +858,166 @@ final class MCPServer {
         responseData.append(jsonData)
         return responseData
     }
+}
+
+private struct MCPSettingsUpdate {
+    private let request: Request
+    private let fallbackPolicy: BrowserFallbackPolicy?
+
+    static func decodeAndValidate(_ body: Data, using manager: BrowserManager) throws -> Self {
+        let request: Request
+        do {
+            request = try JSONDecoder().decode(Request.self, from: body)
+        } catch {
+            throw MCPSettingsUpdateError.invalidPayload
+        }
+
+        try require(request.shortlinkResolutionTimeout, in: 0.5...5.0, field: "shortlinkResolutionTimeout")
+        try require(request.picker?.backgroundOpacity, in: 0.2...1.0, field: "picker.backgroundOpacity")
+        try require(request.picker?.cornerRadius, in: 8.0...28.0, field: "picker.cornerRadius")
+
+        return MCPSettingsUpdate(
+            request: request,
+            fallbackPolicy: try request.fallbackPolicy.map { try $0.resolve(using: manager) }
+        )
+    }
+
+    func apply(to manager: BrowserManager) throws {
+        _ = try request.appMode.map {
+            try AppDelegate.transitionAppMode(to: $0)
+                .mapError(MCPSettingsUpdateError.transitionFailed)
+                .get()
+        }
+
+        assign(fallbackPolicy, to: \BrowserManager.fallbackPolicy, on: manager)
+        assign(request.networkLookupsEnabled, to: \BrowserManager.networkLookupsEnabled, on: manager)
+        assign(request.userShortenerHosts.map(Set.init), to: \BrowserManager.userShortenerHosts, on: manager)
+        assign(request.shortlinkResolutionTimeout, to: \BrowserManager.shortlinkResolutionTimeout, on: manager)
+        assign(request.trackingCleanupEnabled, to: \BrowserManager.trackingCleanupEnabled, on: manager)
+        assign(request.mcpAutoStartEnabled, to: \BrowserManager.mcpAutoStartEnabled, on: manager)
+        assign(request.launchAtLogin, to: \BrowserManager.launchAtLogin, on: manager)
+        assign(request.skipExistingImportedRules, to: \BrowserManager.skipExistingImportedRules, on: manager)
+        assign(request.skipExistingImportedBrowsers, to: \BrowserManager.skipExistingImportedBrowsers, on: manager)
+        assign(request.hiddenBundleIDs.map(Set.init), to: \BrowserManager.hiddenBundleIDs, on: manager)
+        request.picker?.apply(to: manager)
+    }
+
+    private static func require(
+        _ value: Double?,
+        in range: ClosedRange<Double>,
+        field: String
+    ) throws {
+        guard value.map(range.contains) != false else {
+            throw MCPSettingsUpdateError.outOfRange(field: field, range: range)
+        }
+    }
+
+    private struct Request: Decodable {
+        let appMode: ChowserAppMode?
+        let fallbackPolicy: FallbackPolicyRequest?
+        let networkLookupsEnabled: Bool?
+        let userShortenerHosts: [String]?
+        let shortlinkResolutionTimeout: Double?
+        let trackingCleanupEnabled: Bool?
+        let mcpAutoStartEnabled: Bool?
+        let launchAtLogin: Bool?
+        let skipExistingImportedRules: Bool?
+        let skipExistingImportedBrowsers: Bool?
+        let hiddenBundleIDs: [String]?
+        let picker: PickerRequest?
+    }
+
+    private struct FallbackPolicyRequest: Decodable {
+        let mode: BrowserFallbackPolicy.Mode
+        let browserID: UUID?
+        let profile: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case mode, profile
+            case browserID = "browserId"
+        }
+
+        func resolve(using manager: BrowserManager) throws -> BrowserFallbackPolicy {
+            let browserExists = browserID.map { id in
+                manager.configuredBrowsers.contains(where: { $0.id == id })
+            } ?? false
+            guard mode != .browser || browserExists else {
+                throw MCPSettingsUpdateError.fallbackBrowserRequired
+            }
+            return BrowserFallbackPolicy(mode: mode, browserID: browserID, profile: profile)
+        }
+    }
+
+    private struct PickerRequest: Decodable {
+        enum IconSize: String, Decodable { case small, medium, large }
+        enum LayoutMode: String, Decodable { case icons, list }
+        enum AppearanceMode: String, Decodable { case auto, custom }
+        enum ColorScheme: String, Decodable { case system, light, dark }
+        enum Density: String, Decodable { case compact, `default`, comfortable }
+
+        let iconSize: IconSize?
+        let showLabels: Bool?
+        let layoutMode: LayoutMode?
+        let appearanceMode: AppearanceMode?
+        let tintHex: String?
+        let backgroundOpacity: Double?
+        let cornerRadius: Double?
+        let accentHex: String?
+        let qrCodeAccentHex: String?
+        let dimInactiveBrowsers: Bool?
+        let colorScheme: ColorScheme?
+        let showLinkPreview: Bool?
+        let densityPreference: Density?
+
+        func apply(to manager: BrowserManager) {
+            assign(iconSize?.rawValue, to: \BrowserManager.pickerIconSize, on: manager)
+            assign(showLabels, to: \BrowserManager.pickerShowLabels, on: manager)
+            assign(layoutMode?.rawValue, to: \BrowserManager.pickerLayoutMode, on: manager)
+            assign(appearanceMode?.rawValue, to: \BrowserManager.pickerAppearanceMode, on: manager)
+            assign(tintHex, to: \BrowserManager.pickerTintHex, on: manager)
+            assign(backgroundOpacity, to: \BrowserManager.pickerBackgroundOpacity, on: manager)
+            assign(cornerRadius, to: \BrowserManager.pickerCornerRadius, on: manager)
+            assign(accentHex, to: \BrowserManager.pickerAccentHex, on: manager)
+            assign(qrCodeAccentHex, to: \BrowserManager.qrCodeAccentHex, on: manager)
+            assign(dimInactiveBrowsers, to: \BrowserManager.pickerDimInactiveBrowsers, on: manager)
+            assign(colorScheme?.rawValue, to: \BrowserManager.pickerColorScheme, on: manager)
+            assign(showLinkPreview, to: \BrowserManager.showLinkPreview, on: manager)
+            assign(densityPreference?.rawValue, to: \BrowserManager.densityPreference, on: manager)
+        }
+    }
+}
+
+private enum MCPSettingsUpdateError: Error {
+    case invalidPayload
+    case outOfRange(field: String, range: ClosedRange<Double>)
+    case fallbackBrowserRequired
+    case transitionFailed(AppDelegate.AppModeTransitionError)
+
+    var httpStatus: Int {
+        switch self {
+        case .transitionFailed: 500
+        default: 400
+        }
+    }
+
+    func responseBody(currentMode: ChowserAppMode) -> [String: Any] {
+        switch self {
+        case .invalidPayload:
+            ["error": "Invalid settings payload"]
+        case let .outOfRange(field, range):
+            ["error": "Invalid \(field). Expected a number from \(range.lowerBound) through \(range.upperBound)"]
+        case .fallbackBrowserRequired:
+            ["error": "fallbackPolicy.browserId is required and must reference an existing browser when mode is \"browser\""]
+        case let .transitionFailed(error):
+            ["error": error.localizedDescription, "appMode": currentMode.rawValue]
+        }
+    }
+}
+
+private func assign<Value>(
+    _ value: Value?,
+    to keyPath: ReferenceWritableKeyPath<BrowserManager, Value>,
+    on manager: BrowserManager
+) {
+    _ = value.map { manager[keyPath: keyPath] = $0 }
 }

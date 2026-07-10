@@ -2,6 +2,8 @@ name: Release — macOS (Native)
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v[0-9]+.*"
 
@@ -15,6 +17,11 @@ concurrency:
 env:
   SCHEME: Chowser
   PROJECT: Chowser.xcodeproj
+  APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  APPLE_ID: ${{ secrets.APPLE_ID }}
+  APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
 jobs:
   build:
@@ -24,12 +31,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Check signing credentials
+        id: credentials
+        run: |
+          if [ -n "$APPLE_CERTIFICATE_P12" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] \
+             && [ -n "$APPLE_ID" ] && [ -n "$APPLE_ID_PASSWORD" ]; then
+            echo "can_sign=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can_sign=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Signing secrets are incomplete. The GitHub release will contain source archives only; no unsafe unsigned DMG will be published."
+          fi
+
       # ── Install signing certificate ──
       - name: Install signing certificate
-        if: env.APPLE_CERTIFICATE_P12 != ''
-        env:
-          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        if: steps.credentials.outputs.can_sign == 'true'
         run: |
           CERT_FILE=$(mktemp /tmp/cert.XXXXXX.p12)
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
@@ -48,67 +68,61 @@ jobs:
 
           rm "$CERT_FILE"
 
-      # ── Parse version from tag ──
-      - name: Parse version
+      # The version and build are committed with each release. Keeping the project
+      # as the source of truth makes local archives and GitHub artifacts identical.
+      - name: Read and validate version
         id: version
         run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          echo "version=$TAG" >> "$GITHUB_OUTPUT"
-          if [[ "$TAG" == *"-beta"* ]] || [[ "$TAG" == *"-rc"* ]]; then
+          VERSION=$(grep -m1 'MARKETING_VERSION = ' "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/')
+          BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION = ' "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/')
+          if [ -z "$VERSION" ] || [ -z "$BUILD" ]; then
+            echo "Could not read version metadata from $PROJECT/project.pbxproj"
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$TAG_VERSION" != "$VERSION" ]; then
+              echo "Tag v$TAG_VERSION does not match MARKETING_VERSION $VERSION"
+              exit 1
+            fi
+          elif git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "v$VERSION already exists. Bump MARKETING_VERSION and CURRENT_PROJECT_VERSION before merging to main."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-
-      # ── Stamp version into Xcode project ──
-      - name: Stamp version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          BUILD=$(date +%Y%m%d%H%M)
-          sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = ${VERSION}/" \
-            "$PROJECT/project.pbxproj"
-          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = ${BUILD}/" \
-            "$PROJECT/project.pbxproj"
-          echo "Stamped version $VERSION (build $BUILD)"
+          echo "Releasing version $VERSION (build $BUILD)"
 
       # ── Build archive ──
       - name: Build archive
+        if: steps.credentials.outputs.can_sign == 'true'
         run: |
-          SIGN_ARGS=()
-          if [ -n "${{ secrets.APPLE_CERTIFICATE_P12 }}" ]; then
-            SIGN_ARGS=(
-              CODE_SIGN_IDENTITY="Developer ID Application"
-              DEVELOPMENT_TEAM="TH2VPAUX6Y"
-            )
-          else
-            SIGN_ARGS=(
-              CODE_SIGNING_ALLOWED=NO
-              CODE_SIGNING_REQUIRED=NO
-              CODE_SIGN_IDENTITY=-
-            )
-          fi
-
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath release/Chowser.xcarchive \
-            "${SIGN_ARGS[@]}" \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID:-TH2VPAUX6Y}" \
             -quiet
 
       # ── Export app ──
       - name: Export app
+        if: steps.credentials.outputs.can_sign == 'true'
         run: |
           mkdir -p release
           cp -R release/Chowser.xcarchive/Products/Applications/Chowser.app release/Chowser.app
 
       # ── Notarize (if secrets are available) ──
       - name: Notarize
-        if: env.APPLE_ID != '' && env.APPLE_ID_PASSWORD != ''
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        if: steps.credentials.outputs.can_sign == 'true'
         run: |
           ditto -c -k --keepParent release/Chowser.app release/Chowser-notarize.zip
           xcrun notarytool submit release/Chowser-notarize.zip \
@@ -121,6 +135,7 @@ jobs:
 
       # ── Create DMG ──
       - name: Create DMG
+        if: steps.credentials.outputs.can_sign == 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           DMG_PATH="release/Chowser-${VERSION}.dmg"
@@ -185,11 +200,7 @@ jobs:
 
       # ── Notarize DMG ──
       - name: Notarize DMG
-        if: env.APPLE_ID != '' && env.APPLE_ID_PASSWORD != ''
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        if: steps.credentials.outputs.can_sign == 'true'
         run: |
           xcrun notarytool submit "$dmg_path" \
             --apple-id "$APPLE_ID" \
@@ -200,6 +211,7 @@ jobs:
 
       # ── Upload artifact ──
       - name: Upload DMG artifact
+        if: steps.credentials.outputs.can_sign == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Chowser-macOS-${{ steps.version.outputs.version }}
@@ -209,6 +221,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           name: Chowser v${{ steps.version.outputs.version }}
           draft: false
           prerelease: ${{ steps.version.outputs.prerelease }}

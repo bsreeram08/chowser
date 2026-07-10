@@ -2,6 +2,19 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.4] - 2026-07-11
+
+### Added
+- **Privacy-safe lifecycle diagnostics.** Review recent startup, App Mode, window, and termination events, then copy or export a support report or open a prefilled issue without exposing browsing data or local paths.
+- **Expanded public documentation.** The website now explains App Mode, diagnostics, advanced link flow, and the hosted rewrite catalog in task-oriented guides.
+
+### Fixed
+- **App Mode changes are now recoverable.** Switching between Dock and menu-bar-only presentation validates each macOS transition, rolls back on failure, and keeps Settings reachable instead of leaving Chowser stranded.
+- **MCP settings updates are atomic.** The local API validates the complete typed request before changing App Mode or preferences, so a malformed field cannot leave a partial configuration behind.
+
+### Changed
+- **Every merge to `main` now creates a GitHub release.** Release automation uses the committed Xcode version/build as its source of truth, rejects reused versions, and attaches a signed, notarized DMG only when release credentials are configured.
+
 ## [3.9.3] - 2026-07-06
 
 ### Fixed

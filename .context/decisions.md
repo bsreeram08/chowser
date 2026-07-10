@@ -60,21 +60,22 @@ Decisions that would surprise a new contributor. Each entry explains the "why" t
 
 ---
 
-## 4. No applicationShouldHandleReopen implementation
+## 4. Deferred, cancellable application reopen
 
-**Context**: When macOS reactivates an app (e.g., clicking the menu bar icon), it calls `applicationShouldHandleReopen`. If a URL-open event arrives at the same time, there's a race between `applicationShouldHandleReopen` and `application(_:open:)`.
+**Context**: App Mode users expect clicking the Dock icon to reopen Settings. macOS can call `applicationShouldHandleReopen` immediately before delivering a URL-open event, so opening Settings synchronously from that callback races normal link handling.
 
 **Options considered**:
-- Implement `applicationShouldHandleReopen` to show settings on reactivation
-- Leave it unimplemented; use explicit menu bar actions instead
+- Open Settings immediately from `applicationShouldHandleReopen`
+- Leave the callback unimplemented and require explicit menu commands
+- Schedule a short deferred reopen that URL-open handling cancels
 
-**Decision**: Intentionally do not implement `applicationShouldHandleReopen`. The `isHandlingURL` flag (with 1.0s timeout) provides a partial guard, but the race window is inherent to the AppKit event ordering.
+**Decision**: `applicationShouldHandleReopen` schedules a cancellable deferred Settings reveal. `application(_:open:)` cancels the pending work item before processing any URL. This handles AppKit's event ordering directly instead of relying on an `isHandlingURL` flag that is set too late.
 
 **Trade-offs**:
-- Gained: No race condition between URL handling and window presentation
-- Sacrificed: No automatic window presentation on app reactivation; users must use the menu bar
+- Gained: Native Dock-reopen behavior in App Mode without presenting Settings during link handling
+- Sacrificed: Settings presentation waits briefly while Chowser determines whether a URL event follows
 
-**References**: `AppDelegate.swift` lines 133-141 (commented explanation), line 17 (`isHandlingURL` flag)
+**References**: `AppDelegate.applicationShouldHandleReopen`, `AppDelegate.application(_:open:)`, `docs/adr/0004-atomic-app-mode-transitions.md`
 
 ---
 

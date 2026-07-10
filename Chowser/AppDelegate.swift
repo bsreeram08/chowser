@@ -11,11 +11,38 @@ import ServiceManagement
 import Carbon
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
+    enum AppModeTransitionError: LocalizedError, Equatable {
+        case appDelegateUnavailable
+        case statusItemUnavailable
+        case activationPolicyRejected(ChowserAppMode)
+        case rollbackFailed(ChowserAppMode)
+
+        var errorDescription: String? {
+            switch self {
+            case .appDelegateUnavailable:
+                return "Chowser could not access its application lifecycle. The app mode was not changed."
+            case .statusItemUnavailable:
+                return "Chowser could not create its menu bar item. App Mode remains active so Settings stays reachable."
+            case .activationPolicyRejected(let mode):
+                return "macOS rejected the switch to \(mode == .app ? "App" : "Menu Bar") mode. The previous mode remains active."
+            case .rollbackFailed:
+                return "macOS rejected the mode change and its rollback. Chowser kept every available app entry point visible; restart the app before trying again."
+            }
+        }
+    }
+
     private var statusItem: NSStatusItem?
     private var pickerWindowObserver: NSObjectProtocol?
     private var pickerPanel: ChowserPanel?
-    private var isHandlingURL = false
     private var settingsWindowController: NSWindowController?
+    private var pendingReopenWorkItem: DispatchWorkItem?
+
+    private(set) static weak var shared: AppDelegate?
+
+    override init() {
+        super.init()
+        Self.shared = self
+    }
 
     // Custom NSPanel subclass to support Spotlight-like behavior.
     // .nonactivatingPanel allows the app to appear on top of full-screen apps 
@@ -40,6 +67,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppLogger.beginSession(presentationMode: BrowserManager.shared.appMode.rawValue)
+
         if AppEnvironment.shouldBypassOnboardingForRequestedUITestSurface {
             OnboardingManager.shared.hasCompletedOnboarding = true
             generateStateAndSetupSystem()
@@ -86,15 +115,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func setupApplicationState() {
         let manager = BrowserManager.shared
-        NSApp.setActivationPolicy(manager.appMode == .app ? .regular : .accessory)
+        let persistedMode = manager.appMode
+        if case .failure(let error) = transitionAppMode(to: persistedMode) {
+            AppLogger.error("AppLifecycle", error.localizedDescription)
+            DispatchQueue.main.async { self.openSettings() }
+        }
 
         if manager.mcpAutoStartEnabled {
             MCPServer.shared.start()
         }
 
-        if manager.appMode == .menuBar {
-            setupStatusBar()
-        } else {
+        if persistedMode == .app {
             // App Mode has no status item to click, so there's no picker-adjacent affordance
             // to discover Settings from — show it directly, same as the new-user first-launch
             // auto-open below.
@@ -105,7 +136,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        cancelPendingReopen()
+        let presentationMode = BrowserManager.shared.appMode.rawValue
+        AppLogger.recordCriticalLifecycleBreadcrumb(.terminationWillBegin(presentationMode: presentationMode))
         BrowserManager.shared.flushPendingSaves()
+        _ = AppLogger.endSessionCleanly(presentationMode: presentationMode)
+        AppLogger.flush()
         if let observer = pickerWindowObserver {
             NotificationCenter.default.removeObserver(observer)
             pickerWindowObserver = nil
@@ -224,14 +260,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        isHandlingURL = true
+        cancelPendingReopen()
         let manager = BrowserManager.shared
-        defer {
-            // Delay resetting the isHandlingURL flag slightly to catch trailing reopen events.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.isHandlingURL = false
-            }
-        }
 
         guard let url = urls.first else {
             manager.currentSourceAppBundleId = nil
@@ -263,7 +293,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // is reachable via Terminal (`open "chowser://settings"`), Shortcuts, or a browser
         // address bar. Usage: open "chowser://settings"
         if url.scheme == "chowser", url.host == "settings" {
-            isHandlingURL = false
             openSettings()
             return
         }
@@ -274,7 +303,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // starts the server and writes ~/Library/Application Support/Chowser/mcp-session.json
         // (port + token) that the agent's shell can read directly — see MCPServer.start().
         if url.scheme == "chowser", url.host == "mcp" {
-            isHandlingURL = false
             if url.path == "/start" {
                 MCPServer.shared.start()
             } else if url.path == "/stop" {
@@ -343,35 +371,143 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
     
-    // Re-enabled (was previously skipped over a race with URL-open events — macOS can fire
-    // reopen before open:, which would pop Settings during a normal link click). Guarded on
-    // `isHandlingURL`, which already exists for exactly this purpose (see its doc comment at
-    // its declaration) but was never actually read anywhere until now. Without this, a user
-    // whose menu bar icon becomes inaccessible (most commonly hidden by macOS's own menu-bar
-    // overflow on a crowded bar) had no way back into Settings at all — this is the fallback
-    // a real user would actually stumble into: relaunching the app (Spotlight, Launchpad,
-    // Finder) while Chowser is already running.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        guard !isHandlingURL, !hasVisibleWindows else { return true }
-        openSettings()
+        cancelPendingReopen()
+        guard !hasVisibleWindows else { return true }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingReopenWorkItem = nil
+            guard !NSApp.windows.contains(where: \.isVisible) else { return }
+            self.openSettings()
+        }
+        pendingReopenWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
         return true
+    }
+
+    private func cancelPendingReopen() {
+        pendingReopenWorkItem?.cancel()
+        pendingReopenWorkItem = nil
     }
 
     // MARK: - Status Bar
 
-    private func setupStatusBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-
-        // Defensive fallback: this doesn't catch the icon being hidden by menu-bar overflow
-        // (macOS gives no API signal for that), only outright creation failure — but if it
-        // ever does fail, falling back to a Dock icon means the user isn't silently locked
-        // out of Settings with zero UI at all.
-        guard let button = statusItem?.button else {
-            AppLogger.log("StatusBar", "statusItem creation failed — falling back to Dock icon so Settings stays reachable")
-            NSApp.setActivationPolicy(.regular)
-            openSettings()
-            return
+    @MainActor
+    static func transitionAppMode(to mode: ChowserAppMode) -> Result<Void, AppModeTransitionError> {
+        guard let delegate = shared ?? NSApp.delegate as? AppDelegate else {
+            AppLogger.recordCriticalLifecycleBreadcrumb(
+                .activationPolicyTransitionDidFail(
+                    from: BrowserManager.shared.appMode.rawValue,
+                    to: mode.rawValue,
+                    reason: .appDelegateUnavailable
+                )
+            )
+            return .failure(.appDelegateUnavailable)
         }
+        return delegate.transitionAppMode(to: mode)
+    }
+
+    @MainActor
+    private func transitionAppMode(to mode: ChowserAppMode) -> Result<Void, AppModeTransitionError> {
+        let manager = BrowserManager.shared
+        // Onboarding temporarily forces a regular activation policy before persisting the
+        // user's choice, so the live presentation is more authoritative than the preference.
+        let previousMode: ChowserAppMode = NSApp.activationPolicy() == .accessory ? .menuBar : .app
+        AppLogger.recordCriticalLifecycleBreadcrumb(
+            .activationPolicyTransitionWillBegin(from: previousMode.rawValue, to: mode.rawValue)
+        )
+
+        let result = Self.performAppModeTransition(
+            to: mode,
+            currentMode: previousMode,
+            ensureStatusItem: ensureStatusItem,
+            setActivationPolicy: { NSApp.setActivationPolicy($0) },
+            removeStatusItem: removeStatusItem,
+            persistMode: { manager.appMode = $0 }
+        )
+
+        if case .failure(let error) = result {
+            let reason: DiagnosticsTransitionFailureReason
+            switch error {
+            case .appDelegateUnavailable:
+                reason = .appDelegateUnavailable
+            case .statusItemUnavailable:
+                reason = .statusItemUnavailable
+            case .activationPolicyRejected:
+                reason = .activationPolicyRejected
+            case .rollbackFailed:
+                reason = .rollbackFailed
+            }
+            AppLogger.recordCriticalLifecycleBreadcrumb(
+                .activationPolicyTransitionDidFail(from: previousMode.rawValue, to: mode.rawValue, reason: reason)
+            )
+            return result
+        }
+
+        AppLogger.log("AppLifecycle", "Applied app mode: \(mode.rawValue)")
+        AppLogger.recordCriticalLifecycleBreadcrumb(
+            .activationPolicyTransitionDidComplete(presentationMode: mode.rawValue)
+        )
+        return result
+    }
+
+    @MainActor
+    static func performAppModeTransition(
+        to mode: ChowserAppMode,
+        currentMode: ChowserAppMode,
+        ensureStatusItem: () -> Bool,
+        setActivationPolicy: (NSApplication.ActivationPolicy) -> Bool,
+        removeStatusItem: () -> Void,
+        persistMode: (ChowserAppMode) -> Void
+    ) -> Result<Void, AppModeTransitionError> {
+        switch mode {
+        case .menuBar:
+            guard ensureStatusItem() else {
+                if currentMode == .menuBar {
+                    guard setActivationPolicy(.regular) else {
+                        return .failure(.rollbackFailed(.menuBar))
+                    }
+                    persistMode(.app)
+                }
+                return .failure(.statusItemUnavailable)
+            }
+            guard setActivationPolicy(.accessory) else {
+                guard setActivationPolicy(.regular) else {
+                    // Keep the new status item as a recovery entry point.
+                    persistMode(.menuBar)
+                    return .failure(.rollbackFailed(.menuBar))
+                }
+                removeStatusItem()
+                persistMode(.app)
+                return .failure(.activationPolicyRejected(.menuBar))
+            }
+            persistMode(.menuBar)
+
+        case .app:
+            guard setActivationPolicy(.regular) else {
+                return .failure(.activationPolicyRejected(.app))
+            }
+            removeStatusItem()
+            persistMode(.app)
+        }
+        return .success(())
+    }
+
+    private func ensureStatusItem() -> Bool {
+        if let statusItem, statusItem.button != nil {
+            return true
+        }
+
+        removeStatusItem()
+        let newStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        guard let button = newStatusItem.button else {
+            NSStatusBar.system.removeStatusItem(newStatusItem)
+            AppLogger.error("StatusBar", "Status item creation failed")
+            return false
+        }
+
+        statusItem = newStatusItem
 
         let icon = BrowserManager.currentAppIcon().copy() as? NSImage
         icon?.size = NSSize(width: 16, height: 16)
@@ -382,7 +518,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let menu = NSMenu()
         menu.delegate = self
 
-        statusItem?.menu = menu
+        newStatusItem.menu = menu
+        AppLogger.recordCriticalLifecycleBreadcrumb(.statusItemCreated)
+        return true
+    }
+
+    private func removeStatusItem() {
+        guard let statusItem else { return }
+        statusItem.menu = nil
+        NSStatusBar.system.removeStatusItem(statusItem)
+        self.statusItem = nil
+        AppLogger.recordCriticalLifecycleBreadcrumb(.statusItemRemoved)
     }
     
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -533,6 +679,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        let diagnosticsItem = NSMenuItem(title: "Diagnostics…", action: #selector(openDiagnostics), keyEquivalent: "")
+        diagnosticsItem.target = self
+        menu.addItem(diagnosticsItem)
+
         if !isDefault {
             let defaultBrowserItem = NSMenuItem(title: "Set as Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
             defaultBrowserItem.target = self
@@ -564,7 +714,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
     
-    @objc private func showAbout() {
+    @objc func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel([
             NSApplication.AboutPanelOptionKey.applicationName: "Chowser",
@@ -587,16 +737,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc private func clearTemporaryDefault() {
-        BrowserManager.shared.clearTemporaryRoute()
+        clearFocusMode()
     }
     
     @objc private func setFocus1H(_ sender: NSMenuItem) {
         guard let browser = sender.representedObject as? BrowserConfig else { return }
-        BrowserManager.shared.setTemporaryRoute(browserBundleId: browser.bundleId, profile: browser.profile, duration: 3600)
+        setFocusModeForOneHour(browser)
     }
 
     @objc private func setFocusTomorrow(_ sender: NSMenuItem) {
         guard let browser = sender.representedObject as? BrowserConfig else { return }
+        setFocusModeUntilTomorrow(browser)
+    }
+
+    func clearFocusMode() {
+        BrowserManager.shared.clearTemporaryRoute()
+    }
+
+    func setFocusModeForOneHour(_ browser: BrowserConfig) {
+        BrowserManager.shared.setTemporaryRoute(browserBundleId: browser.bundleId, profile: browser.profile, duration: 3600)
+    }
+
+    func setFocusModeUntilTomorrow(_ browser: BrowserConfig) {
         let now = Date()
         let calendar = Calendar.current
         var components = calendar.dateComponents([.year, .month, .day], from: now)
@@ -622,6 +784,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
+            AppLogger.recordCriticalLifecycleBreadcrumb(.settingsWindowPresented(created: false))
             return
         }
 
@@ -640,6 +803,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
         controller.showWindow(nil)
+        AppLogger.recordCriticalLifecycleBreadcrumb(.settingsWindowPresented(created: true))
     }
 
 
@@ -718,7 +882,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         BrowserManager.setAsDefaultBrowser()
     }
 
-    @objc private func openClipboardURL() {
+    @objc func openClipboardURL() {
         guard let url = clipboardURL() else { NSSound.beep(); return }
         Self.prepareClipboardURLOpen(url, using: BrowserManager.shared, usePrivateMode: false) { url in
             application(NSApp, open: [url])
@@ -740,7 +904,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return url
     }
 
-    @objc private func quitApp() {
+    @objc func openDiagnostics() {
+        DiagnosticsWindowController.shared.showDiagnostics()
+    }
+
+    @objc func quitApp() {
         NSApplication.shared.terminate(nil)
     }
 

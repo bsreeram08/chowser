@@ -566,14 +566,97 @@ final class MCPServer {
             return httpResponse(status: 400, body: ["error": "Invalid JSON"])
         }
 
+        func invalidType(_ key: String, expected: String) -> Data {
+            httpResponse(status: 400, body: ["error": "Invalid \(key). Expected \(expected)"])
+        }
+
+        let booleanKeys = [
+            "networkLookupsEnabled", "trackingCleanupEnabled", "mcpAutoStartEnabled",
+            "launchAtLogin", "skipExistingImportedRules", "skipExistingImportedBrowsers",
+        ]
+        for key in booleanKeys where json[key] != nil && !(json[key] is Bool) {
+            return invalidType(key, expected: "a boolean")
+        }
+        for key in ["userShortenerHosts", "hiddenBundleIDs"] where json[key] != nil && !(json[key] is [String]) {
+            return invalidType(key, expected: "an array of strings")
+        }
+        if json["appMode"] != nil && !(json["appMode"] is String) {
+            return invalidType("appMode", expected: "\"app\" or \"menuBar\"")
+        }
+        if json["fallbackPolicy"] != nil && !(json["fallbackPolicy"] is [String: Any]) {
+            return invalidType("fallbackPolicy", expected: "an object")
+        }
+        if json["shortlinkResolutionTimeout"] != nil && !(json["shortlinkResolutionTimeout"] is Double) {
+            return invalidType("shortlinkResolutionTimeout", expected: "a number from 0.5 through 5.0")
+        }
+        if let timeout = json["shortlinkResolutionTimeout"] as? Double,
+           !(0.5...5.0).contains(timeout) {
+            return invalidType("shortlinkResolutionTimeout", expected: "a number from 0.5 through 5.0")
+        }
+
+        let requestedPicker: [String: Any]?
+        if let rawPicker = json["picker"] {
+            guard let picker = rawPicker as? [String: Any] else {
+                return invalidType("picker", expected: "an object")
+            }
+            let pickerBooleanKeys = ["showLabels", "dimInactiveBrowsers", "showLinkPreview"]
+            for key in pickerBooleanKeys where picker[key] != nil && !(picker[key] is Bool) {
+                return invalidType("picker.\(key)", expected: "a boolean")
+            }
+            let pickerStringKeys = ["iconSize", "layoutMode", "appearanceMode", "tintHex", "accentHex", "qrCodeAccentHex", "colorScheme", "densityPreference"]
+            for key in pickerStringKeys where picker[key] != nil && !(picker[key] is String) {
+                return invalidType("picker.\(key)", expected: "a string")
+            }
+            if let value = picker["iconSize"] as? String, !["small", "medium", "large"].contains(value) {
+                return invalidType("picker.iconSize", expected: "small, medium, or large")
+            }
+            if let value = picker["layoutMode"] as? String, !["icons", "list"].contains(value) {
+                return invalidType("picker.layoutMode", expected: "icons or list")
+            }
+            if let value = picker["appearanceMode"] as? String, !["auto", "custom"].contains(value) {
+                return invalidType("picker.appearanceMode", expected: "auto or custom")
+            }
+            if let value = picker["colorScheme"] as? String, !["system", "light", "dark"].contains(value) {
+                return invalidType("picker.colorScheme", expected: "system, light, or dark")
+            }
+            if let value = picker["densityPreference"] as? String, !["compact", "default", "comfortable"].contains(value) {
+                return invalidType("picker.densityPreference", expected: "compact, default, or comfortable")
+            }
+            if picker["backgroundOpacity"] != nil && !(picker["backgroundOpacity"] is Double) {
+                return invalidType("picker.backgroundOpacity", expected: "a number from 0.2 through 1.0")
+            }
+            if let value = picker["backgroundOpacity"] as? Double, !(0.2...1.0).contains(value) {
+                return invalidType("picker.backgroundOpacity", expected: "a number from 0.2 through 1.0")
+            }
+            if picker["cornerRadius"] != nil && !(picker["cornerRadius"] is Double) {
+                return invalidType("picker.cornerRadius", expected: "a number from 8 through 28")
+            }
+            if let value = picker["cornerRadius"] as? Double, !(8.0...28.0).contains(value) {
+                return invalidType("picker.cornerRadius", expected: "a number from 8 through 28")
+            }
+            requestedPicker = picker
+        } else {
+            requestedPicker = nil
+        }
+
+        let requestedAppMode: ChowserAppMode?
         if let rawMode = json["appMode"] as? String {
             guard let mode = ChowserAppMode(rawValue: rawMode) else {
                 return httpResponse(status: 400, body: ["error": "Invalid appMode. Must be \"app\" or \"menuBar\"", "appMode": rawMode])
             }
-            manager.appMode = mode
+            requestedAppMode = mode
+        } else {
+            requestedAppMode = nil
         }
 
+        let requestedFallbackPolicy: BrowserFallbackPolicy?
         if let rawPolicy = json["fallbackPolicy"] as? [String: Any] {
+            if rawPolicy["browserId"] != nil && !(rawPolicy["browserId"] is String) {
+                return invalidType("fallbackPolicy.browserId", expected: "a UUID string")
+            }
+            if rawPolicy["profile"] != nil && !(rawPolicy["profile"] is String) {
+                return invalidType("fallbackPolicy.profile", expected: "a string")
+            }
             guard let rawMode = rawPolicy["mode"] as? String,
                   let mode = BrowserFallbackPolicy.Mode(rawValue: rawMode) else {
                 return httpResponse(status: 400, body: ["error": "Invalid fallbackPolicy.mode. Must be \"picker\" or \"browser\""])
@@ -590,11 +673,26 @@ final class MCPServer {
                     return httpResponse(status: 400, body: ["error": "fallbackPolicy.browserId is required and must reference an existing browser when mode is \"browser\""])
                 }
             }
-            manager.fallbackPolicy = BrowserFallbackPolicy(
+            requestedFallbackPolicy = BrowserFallbackPolicy(
                 mode: mode,
                 browserID: browserID,
                 profile: rawPolicy["profile"] as? String
             )
+        } else {
+            requestedFallbackPolicy = nil
+        }
+
+        // Validate the complete request before applying side effects so a later 400
+        // cannot leave the Dock/status-item state partially changed.
+        if let requestedAppMode,
+           case .failure(let error) = AppDelegate.transitionAppMode(to: requestedAppMode) {
+            return httpResponse(status: 500, body: [
+                "error": error.localizedDescription,
+                "appMode": manager.appMode.rawValue,
+            ])
+        }
+        if let requestedFallbackPolicy {
+            manager.fallbackPolicy = requestedFallbackPolicy
         }
 
         if let enabled = json["networkLookupsEnabled"] as? Bool {
@@ -624,7 +722,7 @@ final class MCPServer {
         if let hidden = json["hiddenBundleIDs"] as? [String] {
             manager.hiddenBundleIDs = Set(hidden)
         }
-        if let picker = json["picker"] as? [String: Any] {
+        if let picker = requestedPicker {
             if let v = picker["iconSize"] as? String { manager.pickerIconSize = v }
             if let v = picker["showLabels"] as? Bool { manager.pickerShowLabels = v }
             if let v = picker["layoutMode"] as? String { manager.pickerLayoutMode = v }

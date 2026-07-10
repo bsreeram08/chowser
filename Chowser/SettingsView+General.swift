@@ -68,8 +68,7 @@ extension SettingsView {
                                 subtitle: "Dock icon, appears in Cmd-Tab.",
                                 isSelected: manager.appMode == .app
                             ) {
-                                manager.appMode = .app
-                                NSApp.setActivationPolicy(.regular)
+                                transitionAppMode(to: .app)
                             }
                             .accessibilityIdentifier("settings.appMode.app")
 
@@ -79,8 +78,7 @@ extension SettingsView {
                                 subtitle: "No Dock icon, lives in the menu bar only.",
                                 isSelected: manager.appMode == .menuBar
                             ) {
-                                manager.appMode = .menuBar
-                                NSApp.setActivationPolicy(.accessory)
+                                transitionAppMode(to: .menuBar)
                             }
                             .accessibilityIdentifier("settings.appMode.menuBar")
                         }
@@ -187,14 +185,14 @@ extension SettingsView {
                         SettingsDivider()
 
                         SettingsRow(
-                            title: "Report a Bug",
-                            subtitle: "Collects recent logs — routing/launch events only, never a visited hostname or file path — into a report file and opens a GitHub issue."
+                            title: "Diagnostics",
+                            subtitle: "Review privacy-safe startup, App Mode, window, and termination events or export a support report."
                         ) {
-                            Button("Report a Bug…") {
-                                AppLogger.startBugReport()
+                            Button("Open Diagnostics…") {
+                                DiagnosticsWindowController.shared.showDiagnostics()
                             }
                             .controlSize(.small)
-                            .accessibilityIdentifier("settings.reportBugButton")
+                            .accessibilityIdentifier("settings.diagnosticsButton")
                         }
                     }
                 }
@@ -213,6 +211,18 @@ extension SettingsView {
         guard !trimmed.isEmpty else { return }
         browserManager.addHiddenBundleID(trimmed)
         newHiddenBundleId = ""
+    }
+
+    @MainActor
+    private func transitionAppMode(to mode: ChowserAppMode) {
+        guard case .failure(let error) = AppDelegate.transitionAppMode(to: mode) else { return }
+
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Could Not Change App Mode"
+        alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }
 

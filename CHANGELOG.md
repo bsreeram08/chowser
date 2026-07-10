@@ -45,7 +45,7 @@ All notable changes to Chowser are documented here.
 ### Added
 - **Send to Phone.** New picker action for the current link: AirDrop it, show a scannable QR code, or copy the URL — reachable from a phone icon in the URL bar, the `I` shortcut, or the shortcuts help. Handoff advertises the link to nearby Apple devices while the menu is open.
 - **Styled QR codes.** The QR renders in color — the site's own favicon color when a preview is loaded, with the favicon badge in the center. Custom QR color available in Settings → Appearance.
-- **Report a Bug.** Settings → General → About bundles the last day's logs, app and macOS versions into a report file and opens a prefilled GitHub issue.
+- **Diagnostics.** Settings → General → About shows privacy-safe lifecycle events and exports them with app and macOS versions; raw operational logs are revealed separately for review before sharing.
 - **Diagnostic logging.** URL routing decisions, browser launches, AirDrop, Handoff, and QR failures now log to daily files (3-day retention) under Application Support.
 
 ### Changed

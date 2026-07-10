@@ -8,8 +8,9 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    let onComplete: () -> Void
+    let onComplete: (ChowserAppMode) -> Void
     @State private var currentStep: Int = 0
+    @State private var selectedAppMode = BrowserManager.shared.appMode
     
     // Detect if the user has already set it as default
     @State private var isDefaultBrowser: Bool = BrowserManager.isDefaultBrowser()
@@ -21,7 +22,10 @@ struct OnboardingView: View {
                 WelcomeStepView(nextAction: goNext)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
             case 1:
-                AppModeStepView(manager: BrowserManager.shared, nextAction: goNext)
+                AppModeStepView(manager: BrowserManager.shared) { mode in
+                    selectedAppMode = mode
+                    goNext()
+                }
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
             case 2:
                 if isDefaultBrowser {
@@ -42,7 +46,7 @@ struct OnboardingView: View {
                 RulesStepView(nextAction: goNext)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
             case 6:
-                FinishStepView(doneAction: onComplete)
+                FinishStepView(doneAction: { onComplete(selectedAppMode) })
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
             default:
                 EmptyView()
@@ -86,5 +90,5 @@ struct OnboardingView: View {
 }
 
 #Preview {
-    OnboardingView(onComplete: {})
+    OnboardingView(onComplete: { _ in })
 }

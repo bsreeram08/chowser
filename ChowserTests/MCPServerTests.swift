@@ -160,6 +160,48 @@ struct MCPServerTests {
 
     // MARK: - Authenticated GET Endpoints
 
+    @Test("POST /settings validates the full request before changing App Mode")
+    func settingsValidationIsAtomic() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let originalMode = manager.appMode
+            let requestedMode: ChowserAppMode = originalMode == .app ? .menuBar : .app
+
+            let (status, _) = try await post(
+                "/settings",
+                token: MCPServer.shared.authToken,
+                body: [
+                    "appMode": requestedMode.rawValue,
+                    "fallbackPolicy": ["mode": "not-a-policy"],
+                ]
+            )
+
+            #expect(status == 400)
+            #expect(manager.appMode == originalMode)
+        }
+    }
+
+    @Test("POST /settings rejects malformed fields before changing App Mode")
+    func settingsTypeValidationIsAtomic() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let originalMode = manager.appMode
+            let requestedMode: ChowserAppMode = originalMode == .app ? .menuBar : .app
+
+            let (status, _) = try await post(
+                "/settings",
+                token: MCPServer.shared.authToken,
+                body: [
+                    "appMode": requestedMode.rawValue,
+                    "networkLookupsEnabled": "false",
+                ]
+            )
+
+            #expect(status == 400)
+            #expect(manager.appMode == originalMode)
+        }
+    }
+
     @Test("GET /status returns 200 with app info and full endpoint schema")
     func statusEndpoint() async throws {
         try await withServer {

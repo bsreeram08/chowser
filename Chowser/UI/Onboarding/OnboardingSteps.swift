@@ -60,11 +60,11 @@ struct WelcomeStepView: View {
 /// framed around any specific problem it happens to also solve.
 struct AppModeStepView: View {
     let manager: BrowserManager
-    let nextAction: () -> Void
+    let nextAction: (ChowserAppMode) -> Void
 
     @State private var selectedMode: ChowserAppMode
 
-    init(manager: BrowserManager, nextAction: @escaping () -> Void) {
+    init(manager: BrowserManager, nextAction: @escaping (ChowserAppMode) -> Void) {
         self.manager = manager
         self.nextAction = nextAction
         self._selectedMode = State(initialValue: manager.appMode)
@@ -111,9 +111,7 @@ struct AppModeStepView: View {
             .padding(.horizontal, 40)
 
             Button(action: {
-                manager.appMode = selectedMode
-                manager.hasBeenAskedAppMode = true
-                nextAction()
+                nextAction(selectedMode)
             }) {
                 Text("Continue")
                     .font(.system(size: 15, weight: .semibold))
@@ -181,6 +179,7 @@ struct AppModeOptionRow: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityValue(isSelected ? "selected" : "not selected")
     }
 }
 
@@ -657,7 +656,7 @@ struct FinishStepView: View {
                 Text("You're all set!")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
 
-                Text("Chowser lives in your menu bar. Click any link and the picker will appear.")
+                Text("Chowser is ready. Click any link and the picker will appear.")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

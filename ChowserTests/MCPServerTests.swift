@@ -247,10 +247,29 @@ struct MCPServerTests {
             #expect(manager.userShortenerHosts == ["links.example"])
             #expect(manager.shortlinkResolutionTimeout == 2.5)
             #expect(manager.pickerIconSize == "large")
-            #expect(manager.pickerLayoutMode == "list")
+            #expect(manager.pickerLayoutMode == .list)
             #expect(manager.pickerBackgroundOpacity == 0.7)
             #expect(manager.pickerCornerRadius == 20)
             #expect(manager.densityPreference == "comfortable")
+        }
+    }
+
+    @Test("POST /settings accepts radial and minimal picker layouts")
+    func settingsAcceptsQuickPickerLayouts() async throws {
+        try await withServer {
+            let manager = BrowserManager.shared
+            let previousLayout = manager.pickerLayoutMode
+            defer { manager.pickerLayoutMode = previousLayout }
+
+            for layout in ["radial", "minimal"] {
+                let (status, _) = try await post(
+                    "/settings",
+                    token: MCPServer.shared.authToken,
+                    body: ["picker": ["layoutMode": layout]]
+                )
+                #expect(status == 200)
+                #expect(manager.pickerLayoutMode.rawValue == layout)
+            }
         }
     }
 

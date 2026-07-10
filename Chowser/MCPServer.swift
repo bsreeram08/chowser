@@ -399,7 +399,7 @@ final class MCPServer {
                     "method": "POST", "path": "/settings",
                     "auth": true,
                     "description": "Update one or more app-level settings — the full Settings UI surface. Only include the keys you want to change; everything else is left as-is. AGENT GUIDANCE: when a user asks to configure Chowser conversationally (\"turn on dark mode for the picker\", \"stop launching at login\", \"hide the picker labels\"), call GET /settings first to see current values, then POST just the fields that changed. Ask before changing anything the user didn't explicitly request.",
-                    "body_fields": ["appMode? (\"app\" or \"menuBar\")", "fallbackPolicy? { mode (\"picker\" or \"browser\"), browserId? (required when mode is \"browser\" — must be an existing browser's id), profile? }", "networkLookupsEnabled?", "userShortenerHosts? ([String])", "shortlinkResolutionTimeout? (seconds)", "trackingCleanupEnabled?", "mcpAutoStartEnabled?", "launchAtLogin?", "skipExistingImportedRules?", "skipExistingImportedBrowsers?", "hiddenBundleIDs? ([String], full replacement)", "picker? { iconSize? (\"small\"/\"medium\"/\"large\"), showLabels?, layoutMode? (\"icons\"/\"list\"), appearanceMode? (\"auto\"/\"custom\"), tintHex?, backgroundOpacity? (0-1), cornerRadius?, accentHex?, qrCodeAccentHex?, dimInactiveBrowsers?, colorScheme? (\"system\"/\"light\"/\"dark\"), showLinkPreview?, densityPreference? (\"default\"/\"compact\") }"],
+                    "body_fields": ["appMode? (\"app\" or \"menuBar\")", "fallbackPolicy? { mode (\"picker\" or \"browser\"), browserId? (required when mode is \"browser\" — must be an existing browser's id), profile? }", "networkLookupsEnabled?", "userShortenerHosts? ([String])", "shortlinkResolutionTimeout? (seconds)", "trackingCleanupEnabled?", "mcpAutoStartEnabled?", "launchAtLogin?", "skipExistingImportedRules?", "skipExistingImportedBrowsers?", "hiddenBundleIDs? ([String], full replacement)", "picker? { iconSize? (\"small\"/\"medium\"/\"large\"), showLabels?, layoutMode? (\"icons\"/\"list\"/\"radial\"/\"minimal\"), appearanceMode? (\"auto\"/\"custom\"), tintHex?, backgroundOpacity? (0-1), cornerRadius?, accentHex?, qrCodeAccentHex?, dimInactiveBrowsers?, colorScheme? (\"system\"/\"light\"/\"dark\"), showLinkPreview?, densityPreference? (\"default\"/\"compact\") }"],
                 ],
             ]
             return httpResponse(status: 200, body: [
@@ -536,7 +536,7 @@ final class MCPServer {
                 "picker": [
                     "iconSize": manager.pickerIconSize,
                     "showLabels": manager.pickerShowLabels,
-                    "layoutMode": manager.pickerLayoutMode,
+                    "layoutMode": manager.pickerLayoutMode.rawValue,
                     "appearanceMode": manager.pickerAppearanceMode,
                     "tintHex": manager.pickerTintHex,
                     "backgroundOpacity": manager.pickerBackgroundOpacity,
@@ -950,14 +950,13 @@ private struct MCPSettingsUpdate {
 
     private struct PickerRequest: Decodable {
         enum IconSize: String, Decodable { case small, medium, large }
-        enum LayoutMode: String, Decodable { case icons, list }
         enum AppearanceMode: String, Decodable { case auto, custom }
         enum ColorScheme: String, Decodable { case system, light, dark }
         enum Density: String, Decodable { case compact, `default`, comfortable }
 
         let iconSize: IconSize?
         let showLabels: Bool?
-        let layoutMode: LayoutMode?
+        let layoutMode: PickerLayoutMode?
         let appearanceMode: AppearanceMode?
         let tintHex: String?
         let backgroundOpacity: Double?
@@ -972,7 +971,7 @@ private struct MCPSettingsUpdate {
         func apply(to manager: BrowserManager) {
             assign(iconSize?.rawValue, to: \BrowserManager.pickerIconSize, on: manager)
             assign(showLabels, to: \BrowserManager.pickerShowLabels, on: manager)
-            assign(layoutMode?.rawValue, to: \BrowserManager.pickerLayoutMode, on: manager)
+            assign(layoutMode, to: \BrowserManager.pickerLayoutMode, on: manager)
             assign(appearanceMode?.rawValue, to: \BrowserManager.pickerAppearanceMode, on: manager)
             assign(tintHex, to: \BrowserManager.pickerTintHex, on: manager)
             assign(backgroundOpacity, to: \BrowserManager.pickerBackgroundOpacity, on: manager)

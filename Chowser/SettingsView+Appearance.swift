@@ -14,13 +14,15 @@ extension SettingsView {
                     AppearancePreview()
 
                     SettingsGroup("Layout", subtitle: "Controls the link picker shown when no rule matches.") {
-                        SettingsRow(title: "Layout", subtitle: "Use an icon strip or a denser list.") {
+                        SettingsRow(title: "Layout", subtitle: "Choose a classic picker or a cursor-first quick picker.") {
                             Picker("Layout", selection: $manager.pickerLayoutMode) {
-                                Text("Icons").tag("icons")
-                                Text("List").tag("list")
+                                Text("Icons").tag(PickerLayoutMode.icons)
+                                Text("List").tag(PickerLayoutMode.list)
+                                Text("Radial").tag(PickerLayoutMode.radial)
+                                Text("Minimal").tag(PickerLayoutMode.minimal)
                             }
                             .pickerStyle(.segmented)
-                            .frame(width: 180)
+                            .frame(width: 340)
                             .labelsHidden()
                         }
 
@@ -35,7 +37,7 @@ extension SettingsView {
                             .pickerStyle(.segmented)
                             .frame(width: 220)
                             .labelsHidden()
-                            .disabled(manager.pickerLayoutMode != "icons")
+                            .disabled(manager.pickerLayoutMode != .icons)
                         }
 
                         SettingsDivider()
@@ -44,7 +46,7 @@ extension SettingsView {
                             Toggle("", isOn: $manager.pickerShowLabels)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .disabled(manager.pickerLayoutMode != "icons")
+                                .disabled(manager.pickerLayoutMode != .icons)
                         }
 
                         SettingsDivider()
@@ -57,7 +59,7 @@ extension SettingsView {
 
                         SettingsDivider()
 
-                        SettingsRow(title: "Link Preview", subtitle: "Fetch the link's title, description, and image in the picker. Also resolves shortlinks.") {
+                        SettingsRow(title: "Link Preview", subtitle: "Fetch title, description, and image in Icons and List modes. Also resolves shortlinks.") {
                             Toggle("", isOn: $manager.showLinkPreview)
                                 .labelsHidden()
                                 .toggleStyle(.switch)

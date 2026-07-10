@@ -12,6 +12,15 @@ enum ChowserAppMode: String, Codable {
     case app
 }
 
+/// The four visual presentations available when an incoming URL needs a choice.
+/// Raw values intentionally match the persisted/MCP API strings used by older builds.
+enum PickerLayoutMode: String, Codable, CaseIterable, Hashable {
+    case icons
+    case list
+    case radial
+    case minimal
+}
+
 struct BrowserConfig: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
@@ -430,12 +439,16 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         }
     }
 
-    /// Picker layout mode: "icons" (horizontal icon bar) or "list" (vertical list with full names).
-    var pickerLayoutMode: String = "icons" {
+    /// Picker layout. Stored by raw value for compatibility with existing preferences.
+    var pickerLayoutMode: PickerLayoutMode = .icons {
         didSet {
-            defaults.set(pickerLayoutMode, forKey: Constants.pickerLayoutModeKey)
+            defaults.set(pickerLayoutMode.rawValue, forKey: Constants.pickerLayoutModeKey)
         }
     }
+
+    /// Ephemeral geometry selected when a radial picker is presented. It is deliberately
+    /// not persisted: the shape depends on the cursor's screen-edge position for this link.
+    var radialPickerShape: RadialPickerShape = .circle
 
     /// Picker appearance mode: "auto" (native glass/material) or "custom" (user-tuned surface).
     var pickerAppearanceMode: String = "auto" {
@@ -2347,12 +2360,9 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         if defaults.object(forKey: Constants.pickerShowLabelsKey) != nil {
             pickerShowLabels = defaults.bool(forKey: Constants.pickerShowLabelsKey)
         }
-        if let mode = defaults.string(forKey: Constants.pickerLayoutModeKey) {
-            // Only accept known layout modes; ignore unexpected values to avoid invalid picker state
-            let allowedModes: Set<String> = ["icons", "list"]
-            if allowedModes.contains(mode) {
-                pickerLayoutMode = mode
-            }
+        if let rawMode = defaults.string(forKey: Constants.pickerLayoutModeKey),
+           let mode = PickerLayoutMode(rawValue: rawMode) {
+            pickerLayoutMode = mode
         }
         if let density = defaults.string(forKey: Constants.densityPreferenceKey) {
             let allowedDensities: Set<String> = ["compact", "default", "comfortable"]

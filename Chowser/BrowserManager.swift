@@ -213,6 +213,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         static let rewriteRulesKey = "rewriteRules"
         static let mcpAutoStartEnabledKey = "mcpAutoStartEnabled"
         static let lastSeenRewriteCatalogVersionKey = "lastSeenRewriteCatalogVersion"
+        static let catalogAppliedRuleNamesKey = "catalogAppliedRuleNames"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -379,6 +380,15 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     var lastSeenRewriteCatalogVersion: Int = 0 {
         didSet {
             defaults.set(lastSeenRewriteCatalogVersion, forKey: Constants.lastSeenRewriteCatalogVersionKey)
+        }
+    }
+
+    /// Names of rewrite rules added from the predefined catalog. Lets us detect when a
+    /// catalog-sourced rule is deleted so `lastSeenRewriteCatalogVersion` can be reset and
+    /// the catalog re-offered (see `removeRewriteRule`).
+    var catalogAppliedRuleNames: Set<String> = [] {
+        didSet {
+            defaults.set(Array(catalogAppliedRuleNames), forKey: Constants.catalogAppliedRuleNamesKey)
         }
     }
 
@@ -560,6 +570,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         loadNetworkPrivacyPreferences()
         mcpAutoStartEnabled = defaults.bool(forKey: Constants.mcpAutoStartEnabledKey)
         lastSeenRewriteCatalogVersion = defaults.integer(forKey: Constants.lastSeenRewriteCatalogVersionKey)
+        catalogAppliedRuleNames = Set(defaults.array(forKey: Constants.catalogAppliedRuleNamesKey) as? [String] ?? [])
         hasSeenRuleMergeReview = defaults.bool(forKey: Constants.hasSeenRuleMergeReviewKey)
         if !hasSeenRuleMergeReview {
             pendingRuleMergeSuggestions = Self.computeMergeSuggestions(for: routingRules)
@@ -1316,6 +1327,13 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     }
 
     func removeRewriteRule(id: UUID) {
+        if let removed = rewriteRules.first(where: { $0.id == id }),
+           catalogAppliedRuleNames.contains(removed.name) {
+            catalogAppliedRuleNames.remove(removed.name)
+            // Re-offer the catalog: with the version gate reset, "Check for Updates"
+            // re-fires even if the same or newer catalog is still current.
+            lastSeenRewriteCatalogVersion = 0
+        }
         rewriteRules.removeAll { $0.id == id }
         rewriteSkipReasons.removeValue(forKey: id)
     }

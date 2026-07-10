@@ -21,7 +21,7 @@ struct SettingsView: View {
     @State var showingAddRewriteSheet = false
     @State var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     @State var operationAlert: SettingsOperationAlert?
-    @State var pendingRewriteCatalog: RewriteCatalog?
+    @State var rewriteCatalogSheet: RewriteCatalog?
     @State var isCheckingRewriteCatalog = false
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
@@ -105,6 +105,16 @@ struct SettingsView: View {
         .sheet(isPresented: $showingAddRewriteSheet) {
             RewriteRuleEditorSheet(manager: browserManager, isPresented: $showingAddRewriteSheet)
         }
+        .sheet(item: $rewriteCatalogSheet) { catalog in
+            RewriteCatalogSelectionSheet(
+                catalog: catalog,
+                manager: browserManager,
+                isPresented: Binding(
+                    get: { rewriteCatalogSheet != nil },
+                    set: { if !$0 { rewriteCatalogSheet = nil } }
+                )
+            )
+        }
         .sheet(item: $browserToEdit) { browser in
             EditBrowserSheet(
                 browser: browser,
@@ -126,6 +136,13 @@ struct SettingsView: View {
             currentPrefillURL = url
             showingAddRuleSheet = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RewriteCatalogApplied"))) { notification in
+            guard let added = notification.object as? Int else { return }
+            operationAlert = SettingsOperationAlert(
+                title: "Rewrites Added",
+                message: added == 0 ? "No new rewrite rules were added (the selected rules are already present)." : "Added \(added) new rewrite rule\(added == 1 ? "" : "s")."
+            )
+        }
         .alert("Reset Chowser setup?", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) {
@@ -142,20 +159,6 @@ struct SettingsView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
-        .alert(item: $pendingRewriteCatalog) { catalog in
-            Alert(
-                title: Text("New Predefined Rewrites Available"),
-                message: Text("\(catalog.rules.count) predefined rewrite rules found — tracking-parameter cleanup, HTTPS upgrade, and more. Add them now?"),
-                primaryButton: .default(Text("Apply")) {
-                    let added = RewriteCatalogService.shared.apply(catalog, manager: browserManager)
-                    selectedSection = .rewrites
-                    operationAlert = SettingsOperationAlert(title: "Rewrites Added", message: "Added \(added) new rewrite rule(s).")
-                },
-                secondaryButton: .cancel(Text("Not Now")) {
-                    browserManager.lastSeenRewriteCatalogVersion = catalog.version
-                }
-            )
-        }
         .accessibilityIdentifier("settings.root")
     }
 
@@ -163,14 +166,16 @@ struct SettingsView: View {
         guard !isCheckingRewriteCatalog else { return }
         isCheckingRewriteCatalog = true
         Task {
-            let catalog = await RewriteCatalogService.shared.checkForUpdates(manager: browserManager)
+            // Always re-fetch (no version gate) so catalog rules can be re-reviewed and
+            // re-added after deletion. The selection sheet shows per-rule status.
+            let catalog = await RewriteCatalogService.shared.fetchCatalog()
             isCheckingRewriteCatalog = false
             guard let catalog else {
-                operationAlert = SettingsOperationAlert(title: "Up to Date", message: "No new predefined rewrites right now.")
+                operationAlert = SettingsOperationAlert(title: "Couldn't Load Rewrites", message: "Check your connection and try again.")
                 return
             }
             RewriteCatalogService.shared.notifyUpdateAvailable(catalog)
-            pendingRewriteCatalog = catalog
+            rewriteCatalogSheet = catalog
         }
     }
 

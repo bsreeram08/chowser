@@ -19,12 +19,67 @@ struct RewritePipelineTests {
         )
     }
 
-    @Test("Force scheme action rewrites http to https")
-    func forceScheme() {
-        let result = RewritePipeline.apply(url: url("http://example.com/path"), rules: [rule(actions: [.forceScheme("https")])], sourceApp: nil)
-        #expect(result.finalURL.absoluteString == "https://example.com/path")
-        #expect(result.steps.count == 1)
-        #expect(!result.steps[0].skipped)
+    @Test("Force scheme leaves loopback hosts (localhost) unchanged")
+    func forceSchemeSkipsLoopbackLocalhost() {
+        let result = RewritePipeline.apply(url: url("http://localhost:5173/path"), rules: [rule(actions: [.forceScheme("https")])], sourceApp: nil)
+        #expect(result.finalURL.scheme == "http")
+        #expect(result.finalURL.absoluteString == "http://localhost:5173/path")
+    }
+
+    @Test("Force scheme leaves 127.0.0.1 and *.local unchanged")
+    func forceSchemeSkipsOtherLoopbackHosts() {
+        let httpLocal = RewritePipeline.apply(url: url("http://127.0.0.1:8000/x"), rules: [rule(actions: [.forceScheme("https")])], sourceApp: nil)
+        #expect(httpLocal.finalURL.scheme == "http")
+
+        let mdns = RewritePipeline.apply(url: url("http://app.local/api"), rules: [rule(actions: [.forceScheme("https")])], sourceApp: nil)
+        #expect(mdns.finalURL.scheme == "http")
+    }
+
+    @Test("isLoopbackHost classifies loopback and mDNS hosts")
+    func isLoopbackHostClassification() {
+        #expect(RewritePipeline.isLoopbackHost("localhost"))
+        #expect(RewritePipeline.isLoopbackHost("LOCALHOST"))
+        #expect(RewritePipeline.isLoopbackHost("localhost.dev"))   // localhost.* namespace
+        #expect(RewritePipeline.isLoopbackHost("localhost.internal"))
+        #expect(RewritePipeline.isLoopbackHost("127.0.0.1"))
+        #expect(RewritePipeline.isLoopbackHost("127.0.0.5"))       // 127.0.0.0/8
+        #expect(RewritePipeline.isLoopbackHost("::1"))
+        #expect(RewritePipeline.isLoopbackHost("::ffff:127.0.0.1"))
+        #expect(RewritePipeline.isLoopbackHost("169.254.1.1"))     // link-local
+        #expect(RewritePipeline.isLoopbackHost("app.local"))
+        #expect(!RewritePipeline.isLoopbackHost("example.com"))
+        #expect(!RewritePipeline.isLoopbackHost("sub.example.com"))
+    }
+
+    @Test("Force scheme leaves localhost.* dev hosts (e.g. localhost.dev) unchanged")
+    func forceSchemeSkipsLocalhostSubdomain() {
+        let result = RewritePipeline.apply(url: url("http://localhost.dev:8080/health-check"), rules: [rule(actions: [.forceScheme("https")])], sourceApp: nil)
+        #expect(result.finalURL.scheme == "http")
+        #expect(result.finalURL.absoluteString == "http://localhost.dev:8080/health-check")
+    }
+
+    @Test("Exclude host patterns skip matching hosts but not others")
+    func excludeHostPatterns() {
+        let rule = URLRewriteRule(
+            name: "Force HTTPS except local",
+            match: URLRewriteMatch(hostPattern: "*", excludeHostPatterns: ["*.local"]),
+            actions: [.forceScheme("https")]
+        )
+
+        let excluded = RewritePipeline.apply(url: url("http://app.local/x"), rules: [rule], sourceApp: nil)
+        #expect(excluded.steps.isEmpty, "excludeHostPatterns should prevent the rule from firing")
+
+        let notExcluded = RewritePipeline.apply(url: url("http://example.com/x"), rules: [rule], sourceApp: nil)
+        #expect(notExcluded.finalURL.scheme == "https")
+    }
+
+    @Test("Exclude host patterns decode tolerantly when missing from JSON")
+    func excludeHostPatternsTolerantDecode() throws {
+        let json = """
+        {"hostPattern": "*", "actions": [{"type": "removeFragment"}]}
+        """
+        let match = try JSONDecoder().decode(URLRewriteMatch.self, from: Data(json.utf8))
+        #expect(match.excludeHostPatterns.isEmpty)
     }
 
     @Test("Replace host action swaps the host")
@@ -145,6 +200,37 @@ struct BrowserManagerRewriteTests {
 
     private func makeTestDefaults() -> UserDefaults {
         UserDefaults(suiteName: "com.chowser.tests.\(UUID().uuidString)")!
+    }
+
+    @Test("Hosted catalog preserves exclusion patterns when applying a rule")
+    @MainActor
+    func hostedCatalogPreservesExclusions() throws {
+        let data = Data("""
+        {
+          "version": 2,
+          "updatedAt": "2026-07-08",
+          "rules": [{
+            "name": "Force HTTPS",
+            "hostPattern": "*",
+            "schemes": ["http"],
+            "excludeHostPatterns": ["localhost", "127.0.0.1", "*.local"],
+            "actions": [{"type": "forceScheme", "scheme": "https"}]
+          }]
+        }
+        """.utf8)
+        let catalog = try JSONDecoder().decode(RewriteCatalog.self, from: data)
+        let manager = BrowserManager(defaults: makeTestDefaults())
+
+        #expect(RewriteCatalogService.shared.apply(catalog, manager: manager) == 1)
+        #expect(manager.rewriteRules.first?.match.excludeHostPatterns == ["localhost", "127.0.0.1", "*.local"])
+        #expect(manager.applyRewritePipeline(
+            to: URL(string: "http://app.local:8080/")!,
+            sourceApp: nil
+        ).finalURL.scheme == "http")
+        #expect(manager.applyRewritePipeline(
+            to: URL(string: "http://example.com/")!,
+            sourceApp: nil
+        ).finalURL.scheme == "https")
     }
 
     @Test("Adding a rewrite rule with no actions is rejected")

@@ -33,9 +33,9 @@ const DEMO_BROWSERS = [
   { name: "Personal", key: "4", kind: "personal" },
 ] as const;
 
-type DemoBrowserKind = (typeof DEMO_BROWSERS)[number]["kind"];
+export type DemoBrowserKind = (typeof DEMO_BROWSERS)[number]["kind"];
 
-const BrowserTileArt: React.FC<{ kind: DemoBrowserKind; size?: number }> = ({
+export const BrowserTileArt: React.FC<{ kind: DemoBrowserKind; size?: number }> = ({
   kind,
   size = 54,
 }) => {
@@ -165,8 +165,6 @@ export const Home: React.FC = () => {
         timers.push(setTimeout(runLoop, 8000)); // Reset after 8s
       };
       runLoop();
-    } else {
-      setDemoStep(4); // Keep panel open if user interacts
     }
 
     return () => {
@@ -285,8 +283,14 @@ export const Home: React.FC = () => {
           >
             <div
               className="relative flex justify-center w-full h-[290px]"
-              onMouseEnter={() => setUserInteracted(true)}
-              onClick={() => setUserInteracted(true)}
+              onMouseEnter={() => {
+                setUserInteracted(true);
+                setDemoStep(4);
+              }}
+              onClick={() => {
+                setUserInteracted(true);
+                setDemoStep(4);
+              }}
             >
               {/* Mock chat message with the link being clicked */}
               <div
@@ -647,6 +651,86 @@ export const Home: React.FC = () => {
               Tune the picker's tint, transparency, corner radius, and accent
               color with a live preview over any background. Icons or list
               layout — your call.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              URL Rewrites
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              Strip tracking parameters, upgrade http to https, or run custom
+              host/path/source-app transforms before a link is routed. Start
+              from a curated catalog of predefined rewrites and tweak from there.
+              <a href="/rewrites" className="ml-1 text-primary font-medium hover:underline">
+                Browse the catalog ›
+              </a>
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              App or Menu Bar mode
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              Keep Chowser visible in the Dock and Cmd-Tab, or run it only from
+              the menu bar. You can switch modes at any time without losing
+              access to Settings or incoming links.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              Privacy-safe diagnostics
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              If startup or a mode change goes wrong, inspect recent lifecycle
+              events, export a support report, or start a prefilled bug report.
+              Reports exclude browsing data and local file paths.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              Link unshortening &amp; preview
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              Shortlinks are resolved and a rich preview is shown before launch,
+              so you see where a link really points. Press{" "}
+              <kbd className="keycap text-[11px] px-1.5 py-0.5">H</kbd> to reveal
+              the resolved destination behind the picker.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              Clipboard &amp; quick-rule
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              Open a URL straight from your clipboard, or create a routing rule
+              right from the picker — no trip to Settings required.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              Source-app aware routing
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              The same link opens different browsers depending on the app you
+              clicked from — so a link in Slack can land in your work profile
+              while one in Messages opens personal.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
+            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
+              MCP / AI control
+            </h3>
+            <p className="text-muted-foreground text-[15px] leading-relaxed">
+              A local HTTP API lets an AI agent manage browsers and routing rules
+              for you, and an onboarding wizard walks through setup on first
+              launch.
             </p>
           </div>
         </section>

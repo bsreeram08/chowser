@@ -430,7 +430,7 @@ Your goal is to configure my browsers and routing rules.
                         .fixedSize(horizontal: false, vertical: true)
 
                     Button("Chowser also publishes predefined rewrite rules — browse them") {
-                        NSWorkspace.shared.open(RewriteCatalogService.catalogURL)
+                        NSWorkspace.shared.open(RewriteCatalogService.catalogPageURL)
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 11))

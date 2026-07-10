@@ -187,6 +187,7 @@ private struct SettingsRewriteRow: View {
     @State private var draft: URLRewriteRule
     @State private var schemeFilter: RewriteSchemeFilter
     @State private var actionFields: RewriteActionFieldsState
+    @State private var excludeHostPatternsText: String
     @FocusState private var focusedField: FocusedField?
 
     init(
@@ -212,6 +213,7 @@ private struct SettingsRewriteRow: View {
         self._draft = State(initialValue: rule)
         self._schemeFilter = State(initialValue: RewriteSchemeFilter(schemes: rule.match.schemes))
         self._actionFields = State(initialValue: RewriteActionFieldsState.derive(from: rule.actions))
+        self._excludeHostPatternsText = State(initialValue: rule.match.excludeHostPatterns.joined(separator: ", "))
     }
 
     var body: some View {
@@ -326,6 +328,17 @@ private struct SettingsRewriteRow: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
+                Text("Exclude Hosts")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                TextField("localhost.dev, 127.0.0.1, *.local", text: $excludeHostPatternsText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                    .onSubmit(commit)
+                    .accessibilityIdentifier("settings.rewrite.excludeHostsField")
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Actions")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -386,6 +399,10 @@ private struct SettingsRewriteRow: View {
         draft.name = trimmedName.isEmpty ? trimmedHost : trimmedName
         draft.match.hostPattern = trimmedHost
         draft.actions = actions
+        draft.match.excludeHostPatterns = excludeHostPatternsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
 
         guard draft != rule else { return }
         onUpdate(draft)
@@ -478,5 +495,168 @@ private struct SettingsRewriteTester: View {
         let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
         guard let url = URL(string: candidate), url.host != nil else { return nil }
         return url
+    }
+}
+
+/// Per-rule selection sheet for the predefined rewrite catalog. Each catalog rule shows a
+/// status (New / Added / Removed) and a checkbox, so the user can pick exactly which rules
+/// to add. Re-fetched without a version gate (see `RewriteCatalogService.fetchCatalog`),
+/// so deleted catalog rules reappear as "Removed" and are re-addable.
+struct RewriteCatalogSelectionSheet: View {
+    let catalog: RewriteCatalog
+    let manager: BrowserManager
+    @Binding var isPresented: Bool
+
+    enum RuleStatus {
+        case new, added, removed
+
+        var label: String {
+            switch self {
+            case .new: return "New"
+            case .added: return "Added"
+            case .removed: return "Removed"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .new: return Color.accentColor
+            case .added: return .secondary
+            case .removed: return .orange
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .new: return "plus.circle"
+            case .added: return "checkmark.circle.fill"
+            case .removed: return "arrow.counterclockwise"
+            }
+        }
+    }
+
+    private struct Item: Identifiable {
+        let id = UUID()
+        let entry: RewriteCatalogEntry
+        let status: RuleStatus
+    }
+
+    private var items: [Item] {
+        let currentNames = Set(manager.rewriteRules.map { $0.name })
+        return catalog.rules.map { entry in
+            let status: RuleStatus
+            if currentNames.contains(entry.name) {
+                status = .added
+            } else if manager.catalogAppliedRuleNames.contains(entry.name) {
+                status = .removed
+            } else {
+                status = .new
+            }
+            return Item(entry: entry, status: status)
+        }
+    }
+
+    @State private var selected: Set<String> = []
+
+    init(catalog: RewriteCatalog, manager: BrowserManager, isPresented: Binding<Bool>) {
+        self.catalog = catalog
+        self.manager = manager
+        self._isPresented = isPresented
+        // Default selection: New and Removed checked, Added unchecked.
+        let currentNames = Set(manager.rewriteRules.map { $0.name })
+        let preselected = catalog.rules
+            .filter { entry in !currentNames.contains(entry.name) || manager.catalogAppliedRuleNames.contains(entry.name) }
+            .map { $0.name }
+        self._selected = State(initialValue: Set(preselected))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            List {
+                ForEach(items) { item in
+                    HStack(spacing: 12) {
+                        Image(systemName: item.status.icon)
+                            .foregroundStyle(item.status.color)
+                            .frame(width: 18)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.entry.name)
+                                .font(.system(size: 13, weight: .medium))
+                            Text("Matches \(item.entry.hostPattern) · \(item.entry.actions.count) action\(item.entry.actions.count == 1 ? "" : "s")")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(item.status.label)
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(item.status.color.opacity(0.15), in: Capsule())
+                            .foregroundStyle(item.status.color)
+                        Toggle("", isOn: Binding(
+                            get: { selected.contains(item.entry.name) },
+                            set: { on in
+                                if on { selected.insert(item.entry.name) } else { selected.remove(item.entry.name) }
+                            }
+                        ))
+                        .labelsHidden()
+                        .disabled(item.status == .added)
+                        .accessibilityIdentifier("catalog.rule.\(item.entry.name)")
+                    }
+                    .accessibilityIdentifier("catalog.row.\(item.entry.name)")
+                }
+            }
+            .listStyle(.plain)
+            footer
+        }
+        .frame(width: 540, height: 500)
+        .accessibilityIdentifier("catalog.selectionSheet")
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 20))
+                .foregroundStyle(.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Predefined Rewrites")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("Catalog v\(catalog.version) · \(catalog.rules.count) rules · choose which to add")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Menu {
+                Button("Select All") { selected = Set(catalog.rules.map { $0.name }) }
+                Button("Select New & Removed") {
+                    selected = Set(items.filter { $0.status != .added }.map { $0.entry.name })
+                }
+                Button("Select None") { selected.removeAll() }
+            } label: {
+                Label("Select", systemImage: "checkmark.circle")
+            }
+            .menuStyle(.borderlessButton)
+        }
+        .padding(16)
+    }
+
+    private var footer: some View {
+        HStack {
+            Text("\(selected.count) selected")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Cancel", role: .cancel) { isPresented = false }
+                .keyboardShortcut(.cancelAction)
+            Button("Add Selected") {
+                let added = RewriteCatalogService.shared.applySelected(catalog, manager: manager, selectedNames: selected)
+                isPresented = false
+                NotificationCenter.default.post(name: NSNotification.Name("RewriteCatalogApplied"), object: added)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selected.isEmpty)
+        }
+        .padding(16)
     }
 }

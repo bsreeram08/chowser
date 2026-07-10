@@ -4,13 +4,13 @@
 
 # Chowser 🧭
 
-A lightweight macOS browser chooser with **profiles support**, **smart routing**, and **rule portability**. Intercept links anywhere and open them in the right browser, every time.
+A native macOS browser chooser with **profiles**, **smart routing**, **URL rewrites**, and **AI-assisted setup**. Intercept links anywhere and open them in the right browser, every time.
 
 ![macOS](https://img.shields.io/badge/macOS-13.0+-blue?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange?logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-🌐 **[chowser.sreerams.in](https://chowser.sreerams.in)** — Landing page with setup guide & AI-powered configuration
+🌐 **[chowser.sreerams.in](https://chowser.sreerams.in)** — Product tour, [setup guide](https://chowser.sreerams.in/guide), [hosted rewrite catalog](https://chowser.sreerams.in/rewrites), and AI-powered configuration
 
 ## How It Works
 
@@ -27,6 +27,8 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Keyboard Shortcuts** — Press `1` through `9`, type a browser initial, or use `↑/↓` + Return for instant selection
 - **Browser Profiles** — Full support for Chrome, Brave, Edge, Vivaldi, Arc, Dia, Firefox, Zen, LibreWolf, and Waterfox profiles
 - **Advanced Routing Rules** — Auto-open matching domains/paths (wildcard support) in a specific browser, bypassing the picker
+- **URL Rewrites** — Clean or transform links before routing, with host, path, scheme, and source-app matching
+- **Hosted Rewrite Catalog** — Review and selectively add maintained HTTPS and tracking-cleanup rules; catalog checks are explicit, never automatic
 - **Focus Mode (Temporary Default)** — Route all links to a specific browser for 1 Hour or Until Tomorrow from the menu bar
 - **URL Unshortening** — Automatically strips tracking parameters and resolves shortlinks before routing. Press `H` to manually resolve unknown shortlinks
 - **Private / Incognito Mode** — Open any link in private mode via keyboard shortcut (`P`) or per-rule toggle
@@ -36,6 +38,9 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Clipboard URL** — Open URLs from your clipboard via the menu bar
 - **Send to Phone** — Transfer the current link by AirDrop, QR code, or copy, with best-effort Handoff support
 - **Rule Portability** — Import/Export both browser configs and routing rules as JSON
+- **App or Menu Bar Mode** — Choose a Dock/Cmd-Tab app or a menu-bar-only experience, and switch safely at any time
+- **Privacy-Safe Diagnostics** — Inspect lifecycle events and copy, export, or attach a support report without browsing data or local paths
+- **Local MCP API** — Let an AI agent inspect and update browsers, routing rules, rewrites, picker preferences, and App Mode after you enable the localhost server
 - **Hidden Apps** — Hide non-browser apps that register as web handlers
 - **Menu Bar App** — Runs silently in the background, no Dock icon
 - **Launch at Login** — Start automatically when you log in
@@ -91,6 +96,7 @@ xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination '
 - **SwiftUI** — Native macOS UI
 - **AppKit** — Menu bar integration, browser launching
 - **ServiceManagement** — Launch at Login
+- **Network.framework** — Localhost-only MCP HTTP API
 
 ## License
 

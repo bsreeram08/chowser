@@ -16,6 +16,7 @@ enum RadialPickerGeometry {
     static let innerRadius: CGFloat = 43
     static let itemRadius: CGFloat = 108
     static let deadZoneRadius: CGFloat = 38
+    static let entrySize = CGSize(width: 56, height: 56)
 
     static func shape(anchor: CGPoint, visibleFrame: CGRect, requiredRadius: CGFloat = outerRadius + 12) -> RadialPickerShape {
         let nearLeft = anchor.x - visibleFrame.minX < requiredRadius
@@ -50,6 +51,55 @@ enum RadialPickerGeometry {
         }
         let start = shape.centerAngle - shape.span / 2
         return (0..<itemCount).map { start + step * (CGFloat($0) + 0.5) }
+    }
+
+    static func entryCenters(
+        itemCount: Int,
+        shape: RadialPickerShape,
+        center: CGPoint,
+        panelBounds: CGRect,
+        inset: CGFloat = 12
+    ) -> [CGPoint] {
+        let angles = centerAngles(itemCount: itemCount, shape: shape)
+        guard !angles.isEmpty else { return [] }
+        if shape.span >= .pi * 2 - 0.001 {
+            return angles.map {
+                CGPoint(x: center.x + cos($0) * itemRadius, y: center.y + sin($0) * itemRadius)
+            }
+        }
+
+        let usableBounds = panelBounds.insetBy(dx: inset, dy: inset)
+        let candidateRadii: [CGFloat] = [60, 90, 120, 150, 180]
+        var centers: [CGPoint] = []
+        var frames: [CGRect] = []
+
+        func placeEntry(_ index: Int) -> Bool {
+            guard index < angles.count else { return true }
+            for radius in candidateRadii {
+                let candidate = CGPoint(
+                    x: center.x + cos(angles[index]) * radius,
+                    y: center.y + sin(angles[index]) * radius
+                )
+                let frame = CGRect(
+                    x: candidate.x - entrySize.width / 2,
+                    y: candidate.y - entrySize.height / 2,
+                    width: entrySize.width,
+                    height: entrySize.height
+                )
+                guard usableBounds.contains(frame), !frames.contains(where: { $0.intersects(frame) }) else { continue }
+                centers.append(candidate)
+                frames.append(frame)
+                if placeEntry(index + 1) { return true }
+                centers.removeLast()
+                frames.removeLast()
+            }
+            return false
+        }
+
+        if placeEntry(0) { return centers }
+        return angles.map {
+            CGPoint(x: center.x + cos($0) * itemRadius, y: center.y + sin($0) * itemRadius)
+        }
     }
 
     static func selectedIndex(
@@ -106,6 +156,32 @@ enum RadialPickerGeometry {
     }
 }
 
+struct QuickPickerOverflowPlacement: Equatable {
+    let offset: CGSize
+    let anchor: UnitPoint
+
+    static func radial(
+        moreAngle: CGFloat,
+        panelSize: CGFloat = 500,
+        listSize: CGSize = CGSize(width: 220, height: 282),
+        inset: CGFloat = 12,
+        distance: CGFloat = 130
+    ) -> QuickPickerOverflowPlacement {
+        let direction = CGVector(dx: cos(moreAngle), dy: sin(moreAngle))
+        let maximumX = max(0, panelSize / 2 - listSize.width / 2 - inset)
+        let maximumY = max(0, panelSize / 2 - listSize.height / 2 - inset)
+        let offset = CGSize(
+            width: min(max(direction.dx * distance, -maximumX), maximumX),
+            height: min(max(direction.dy * distance, -maximumY), maximumY)
+        )
+        let anchor = UnitPoint(
+            x: min(max(0.5 - direction.dx * 0.5, 0), 1),
+            y: min(max(0.5 - direction.dy * 0.5, 0), 1)
+        )
+        return QuickPickerOverflowPlacement(offset: offset, anchor: anchor)
+    }
+}
+
 struct RadialPickerSelectionState: Equatable {
     private(set) var index: Int?
 
@@ -137,6 +213,34 @@ private struct QuickPickerEntry: Identifiable {
     var isMore: Bool { browser == nil }
 }
 
+struct PickerActivationGuard: Equatable {
+    private(set) var isActive = false
+
+    mutating func begin() -> Bool {
+        guard !isActive else { return false }
+        isActive = true
+        return true
+    }
+
+    mutating func reset() {
+        isActive = false
+    }
+}
+
+enum MinimalPickerGeometry {
+    static func selectedIndex(
+        at x: CGFloat,
+        entryCount: Int,
+        leadingInset: CGFloat = 7,
+        entryWidth: CGFloat = 43
+    ) -> Int? {
+        guard entryCount > 0 else { return nil }
+        let localX = x - leadingInset
+        guard localX >= 0, localX < CGFloat(entryCount) * entryWidth else { return nil }
+        return min(entryCount - 1, max(0, Int(localX / entryWidth)))
+    }
+}
+
 struct RadialPickerView: View {
     let browsers: [BrowserConfig]
     let shape: RadialPickerShape
@@ -146,7 +250,10 @@ struct RadialPickerView: View {
     @Binding var overflowSelectedBrowserID: UUID?
     let privateMode: Bool
     let openBrowser: (BrowserConfig) -> Void
-    @State private var activationInProgress = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var contrast
+    @State private var activationGuard = PickerActivationGuard()
 
     // Extra transparent room keeps the expanded More list inside the borderless panel
     // even when the directional orbit is centered on a cursor at a screen edge.
@@ -165,7 +272,23 @@ struct RadialPickerView: View {
         ZStack {
             directionalOrbit
                 .opacity(overflowPresented ? 0.18 : 1)
-                .blur(radius: overflowPresented ? 2 : 0)
+                .blur(radius: overflowPresented && !reduceMotion ? 2 : 0)
+
+            if privateMode && !overflowPresented {
+                Label("Private", systemImage: "lock.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.94))
+                            .stroke(Color.purple.opacity(contrast == .increased ? 0.9 : 0.5), lineWidth: contrast == .increased ? 2 : 1)
+                    )
+                    .position(center)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("picker.privateModeIndicator")
+            }
 
             if overflowPresented {
                 QuickPickerOverflowList(
@@ -175,8 +298,12 @@ struct RadialPickerView: View {
                     close: { overflowPresented = false },
                     openBrowser: openBrowser
                 )
-                .offset(overflowListOffset)
-                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                .offset(overflowPlacement.offset)
+                .transition(PickerMotion.transition(
+                    reduceMotion: reduceMotion,
+                    scale: 0.96,
+                    anchor: overflowPlacement.anchor
+                ))
             }
         }
         .frame(width: size, height: size)
@@ -203,13 +330,20 @@ struct RadialPickerView: View {
                     activateSelection()
                 }
         )
-        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: overflowPresented)
+        .animation(PickerMotion.occasional(reduceMotion: reduceMotion), value: overflowPresented)
     }
 
     private var directionalOrbit: some View {
         let angles = RadialPickerGeometry.centerAngles(itemCount: entries.count, shape: shape)
+        let entryCenters = RadialPickerGeometry.entryCenters(
+            itemCount: entries.count,
+            shape: shape,
+            center: center,
+            panelBounds: CGRect(x: 0, y: 0, width: size, height: size)
+        )
         let step = entries.isEmpty ? 0 : shape.span / CGFloat(entries.count)
         let gap: CGFloat = shape.span >= .pi * 2 - 0.001 ? 0.025 : 0.04
+        let wedgeOuterRadius = shape.span >= .pi * 2 - 0.001 ? RadialPickerGeometry.outerRadius : 210
 
         return ZStack {
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
@@ -217,7 +351,7 @@ struct RadialPickerView: View {
                 let wedge = RadialPickerGeometry.wedgePath(
                     center: center,
                     innerRadius: RadialPickerGeometry.innerRadius,
-                    outerRadius: RadialPickerGeometry.outerRadius,
+                    outerRadius: wedgeOuterRadius,
                     startAngle: angles[index] - step / 2 + gap,
                     endAngle: angles[index] + step / 2 - gap
                 )
@@ -227,13 +361,9 @@ struct RadialPickerView: View {
                         .fill(privateMode ? Color.purple.opacity(0.24) : Color.pickerAccent.opacity(0.2))
                         .overlay(
                             wedge.stroke(
-                                privateMode ? Color.purple.opacity(0.9) : Color.pickerAccentText.opacity(0.85),
-                                lineWidth: 1.5
+                                privateMode ? Color.purple.opacity(0.9) : Color.pickerAccent.opacity(0.9),
+                                lineWidth: contrast == .increased ? 2 : 1.5
                             )
-                        )
-                        .shadow(
-                            color: privateMode ? Color.purple.opacity(0.22) : Color.pickerAccent.opacity(0.18),
-                            radius: 10
                         )
                         .transition(.opacity)
                 }
@@ -244,44 +374,40 @@ struct RadialPickerView: View {
                 } label: {
                     radialEntry(entry, selected: isSelected)
                 }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .position(
-                        x: center.x + cos(angles[index]) * RadialPickerGeometry.itemRadius,
-                        y: center.y + sin(angles[index]) * RadialPickerGeometry.itemRadius
-                    )
-                    .accessibilityLabel(accessibilityLabel(for: entry))
-                    .accessibilityValue(isSelected ? "selected" : "not selected")
+                .buttonStyle(PickerPressButtonStyle())
+                .contentShape(Rectangle())
+                .position(entryCenters[index])
+                .accessibilityLabel(accessibilityLabel(for: entry))
+                .accessibilityValue(accessibilityValue(isSelected: isSelected))
             }
         }
     }
 
     @ViewBuilder
     private func radialEntry(_ entry: QuickPickerEntry, selected: Bool) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 1) {
             if let browser = entry.browser {
-                QuickBrowserIcon(browser: browser, size: 34)
+                QuickBrowserIcon(browser: browser, size: 26)
             } else {
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 26, height: 26)
             }
 
             VStack(spacing: 0) {
                 Text(entry.browser.map(quickBrowserName) ?? "More")
-                    .font(.system(size: 9, weight: selected ? .bold : .semibold))
+                    .font(.system(size: 11, weight: selected ? .bold : .semibold))
                 if let browser = entry.browser, let profile = quickProfileName(browser) {
-                    Text(profile).font(.system(size: 7)).foregroundStyle(.secondary)
+                    Text(profile).font(.system(size: 10)).foregroundStyle(.secondary)
                 } else if entry.isMore {
-                    Text("\(overflowBrowsers.count) more").font(.system(size: 7)).foregroundStyle(.secondary)
+                    Text("\(overflowBrowsers.count) more").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
             }
             .lineLimit(1)
-            .frame(width: 64)
+            .frame(width: 50)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
+        .frame(width: RadialPickerGeometry.entrySize.width, height: RadialPickerGeometry.entrySize.height)
         .background(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(selected ? 0.96 : 0.9))
@@ -289,21 +415,29 @@ struct RadialPickerView: View {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .stroke(
                             selected
-                                ? (privateMode ? Color.purple.opacity(0.9) : Color.pickerAccentText.opacity(0.85))
+                                ? (privateMode ? Color.purple.opacity(0.9) : Color.pickerAccent.opacity(0.9))
                                 : Color.primary.opacity(0.12),
-                            lineWidth: selected ? 1.5 : 0.8
+                            lineWidth: selected ? (contrast == .increased ? 2 : 1.5) : 0.8
                         )
                 )
-                .shadow(color: .black.opacity(0.25), radius: selected ? 10 : 7, y: 3)
+                .shadow(color: .black.opacity(0.25), radius: 7, y: 3)
         )
-        .scaleEffect(selected ? 1.1 : 1)
-        .animation(.spring(response: 0.16, dampingFraction: 0.72), value: selected)
+        .overlay(alignment: .topTrailing) {
+            if selected && differentiateWithoutColor {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .padding(3)
+            }
+        }
     }
 
-    private var overflowListOffset: CGSize {
-        guard shape.span < .pi * 2 - 0.001 else { return .zero }
-        let distance: CGFloat = 130
-        return CGSize(width: cos(shape.centerAngle) * distance, height: sin(shape.centerAngle) * distance)
+    private var overflowPlacement: QuickPickerOverflowPlacement {
+        let angles = RadialPickerGeometry.centerAngles(itemCount: entries.count, shape: shape)
+        guard !overflowBrowsers.isEmpty, angles.indices.contains(directBrowsers.count) else {
+            return QuickPickerOverflowPlacement(offset: .zero, anchor: .center)
+        }
+        return .radial(moreAngle: angles[directBrowsers.count])
     }
 
     private var selectionIndex: Int? {
@@ -340,24 +474,27 @@ struct RadialPickerView: View {
     }
 
     private func activateSelection() {
-        guard !activationInProgress else { return }
         if moreSelected, !overflowBrowsers.isEmpty {
-            activationInProgress = true
+            guard activationGuard.begin() else { return }
             overflowSelectedBrowserID = overflowBrowsers.first?.id
             overflowPresented = true
         } else if let selectedBrowserID,
                   let browser = directBrowsers.first(where: { $0.id == selectedBrowserID }) {
-            activationInProgress = true
+            guard activationGuard.begin() else { return }
             openBrowser(browser)
         } else {
             return
         }
-        DispatchQueue.main.async { activationInProgress = false }
+        DispatchQueue.main.async { activationGuard.reset() }
     }
 
     private func accessibilityLabel(for entry: QuickPickerEntry) -> String {
         guard let browser = entry.browser else { return "More browsers and profiles" }
-        return "Open in \(browser.name)"
+        return quickPickerAccessibilityLabel(browser, privateMode: privateMode)
+    }
+
+    private func accessibilityValue(isSelected: Bool) -> String {
+        quickPickerAccessibilityValue(isSelected: isSelected, privateMode: privateMode)
     }
 }
 
@@ -369,6 +506,10 @@ struct MinimalPickerView: View {
     @Binding var overflowSelectedBrowserID: UUID?
     let privateMode: Bool
     let openBrowser: (BrowserConfig) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var contrast
+    @State private var activationGuard = PickerActivationGuard()
 
     private var directBrowsers: [BrowserConfig] { Array(browsers.prefix(8)) }
     private var overflowBrowsers: [BrowserConfig] { Array(browsers.dropFirst(8)) }
@@ -378,17 +519,23 @@ struct MinimalPickerView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 3) {
-                Text(selectionCaption)
-                    .font(.system(size: 10, weight: .semibold))
+                HStack(spacing: 4) {
+                    if privateMode {
+                        Image(systemName: "lock.fill")
+                    }
+                    Text(selectionCaption)
+                }
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .frame(height: 14)
+                    .frame(height: 16)
+                    .accessibilityIdentifier(privateMode ? "picker.privateModeIndicator" : "picker.selectionCaption")
 
                 HStack(spacing: 3) {
-                    ForEach(Array(directBrowsers.enumerated()), id: \.element.id) { index, browser in
-                        minimalEntry(browser: browser, index: index)
+                    ForEach(directBrowsers) { browser in
+                        minimalEntry(browser: browser)
                     }
-                    if !overflowBrowsers.isEmpty { moreEntry(index: directBrowsers.count) }
+                    if !overflowBrowsers.isEmpty { moreEntry }
                 }
             }
             .padding(7)
@@ -404,10 +551,15 @@ struct MinimalPickerView: View {
                     openBrowser: openBrowser
                 )
                 .padding(.top, 6)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(PickerMotion.transition(
+                    reduceMotion: reduceMotion,
+                    scale: 0.96,
+                    anchor: .topTrailing
+                ))
             }
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("picker.minimal")
         .simultaneousGesture(
             DragGesture(minimumDistance: 2, coordinateSpace: .local)
@@ -421,64 +573,74 @@ struct MinimalPickerView: View {
                     activateSelection()
                 }
         )
-        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: overflowPresented)
+        .animation(PickerMotion.occasional(reduceMotion: reduceMotion), value: overflowPresented)
     }
 
-    private func minimalEntry(browser: BrowserConfig, index: Int) -> some View {
+    private func minimalEntry(browser: BrowserConfig) -> some View {
         let selected = !moreSelected && selectedBrowserID == browser.id
-        return QuickBrowserIcon(browser: browser, size: 30)
-            .padding(5)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(selected ? selectionColor : Color.clear)
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(selected ? selectionStroke : Color.clear, lineWidth: 1))
-            )
-            .overlay(alignment: .bottomTrailing) {
-                Text(browser.shortcutKey)
-                    .font(.system(size: 7, weight: .bold, design: .monospaced))
-                    .padding(.horizontal, 3).padding(.vertical, 1)
-                    .pickerBadgeChip()
-                    .offset(x: 2, y: 2)
-            }
-            .scaleEffect(selected ? 1.05 : 1)
-            .contentShape(Rectangle())
-            .onHover { hovering in if hovering { selectedBrowserID = browser.id; moreSelected = false } }
-            .onTapGesture { selectedBrowserID = browser.id; moreSelected = false; openBrowser(browser) }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Open in \(browser.name)")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { selectedBrowserID = browser.id; moreSelected = false; openBrowser(browser) }
+        return Button {
+            selectedBrowserID = browser.id
+            moreSelected = false
+            activateSelection()
+        } label: {
+            QuickBrowserIcon(browser: browser, size: 30)
+                .padding(5)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(selected ? selectionColor : Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .stroke(selected ? selectionStroke : Color.clear, lineWidth: selected && contrast == .increased ? 2 : 1)
+                        )
+                )
+                .overlay(alignment: .bottomTrailing) {
+                    Text(browser.shortcutKey)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 3).padding(.vertical, 1)
+                        .pickerBadgeChip()
+                        .offset(x: 2, y: 2)
+                }
+                .overlay(alignment: .topLeading) {
+                    if selected && differentiateWithoutColor {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PickerPressButtonStyle())
+        .onHover { hovering in if hovering { selectedBrowserID = browser.id; moreSelected = false } }
+        .accessibilityLabel(quickPickerAccessibilityLabel(browser, privateMode: privateMode))
+        .accessibilityValue(quickPickerAccessibilityValue(isSelected: selected, privateMode: privateMode))
     }
 
-    private func moreEntry(index: Int) -> some View {
+    private var moreEntry: some View {
         let selected = moreSelected
-        return Image(systemName: "folder.fill")
-            .font(.system(size: 19, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(width: 30, height: 30)
-            .padding(5)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(selected ? selectionColor : Color.clear)
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(selected ? selectionStroke : Color.clear, lineWidth: 1))
-            )
-            .contentShape(Rectangle())
-            .onHover { hovering in if hovering { selectedBrowserID = nil; moreSelected = true } }
-            .onTapGesture {
-                selectedBrowserID = nil
-                moreSelected = true
-                overflowSelectedBrowserID = overflowBrowsers.first?.id
-                overflowPresented = true
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("More browsers and profiles")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-                selectedBrowserID = nil
-                moreSelected = true
-                overflowSelectedBrowserID = overflowBrowsers.first?.id
-                overflowPresented = true
-            }
+        return Button {
+            selectedBrowserID = nil
+            moreSelected = true
+            activateSelection()
+        } label: {
+            Image(systemName: "folder.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 30, height: 30)
+                .padding(5)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(selected ? selectionColor : Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .stroke(selected ? selectionStroke : Color.clear, lineWidth: selected && contrast == .increased ? 2 : 1)
+                        )
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PickerPressButtonStyle())
+        .onHover { hovering in if hovering { selectedBrowserID = nil; moreSelected = true } }
+        .accessibilityLabel("More browsers and profiles")
+        .accessibilityValue(selected ? "selected" : "not selected")
     }
 
     private var selectionCaption: String {
@@ -487,16 +649,14 @@ struct MinimalPickerView: View {
               let browser = directBrowsers.first(where: { $0.id == selectedBrowserID }) else {
             return "Choose a browser"
         }
-        return browser.name + (privateMode ? " · Private" : "")
+        return browser.name
     }
 
     private var selectionColor: Color { privateMode ? Color.purple.opacity(0.28) : Color.pickerAccent.opacity(0.25) }
-    private var selectionStroke: Color { privateMode ? .purple : .pickerAccentText }
+    private var selectionStroke: Color { privateMode ? .purple : .pickerAccent }
 
     private func updateSelection(x: CGFloat) {
-        let localX = x - 7
-        guard localX >= 0, localX < CGFloat(entryCount) * 43 else { return }
-        let index = min(entryCount - 1, max(0, Int(localX / 43)))
+        guard let index = MinimalPickerGeometry.selectedIndex(at: x, entryCount: entryCount) else { return }
         if index < directBrowsers.count {
             selectedBrowserID = directBrowsers[index].id
             moreSelected = false
@@ -508,12 +668,17 @@ struct MinimalPickerView: View {
 
     private func activateSelection() {
         if moreSelected, !overflowBrowsers.isEmpty {
+            guard activationGuard.begin() else { return }
             overflowSelectedBrowserID = overflowBrowsers.first?.id
             overflowPresented = true
         } else if let selectedBrowserID,
                   let browser = directBrowsers.first(where: { $0.id == selectedBrowserID }) {
+            guard activationGuard.begin() else { return }
             openBrowser(browser)
+        } else {
+            return
         }
+        DispatchQueue.main.async { activationGuard.reset() }
     }
 }
 
@@ -523,23 +688,32 @@ private struct QuickPickerOverflowList: View {
     let privateMode: Bool
     let close: () -> Void
     let openBrowser: (BrowserConfig) -> Void
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text("More Browsers & Profiles")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                if privateMode {
+                    Label("Private", systemImage: "lock.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("picker.privateModeIndicator")
+                }
                 Spacer(minLength: 8)
                 Button(action: close) {
                     Image(systemName: "xmark")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PickerPressButtonStyle())
             }
             .padding(.horizontal, 7)
             .padding(.top, 4)
+            .accessibilityElement(children: .contain)
 
             ScrollView(.vertical, showsIndicators: browsers.count > 5) {
                 VStack(spacing: 2) {
@@ -552,21 +726,37 @@ private struct QuickPickerOverflowList: View {
                             HStack(spacing: 8) {
                                 QuickBrowserIcon(browser: browser, size: 25)
                                 VStack(alignment: .leading, spacing: 0) {
-                                    Text(quickBrowserName(browser)).font(.system(size: 10, weight: .semibold))
+                                    Text(quickBrowserName(browser)).font(.system(size: 11, weight: .semibold))
                                     if let profile = quickProfileName(browser) {
-                                        Text(profile).font(.system(size: 8)).foregroundStyle(.secondary)
+                                        Text(profile).font(.system(size: 10)).foregroundStyle(.secondary)
                                     }
                                 }
                                 Spacer(minLength: 4)
+                                if selected && differentiateWithoutColor {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.primary)
+                                }
                             }
                             .padding(.horizontal, 7)
                             .padding(.vertical, 5)
-                            .background(RoundedRectangle(cornerRadius: 7).fill(selected ? (privateMode ? Color.purple.opacity(0.25) : Color.pickerAccent.opacity(0.2)) : Color.clear))
+                            .background(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(selected ? (privateMode ? Color.purple.opacity(0.25) : Color.pickerAccent.opacity(0.2)) : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 7)
+                                            .stroke(
+                                                selected ? (privateMode ? Color.purple : Color.pickerAccent) : Color.clear,
+                                                lineWidth: selected && contrast == .increased ? 2 : 1
+                                            )
+                                    )
+                            )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PickerPressButtonStyle())
                         .onHover { hovering in if hovering { selectedBrowserID = browser.id } }
-                        .accessibilityLabel("Open in \(browser.name)")
+                        .accessibilityLabel(quickPickerAccessibilityLabel(browser, privateMode: privateMode))
+                        .accessibilityValue(quickPickerAccessibilityValue(isSelected: selected, privateMode: privateMode))
                     }
                 }
             }
@@ -599,6 +789,15 @@ private struct QuickBrowserIcon: View {
 private func quickBrowserName(_ browser: BrowserConfig) -> String {
     guard browser.profile != nil, let dash = browser.name.range(of: " - ") else { return browser.name }
     return String(browser.name[..<dash.lowerBound])
+}
+
+private func quickPickerAccessibilityLabel(_ browser: BrowserConfig, privateMode: Bool) -> String {
+    privateMode ? "Open in \(browser.name) privately" : "Open in \(browser.name)"
+}
+
+private func quickPickerAccessibilityValue(isSelected: Bool, privateMode: Bool) -> String {
+    let selection = isSelected ? "selected" : "not selected"
+    return privateMode ? "\(selection), private mode" : selection
 }
 
 private func quickProfileName(_ browser: BrowserConfig) -> String? {

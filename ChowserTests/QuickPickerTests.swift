@@ -3,6 +3,135 @@ import Foundation
 @testable import Chowser
 
 struct QuickPickerTests {
+    @Test("Quick picker activation guard blocks a second launch in the same run loop")
+    func quickPickerActivationGuard() {
+        var guardState = PickerActivationGuard()
+
+        let firstActivation = guardState.begin()
+        let duplicateActivation = guardState.begin()
+        #expect(firstActivation)
+        #expect(duplicateActivation == false)
+        guardState.reset()
+        let nextRunLoopActivation = guardState.begin()
+        #expect(nextRunLoopActivation)
+    }
+
+    @Test("Minimal drag selection maps pointer positions directly to cells")
+    func minimalDragSelectionGeometry() {
+        #expect(MinimalPickerGeometry.selectedIndex(at: 8, entryCount: 3) == 0)
+        #expect(MinimalPickerGeometry.selectedIndex(at: 51, entryCount: 3) == 1)
+        #expect(MinimalPickerGeometry.selectedIndex(at: 94, entryCount: 3) == 2)
+        #expect(MinimalPickerGeometry.selectedIndex(at: 6, entryCount: 3) == nil)
+        #expect(MinimalPickerGeometry.selectedIndex(at: 136, entryCount: 3) == nil)
+    }
+
+    @Test("Passive destination display omits sensitive URL components")
+    func passiveDestinationDisplay() throws {
+        let display = PickerDestinationDisplay(
+            url: try #require(URL(string: "https://example.com/account/reset%20password?token=secret#confirm"))
+        )
+
+        #expect(display.host == "example.com")
+        #expect(display.path == "/account/reset password")
+        #expect(display.host.contains("secret") == false)
+        #expect(display.path?.contains("secret") == false)
+    }
+
+    @Test("Passive destination display hides an empty root path")
+    func passiveDestinationRootPath() throws {
+        let display = PickerDestinationDisplay(url: try #require(URL(string: "https://example.com/?token=secret")))
+
+        #expect(display.host == "example.com")
+        #expect(display.path == nil)
+    }
+
+    @Test("Passive destination display preserves and decodes long paths")
+    func passiveDestinationLongPath() throws {
+        let url = try #require(URL(string: "https://example.com/projects/a%20long%20folder/documents/final%20draft?access_token=secret#page-4"))
+        let display = PickerDestinationDisplay(url: url)
+
+        #expect(display.host == "example.com")
+        #expect(display.path == "/projects/a long folder/documents/final draft")
+        #expect(display.path?.contains("access_token") == false)
+        #expect(display.path?.contains("page-4") == false)
+    }
+
+    @Test("Radial overflow placement follows the More wedge and stays inside the panel")
+    func radialOverflowPlacement() {
+        let right = QuickPickerOverflowPlacement.radial(moreAngle: 0)
+        let upperLeft = QuickPickerOverflowPlacement.radial(moreAngle: -.pi * 3 / 4)
+
+        #expect(right.offset.width == 128)
+        #expect(right.offset.height == 0)
+        #expect(right.anchor.x == 0)
+        #expect(right.anchor.y == 0.5)
+
+        #expect(upperLeft.offset.width >= -128)
+        #expect(upperLeft.offset.height >= -109)
+        #expect(upperLeft.anchor.x > 0.5)
+        #expect(upperLeft.anchor.y > 0.5)
+    }
+
+    @Test("Up to nine radial cards do not overlap in circle, edge, or corner layouts")
+    func radialCardsDoNotOverlap() {
+        let center = CGPoint(x: 250, y: 250)
+        let bounds = CGRect(x: 0, y: 0, width: 500, height: 500)
+        let shapes = [
+            RadialPickerShape.circle,
+            RadialPickerShape(centerAngle: 0, span: .pi),
+            RadialPickerShape(centerAngle: .pi / 2, span: .pi),
+            RadialPickerShape(centerAngle: .pi / 4, span: .pi * 0.68),
+            RadialPickerShape(centerAngle: .pi * 3 / 4, span: .pi * 0.68),
+        ]
+
+        for shape in shapes {
+            for itemCount in 1...9 {
+                let centers = RadialPickerGeometry.entryCenters(
+                    itemCount: itemCount,
+                    shape: shape,
+                    center: center,
+                    panelBounds: bounds
+                )
+                let frames = centers.map { point in
+                    CGRect(
+                        x: point.x - RadialPickerGeometry.entrySize.width / 2,
+                        y: point.y - RadialPickerGeometry.entrySize.height / 2,
+                        width: RadialPickerGeometry.entrySize.width,
+                        height: RadialPickerGeometry.entrySize.height
+                    )
+                }
+                #expect(frames.count == itemCount)
+                #expect(frames.allSatisfy { bounds.insetBy(dx: 12, dy: 12).contains($0) })
+                for first in frames.indices {
+                    for second in frames.indices where second > first {
+                        #expect(frames[first].intersects(frames[second]) == false)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Radial overflow placement follows full-circle, edge, and corner More anchors")
+    func radialOverflowPlacementForAdaptiveShapes() throws {
+        let shapes = [
+            RadialPickerShape.circle,
+            RadialPickerShape(centerAngle: 0, span: .pi),
+            RadialPickerShape(centerAngle: .pi / 4, span: .pi * 0.68),
+        ]
+
+        for shape in shapes {
+            let moreAngle = try #require(RadialPickerGeometry.centerAngles(itemCount: 9, shape: shape).last)
+            let placement = QuickPickerOverflowPlacement.radial(moreAngle: moreAngle)
+
+            #expect(abs(placement.offset.width) <= 128)
+            #expect(abs(placement.offset.height) <= 109)
+            #expect((0...1).contains(placement.anchor.x))
+            #expect((0...1).contains(placement.anchor.y))
+            #expect(placement.offset.width * cos(moreAngle) >= 0)
+            #expect(placement.offset.height * sin(moreAngle) >= 0)
+        }
+    }
+
     @Test("Radial geometry uses a full circle away from screen edges")
     func centeredShape() {
         let frame = CGRect(x: 0, y: 0, width: 1200, height: 800)

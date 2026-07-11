@@ -576,16 +576,19 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         loadHiddenBundleIDs()
         loadRecentURLs()
         loadPickerPreferences()
-        if AppEnvironment.shouldUseRadialPickerFixture {
-            configuredBrowsers = [
-                BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
-                BrowserConfig(name: "Chrome - Work", bundleId: "com.google.Chrome", shortcutKey: "2", profile: "Work"),
-            ]
-            pickerLayoutMode = .radial
+        if let fixture = AppEnvironment.pickerFixture {
+            configuredBrowsers = fixture.browsers
+            pickerLayoutMode = fixture.mode
         }
         loadImportPreferences()
         appMode = ChowserAppMode(rawValue: defaults.string(forKey: Constants.appModeKey) ?? "") ?? .app
         hasBeenAskedAppMode = defaults.bool(forKey: Constants.hasBeenAskedAppModeKey)
+        if AppEnvironment.isUITesting && AppEnvironment.shouldOpenPickerOnLaunch {
+            // A picker fixture must not auto-open the App Mode Settings window a moment
+            // later and dismiss the nonactivating picker before XCTest can inspect it.
+            appMode = .menuBar
+            hasBeenAskedAppMode = true
+        }
         loadFallbackPolicy()
         loadNetworkPrivacyPreferences()
         mcpAutoStartEnabled = defaults.bool(forKey: Constants.mcpAutoStartEnabledKey)
@@ -603,6 +606,8 @@ struct BrowserFallbackPolicy: Codable, Equatable {
 
         if let defaultURL = AppEnvironment.defaultTestURL {
             currentURL = defaultURL
+            currentURLPrivateModeRequested = AppEnvironment.shouldRequestPrivatePicker
+                && Self.supportsApplicationLaunchArgumentsInCurrentBuild
         }
     }
 
@@ -2033,6 +2038,10 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     func open(url: URL, withBrowserBundleID bundleId: String, profile: String? = nil, usePrivateMode: Bool = false) {
         if AppEnvironment.shouldDisableExternalURLOpen {
             lastOpenedBrowserBundleIDForTesting = bundleId
+            if AppEnvironment.isUITesting {
+                let count = defaults.integer(forKey: AppEnvironment.uiTestOpenInvocationCountKey)
+                defaults.set(count + 1, forKey: AppEnvironment.uiTestOpenInvocationCountKey)
+            }
             return
         }
 

@@ -168,6 +168,9 @@ final class ChowserUITests: XCTestCase {
         XCTAssertEqual(safariButton.value as? String, "not selected", "The cursor dead zone must start with no destination selected.")
         XCTAssertEqual(chromeButton.value as? String, "not selected", "The cursor dead zone must start with no destination selected.")
 
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(radial.exists, "Return must not activate an invisible destination while the cursor is in the dead zone.")
+
         // With two destinations browser 1 is above center and browser 2 is below center.
         // Moving down from the original cursor anchor must select Chrome, not merely hover a button.
         radial.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).hover()

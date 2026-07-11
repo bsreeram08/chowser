@@ -23,6 +23,40 @@ struct QuickPickerTests {
         #expect(abs(topLeft.centerAngle - .pi / 4) < 0.001)
     }
 
+    @Test("Every radial edge and corner fan preserves destination ordering")
+    func edgeAndCornerDestinationMapping() {
+        let frame = CGRect(x: 0, y: 0, width: 1200, height: 800)
+        let anchors = [
+            CGPoint(x: 20, y: 400),
+            CGPoint(x: 1180, y: 400),
+            CGPoint(x: 600, y: 20),
+            CGPoint(x: 600, y: 780),
+            CGPoint(x: 20, y: 20),
+            CGPoint(x: 20, y: 780),
+            CGPoint(x: 1180, y: 20),
+            CGPoint(x: 1180, y: 780),
+        ]
+        let center = CGPoint(x: 250, y: 250)
+
+        for anchor in anchors {
+            let shape = RadialPickerGeometry.shape(anchor: anchor, visibleFrame: frame)
+            let angles = RadialPickerGeometry.centerAngles(itemCount: 4, shape: shape)
+
+            for (expectedIndex, angle) in angles.enumerated() {
+                let location = CGPoint(
+                    x: center.x + cos(angle) * 120,
+                    y: center.y + sin(angle) * 120
+                )
+                #expect(RadialPickerGeometry.selectedIndex(
+                    at: location,
+                    center: center,
+                    itemCount: 4,
+                    shape: shape
+                ) == expectedIndex)
+            }
+        }
+    }
+
     @Test("Radial selection honors the dead zone and starts browser 1 at the top")
     func directionalSelection() {
         let center = CGPoint(x: 190, y: 190)

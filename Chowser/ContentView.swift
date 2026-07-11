@@ -1831,6 +1831,12 @@ struct ContentView: View {
             return true
         }
 
+        if usesQuickPicker,
+           browserManager.pickerLayoutMode == .radial,
+           keyboardSelectedBrowserId == nil {
+            return false
+        }
+
         guard let selectedId = keyboardSelectedBrowserId,
               let browser = browsers.first(where: { $0.id == selectedId }) else {
             if let first = browsers.first {

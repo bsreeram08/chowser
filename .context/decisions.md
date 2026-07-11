@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-02-28 against commit 892fcaf -->
+<!-- Last verified: 2026-07-12 -->
 
 # Architectural Decisions
 
@@ -184,3 +184,22 @@ Decisions that would surprise a new contributor. Each entry explains the "why" t
 - Sacrificed: Brief Dock icon appearance during onboarding; must ensure the switch-back happens even if the user force-closes
 
 **References**: `UI/Onboarding/OnboardingManager.swift` lines 29 (set .regular), 70 (set .accessory)
+
+---
+
+## 11. Separate application targets for direct and App Store distribution
+
+**Context**: Direct downloads need profile-aware unsandboxed launching and Sparkle updates. Mac App Store policy requires sandboxing and forbids non-store update mechanisms. Conditional Swift alone cannot prove that Sparkle is absent from the submitted binary.
+
+**Options considered**:
+- One target with configuration-only flags — less project setup, but package linkage and updater metadata can leak into the App Store artifact
+- Two repositories or source trees — strongest isolation, but guarantees code drift
+- Two application targets sharing one synchronized source group — explicit binary boundary without source duplication
+
+**Decision**: Keep `Chowser` as the unsandboxed direct target with `DIRECT_DISTRIBUTION` and Sparkle. Build `ChowserAppStore` through the `Chowser-AppStore` scheme with `APP_STORE`, sandbox entitlements, and no Sparkle dependency. Verify both finished artifacts in CI.
+
+**Trade-offs**:
+- Gained: App Store compliance is inspectable; direct-only dependencies and metadata cannot be embedded accidentally
+- Sacrificed: Xcode target settings and the small distribution-specific Info.plist surface must remain synchronized
+
+**References**: `Chowser.xcodeproj/project.pbxproj`, `Chowser/AppUpdateController.swift`, `scripts/verify-distribution-artifact.sh`, `DISTRIBUTION.md`

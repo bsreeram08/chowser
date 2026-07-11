@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1FF76C046FBE3D0C66C38124 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4256289010C5E6B965D7B730 /* Foundation.framework */; };
 		25AA97349CB4FAEB8479D3CA /* ChowserUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59D2406EC8317E26EF49F70 /* ChowserUITests.swift */; };
+		A20000000000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000003 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,6 +38,7 @@
 
 /* Begin PBXFileReference section */
 		0835040E4AFBA041A2260392 /* ChowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000001 /* Chowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3032E9DD2F58AB500027E23B /* ChowserScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChowserScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		30E5E9EF2F4847CD00E18455 /* Chowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4256289010C5E6B965D7B730 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -56,9 +58,19 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				BrowserConfigTests.swift,
+				"Info-AppStore.plist",
 				Info.plist,
 			);
 			target = 30E5E9EE2F4847CD00E18455 /* Chowser */;
+		};
+		A10000000000000000000002 /* Exceptions for "Chowser" folder in "ChowserAppStore" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BrowserConfigTests.swift,
+				"Info-AppStore.plist",
+				Info.plist,
+			);
+			target = A10000000000000000000006 /* ChowserAppStore */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -68,6 +80,7 @@
 			exceptions = (
 				30E5EA042F4848BA00E18455 /* Exceptions for "Chowser" folder in "Chowser" target */,
 				3032E9EC2F58ABA70027E23B /* Exceptions for "Chowser" folder in "ChowserTests" target */,
+				A10000000000000000000002 /* Exceptions for "Chowser" folder in "ChowserAppStore" target */,
 			);
 			path = Chowser;
 			sourceTree = "<group>";
@@ -99,6 +112,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000001 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,6 +148,7 @@
 			isa = PBXGroup;
 			children = (
 				30E5E9EF2F4847CD00E18455 /* Chowser.app */,
+				A10000000000000000000001 /* Chowser.app */,
 				97B7470017E24968B7459B57 /* ChowserTests.xctest */,
 				0835040E4AFBA041A2260392 /* ChowserUITests.xctest */,
 				3032E9DD2F58AB500027E23B /* ChowserScreenshotTests.xctest */,
@@ -198,9 +220,32 @@
 			);
 			name = Chowser;
 			packageProductDependencies = (
+				A20000000000000000000003 /* Sparkle */,
 			);
 			productName = Chowser;
 			productReference = 30E5E9EF2F4847CD00E18455 /* Chowser.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000006 /* ChowserAppStore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000009 /* Build configuration list for PBXNativeTarget "ChowserAppStore" */;
+			buildPhases = (
+				A10000000000000000000003 /* Sources */,
+				A10000000000000000000004 /* Frameworks */,
+				A10000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				30E5E9F12F4847CD00E18455 /* Chowser */,
+			);
+			name = ChowserAppStore;
+			packageProductDependencies = (
+			);
+			productName = Chowser;
+			productReference = A10000000000000000000001 /* Chowser.app */;
 			productType = "com.apple.product-type.application";
 		};
 		B4481878B16547B69BC9538F /* ChowserTests */ = {
@@ -259,6 +304,9 @@
 					30E5E9EE2F4847CD00E18455 = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					A10000000000000000000006 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 30E5E9EA2F4847CD00E18455 /* Build configuration list for PBXProject "Chowser" */;
@@ -271,6 +319,7 @@
 			mainGroup = 30E5E9E62F4847CD00E18455;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A20000000000000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 30E5E9F02F4847CD00E18455 /* Products */;
@@ -278,6 +327,7 @@
 			projectRoot = "";
 			targets = (
 				30E5E9EE2F4847CD00E18455 /* Chowser */,
+				A10000000000000000000006 /* ChowserAppStore */,
 				B4481878B16547B69BC9538F /* ChowserTests */,
 				EE1E63C8E51DADBF513BC3AA /* ChowserUITests */,
 				3032E9DC2F58AB500027E23B /* ChowserScreenshotTests */,
@@ -294,6 +344,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		30E5E9ED2F4847CD00E18455 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -325,6 +382,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		30E5E9EB2F4847CD00E18455 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000003 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -564,6 +628,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DIRECT_DISTRIBUTION";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -573,6 +638,45 @@
 			name = Debug;
 		};
 		30E5E9FC2F4847CE00E18455 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Chowser/Chowser.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 202607120122;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = TH2VPAUX6Y;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Chowser/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Chowser;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 3.9.6;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DIRECT_DISTRIBUTION";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A10000000000000000000007 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -589,7 +693,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Chowser/Info.plist;
+				INFOPLIST_FILE = "Chowser/Info-AppStore.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Chowser;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -599,7 +703,46 @@
 				);
 				MARKETING_VERSION = 3.9.6;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Chowser;
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A10000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Chowser/ChowserAppStore.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 202607120122;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = TH2VPAUX6Y;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Chowser/Info-AppStore.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Chowser;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 3.9.6;
+				PRODUCT_BUNDLE_IDENTIFIER = in.sreerams.Chowser;
+				PRODUCT_NAME = Chowser;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
@@ -722,6 +865,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A10000000000000000000009 /* Build configuration list for PBXNativeTarget "ChowserAppStore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000007 /* Debug */,
+				A10000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		9D791A6C5C586971AE751679 /* Build configuration list for PBXNativeTarget "ChowserUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -732,6 +884,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A20000000000000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A20000000000000000000003 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 30E5E9E72F4847CD00E18455 /* Project object */;
 }

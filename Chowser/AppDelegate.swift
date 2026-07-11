@@ -139,6 +139,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func setupApplicationState() {
         let manager = BrowserManager.shared
+        #if DIRECT_DISTRIBUTION
+        AppUpdateController.shared.start()
+        #endif
         let persistedMode = manager.appMode
         if case .failure(let error) = transitionAppMode(to: persistedMode) {
             AppLogger.error("AppLifecycle", error.localizedDescription)
@@ -711,6 +714,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         // 6. Settings
+        #if DIRECT_DISTRIBUTION
+        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForAppUpdates), keyEquivalent: "")
+        updateItem.target = self
+        updateItem.isEnabled = AppUpdateController.shared.canCheckForUpdates
+        menu.addItem(updateItem)
+        #endif
+
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -749,6 +759,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             server.start()
         }
     }
+
+    #if DIRECT_DISTRIBUTION
+    @objc func checkForAppUpdates() {
+        AppUpdateController.shared.checkForUpdates()
+    }
+    #endif
     
     @objc func showAbout() {
         NSApp.activate(ignoringOtherApps: true)

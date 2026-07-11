@@ -44,8 +44,13 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Hidden Apps** — Hide non-browser apps that register as web handlers
 - **Menu Bar App** — Runs silently in the background, no Dock icon
 - **Launch at Login** — Start automatically when you log in
+- **Secure Direct Updates** — Signed GitHub releases update through Sparkle, with automatic checks and an opt-in beta channel
 
 ## Installation
+
+### Direct Download
+
+Direct-download builds are published on [GitHub Releases](https://github.com/bsreeram08/chowser/releases) after signing and notarization. A valid binary release includes a `Chowser-<version>.dmg` asset; source-only entries are not installable releases.
 
 ### Mac App Store
 
@@ -80,6 +85,7 @@ open build/Build/Products/Release/Chowser.app
 ```
 
 > Note: Builds from source run without sandbox restrictions, enabling full browser profile support.
+> The in-app updater stays disabled in local builds unless `SPARKLE_PUBLIC_ED_KEY` is supplied at build time.
 
 ## Testing
 

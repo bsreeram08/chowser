@@ -1,0 +1,105 @@
+name: Recover — Publish Sparkle Appcast
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing verified GitHub Release tag to publish to the appcast
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chowser-appcast-publisher
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+
+jobs:
+  publish:
+    name: Rebuild and publish signed feed
+    runs-on: macos-15
+    environment: release
+    steps:
+      - name: Validate requested tag
+        id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="$INPUT_TAG"
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?)$ ]]; then
+            echo "Unsupported release tag: $TAG"
+            exit 1
+          fi
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "SPARKLE_PRIVATE_KEY is required"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the released source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.3"
+
+      - name: Download and verify published assets
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p release
+          gh release download "$TAG" \
+            --pattern "Chowser-$VERSION.dmg" \
+            --pattern "Chowser-$VERSION.md" \
+            --pattern SHA256SUMS \
+            --dir release
+          (cd release && shasum -a 256 -c SHA256SUMS)
+
+      - name: Resolve Sparkle feed tooling
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Chowser.xcodeproj \
+            -derivedDataPath "$RUNNER_TEMP/appcast-tools"
+
+      - name: Regenerate signed appcast
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION = ' Chowser.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);/\1/')
+          scripts/fetch-sparkle-feed.sh release/appcast.xml
+
+          GENERATE_APPCAST=$(find "$RUNNER_TEMP/appcast-tools/SourcePackages/artifacts" \
+            -type f -path '*/Sparkle/bin/generate_appcast' -print -quit)
+          if [[ -z "$GENERATE_APPCAST" ]]; then
+            echo "Sparkle generate_appcast tool was not resolved"
+            exit 1
+          fi
+
+          SPARKLE_GENERATE_APPCAST="$GENERATE_APPCAST" \
+            scripts/prepare-sparkle-feed.sh "$VERSION" "$BUILD" release
+
+      - name: Publish appcast to updates branch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          scripts/publish-sparkle-feed.sh "$VERSION" release/appcast.xml
+
+      - name: Upload feed evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast-${{ steps.version.outputs.tag }}
+          path: release/appcast.xml

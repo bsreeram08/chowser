@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-02-28 against commit 892fcaf -->
+<!-- Last verified: 2026-07-12 -->
 
 # Architecture
 
@@ -67,6 +67,17 @@ Chowser is a macOS menu-bar-only app (`LSUIElement`) that intercepts HTTP/HTTPS 
 8. **User chooses** → browser launches; `DomainFrequencyTracker.record()` logs the choice
 9. **Panel dismissed** — auto-closes after launch or on Escape
 
+## Distribution and Update Boundary
+
+The same synchronized `Chowser/` source group is compiled into two application targets:
+
+| Target / Scheme | Compilation condition | Entitlements | Update implementation |
+|---|---|---|---|
+| `Chowser` | `DIRECT_DISTRIBUTION` | `Chowser.entitlements` (unsandboxed) | Links Sparkle; GitHub stable/beta appcast |
+| `ChowserAppStore` / `Chowser-AppStore` | `APP_STORE` | `ChowserAppStore.entitlements` (sandboxed) | No Sparkle binary, metadata, or updater commands |
+
+The direct-only `AppUpdateController` owns Sparkle and the opt-in beta preference behind `AppUpdateProviding`. The separately compiled `AppStoreUpdateProvider` contains only the action that opens Chowser's App Store listing. `AppDelegate` starts and exposes the updater only under `DIRECT_DISTRIBUTION`.
+
 ## File Map
 
 ### Core Application
@@ -77,6 +88,9 @@ Chowser is a macOS menu-bar-only app (`LSUIElement`) that intercepts HTTP/HTTPS 
 | `AppDelegate.swift` | Menu bar setup, Apple Event handler, picker/settings window lifecycle, clipboard URL, onboarding gate |
 | `BrowserManager.swift` | Observable singleton; browser/rule CRUD, routing resolution, browser launch, import/export, UserDefaults persistence |
 | `AppEnvironment.swift` | Process argument flags for UI test isolation (`-UITesting`, `-UITesting_MockInstalledBrowsers`, etc.) |
+| `AppUpdateProviding.swift` | Direct-only app-owned interface isolating callers from Sparkle APIs |
+| `AppUpdateController.swift` | Direct-only Sparkle controller and beta-channel policy |
+| `AppStoreUpdateProvider.swift` | App Store-only handoff to Chowser's Mac App Store listing |
 | `BrowserProfileDetector.swift` | Detects profiles for Chromium (Chrome, Brave, Edge, Vivaldi, Arc, Dia) and Firefox-based (Firefox, Zen) browsers by reading application support data. |
 | `AppMetadataCache.swift` | Process-lifetime cache for app icons, display names, and URLs (avoids repeated NSWorkspace/Bundle I/O) |
 | `DomainFrequencyTracker.swift` | Records domain→browser click frequency; suggests auto-routing rules at threshold (30 clicks) |
@@ -120,14 +134,19 @@ Chowser is a macOS menu-bar-only app (`LSUIElement`) that intercepts HTTP/HTTPS 
 | `ChowserTests/BrowserConfigTests.swift` | Unit tests for BrowserConfig data model |
 | `ChowserTests/BrowserProfileDetectorTests.swift` | Unit tests for profile detection logic |
 | `ChowserTests/BrowserLaunchTests.swift` | Unit tests for browser launching with profiles and custom arguments |
+| `ChowserTests/AppUpdatePolicyTests.swift` | Unit tests for stable/beta channel policy and beta preference persistence |
 | `ChowserUITests/ChowserUITests.swift` | End-to-end UI tests for picker, settings, and onboarding flows |
 
 ### Scripts
 
 | File | Responsibility |
 |------|---------------|
-| `scripts/release.sh` | Version bump, archive build, DMG creation, git tagging |
+| `scripts/release.sh` | Safe local version preparation plus direct/App Store build verification; never commits or tags |
 | `scripts/generate-dmg-background.swift` | Generates styled DMG background image for releases |
+| `scripts/verify-distribution-artifact.sh` | Verifies bundle metadata, signatures, entitlements, Sparkle presence/absence, and notarization |
+| `scripts/prepare-sparkle-feed.sh` | Generates and validates signed stable/beta appcast entries |
+| `scripts/fetch-sparkle-feed.sh` | Retrieves existing feed history without treating transient failures as first release |
+| `scripts/publish-sparkle-feed.sh` | Publishes and verifies the signed feed on the GitHub `updates` branch |
 
 ## Data Models
 
@@ -173,6 +192,7 @@ All state is persisted to `UserDefaults`:
 | `onboardingCompleted` | Bool | Whether onboarding wizard has been finished |
 | `DomainFrequencyStats` | JSON Data | `[String: [String: Int]]` domain→browser→count |
 | `hasCompletedOnboarding` | Bool | Read by OnboardingManager (separate from BrowserManager's key) |
+| `updates.includeBetaReleases` | Bool | Direct-download updater beta-channel opt-in |
 
 - **Suite override**: During UI tests, suite switches to `in.sreerams.Chowser.UITests`
 - **Debounced writes**: Browser and rule saves are debounced at 0.3s via `DispatchWorkItem` to avoid rapid I/O during drag-reorder

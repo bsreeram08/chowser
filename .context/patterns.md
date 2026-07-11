@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-02-28 against commit 892fcaf -->
+<!-- Last verified: 2026-07-12 -->
 
 # Code Patterns
 
@@ -184,3 +184,19 @@ Browsers are uniquely identified by `"\(bundleId)|\(profile ?? "")"` — the `id
 **BrowserProfileDetector**: Caches `[BrowserProfile]` arrays keyed by bundle ID. `clearCache()` is called when Settings opens (to pick up newly created profiles).
 
 **Pattern**: Cache is a `static var` dictionary on a class with a `static let shared` singleton. No locking — relies on `@MainActor` isolation.
+
+---
+
+## 11. Compile-Time Distribution Boundaries
+
+Distribution-specific behavior is excluded at compile time and verified again in the finished app bundle.
+
+- `DIRECT_DISTRIBUTION` contains Sparkle imports, updater preferences, beta-channel policy, and update commands.
+- `APP_STORE` contains sandbox-compatible browser launching and the App Store update handoff.
+- Shared callers such as `AppDelegate` wrap direct-only method calls and declarations in the same condition, so the App Store executable does not retain dormant updater symbols or strings.
+- Target-specific Info.plists keep Sparkle `SU*` keys out of the App Store bundle.
+- `scripts/verify-distribution-artifact.sh` rejects an artifact when its framework, metadata, strings, or entitlements cross the boundary.
+
+Use this pattern for any future dependency or feature that App Review must not see in the submitted product. Do not rely on hiding UI at runtime.
+
+**See**: `AppUpdateController.swift`, `AppDelegate.swift`, `Info.plist`, `Info-AppStore.plist`, and architectural decision 11.

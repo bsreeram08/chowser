@@ -41,6 +41,64 @@ struct QuickPickerTests {
         ) == 0)
     }
 
+    @Test("Returning to the radial dead zone clears an active selection")
+    func returningToDeadZoneClearsSelection() {
+        let center = CGPoint(x: 190, y: 190)
+        var selection = RadialPickerSelectionState()
+
+        selection.update(
+            at: CGPoint(x: 190, y: 80),
+            center: center,
+            itemCount: 4,
+            shape: .circle
+        )
+        #expect(selection.index == 0)
+
+        selection.update(
+            at: CGPoint(x: 190, y: 185),
+            center: center,
+            itemCount: 4,
+            shape: .circle
+        )
+        #expect(selection.index == nil)
+    }
+
+    @Test("Two radial destinations map upward and downward from the cursor")
+    func twoDestinationDirections() {
+        let center = CGPoint(x: 250, y: 250)
+
+        #expect(RadialPickerGeometry.selectedIndex(
+            at: CGPoint(x: 250, y: 120),
+            center: center,
+            itemCount: 2,
+            shape: .circle
+        ) == 0)
+        #expect(RadialPickerGeometry.selectedIndex(
+            at: CGPoint(x: 250, y: 380),
+            center: center,
+            itemCount: 2,
+            shape: .circle
+        ) == 1)
+    }
+
+    @Test("Appearance preview scales real picker content to the available canvas")
+    func appearancePreviewFit() {
+        #expect(AppearancePreviewLayout.scale(
+            contentSize: CGSize(width: 500, height: 500),
+            availableSize: CGSize(width: 250, height: 300)
+        ) == 0.5)
+        #expect(AppearancePreviewLayout.scale(
+            contentSize: CGSize(width: 200, height: 180),
+            availableSize: CGSize(width: 320, height: 260)
+        ) == 1)
+    }
+
+    @Test("Appearance uses a stacked pinned preview at narrow detail widths")
+    func adaptiveAppearanceLayout() {
+        #expect(AppearancePreviewLayout.presentation(for: 680) == .stacked)
+        #expect(AppearancePreviewLayout.presentation(for: 760) == .sideBySide)
+    }
+
     @Test("Radial edge fan rejects movement toward the clipped side")
     func constrainedDirection() {
         let center = CGPoint(x: 190, y: 190)

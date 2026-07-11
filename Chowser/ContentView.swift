@@ -125,13 +125,6 @@ struct ContentView: View {
                     }
                 }
 
-                // Hidden test label for UI tests
-                if AppEnvironment.isUITesting {
-                    Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
-                        .font(.system(size: 1))
-                        .foregroundStyle(.clear)
-                        .accessibilityIdentifier("picker.lastOpenedBrowser")
-                }
             }
             .frame(width: pickerWidth)
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
@@ -193,6 +186,16 @@ struct ContentView: View {
         pickerPresentation
             .fixedSize(horizontal: false, vertical: true)
             .padding(usesQuickPicker ? (isPreview ? 24 : 12) : 0)
+            .overlay(alignment: .topLeading) {
+                // Keep the UI-test launch marker available in every presentation,
+                // including quick pickers that intentionally omit the classic panel.
+                if AppEnvironment.isUITesting {
+                    Text(browserManager.lastOpenedBrowserBundleIDForTesting ?? "none")
+                        .font(.system(size: 1))
+                        .foregroundStyle(.clear)
+                        .accessibilityIdentifier("picker.lastOpenedBrowser")
+                }
+            }
             .scaleEffect(appeared ? 1.0 : 0.96)
             .opacity(appeared ? 1.0 : 0.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: effectivePrivateMode)
@@ -204,12 +207,14 @@ struct ContentView: View {
                 loadLinkPreview(for: browserManager.currentURL)
                 syncPhoneHandoff()
                 cancelURLEdit()
+                prepareSelectionForPresentation()
             }
             .onChange(of: browserManager.currentURLPrivateModeRequested) {
                 syncPrivateModeRequest()
             }
             .onChange(of: browserManager.pickerLayoutMode) {
                 loadLinkPreview(for: browserManager.currentURL)
+                prepareSelectionForPresentation()
             }
             .onChange(of: browserManager.configuredBrowsers) {
                 syncKeyboardSelection(with: browserManager.configuredBrowsers)
@@ -226,7 +231,7 @@ struct ContentView: View {
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
             appeared = true
         }
-        syncKeyboardSelection(with: browserManager.configuredBrowsers)
+        prepareSelectionForPresentation()
         guard !isPreview else { return }
         installKeyEventMonitor()
 
@@ -1489,6 +1494,7 @@ struct ContentView: View {
         quickMoreSelected = false
         quickOverflowPresented = false
         quickOverflowSelectedBrowserId = nil
+        keyboardSelectedBrowserId = nil
         isEditingURL = false
         urlEditError = nil
         browserManager.currentRewriteTrace = []
@@ -1528,12 +1534,33 @@ struct ContentView: View {
 
     // MARK: - Keyboard Selection
 
+    private func prepareSelectionForPresentation() {
+        quickMoreSelected = false
+        quickOverflowPresented = false
+        quickOverflowSelectedBrowserId = nil
+
+        if browserManager.pickerLayoutMode == .radial {
+            keyboardSelectedBrowserId = nil
+        } else {
+            keyboardSelectedBrowserId = sortedBrowsers.first?.id
+        }
+    }
+
     private func syncKeyboardSelection(with browsers: [BrowserConfig]) {
         guard !browsers.isEmpty else {
             keyboardSelectedBrowserId = nil
             quickMoreSelected = false
             quickOverflowPresented = false
             quickOverflowSelectedBrowserId = nil
+            return
+        }
+        if browserManager.pickerLayoutMode == .radial {
+            if let selectedId = keyboardSelectedBrowserId,
+               browsers.contains(where: { $0.id == selectedId }) {
+                return
+            }
+            keyboardSelectedBrowserId = nil
+            quickMoreSelected = false
             return
         }
         if let selectedId = keyboardSelectedBrowserId, browsers.contains(where: { $0.id == selectedId }) { return }

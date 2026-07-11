@@ -869,23 +869,67 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func configurePickerAndShow(_ panel: NSPanel) {
         configurePickerWindow(panel)
-        
-        // Center on active screen (where the mouse is)
-        if let mouseLocation = NSEvent.mouseLocation as Optional<NSPoint>,
-           let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) ?? NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let windowFrame = panel.frame
-            let newOrigin = NSPoint(
-                x: screenFrame.origin.x + (screenFrame.width - windowFrame.width) / 2,
-                y: screenFrame.origin.y + (screenFrame.height - windowFrame.height) / 2
-            )
-            panel.setFrameOrigin(newOrigin)
+
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) ?? NSScreen.main
+        if let screen {
+            let mode = BrowserManager.shared.pickerLayoutMode
+            if mode == .radial {
+                BrowserManager.shared.radialPickerShape = RadialPickerGeometry.shape(
+                    anchor: mouseLocation,
+                    visibleFrame: screen.visibleFrame
+                )
+            }
+            panel.isMovableByWindowBackground = mode == .icons || mode == .list
+            panel.contentView?.layoutSubtreeIfNeeded()
+            positionPickerPanel(panel, mode: mode, mouseLocation: mouseLocation, screen: screen)
         }
-        
+
         // NSApp.activate(ignoringOtherApps: true) is REMOVED to prevent space-jumping.
         // Instead, we just make the panel key and front.
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+
+        // Observation can change the hosting view's preferred size one runloop after the
+        // layout preference changes. Reposition once with that final size while preserving
+        // the link-click cursor origin captured above.
+        if let screen {
+            let mode = BrowserManager.shared.pickerLayoutMode
+            DispatchQueue.main.async { [weak panel] in
+                guard let panel, panel.isVisible else { return }
+                panel.contentView?.layoutSubtreeIfNeeded()
+                self.positionPickerPanel(panel, mode: mode, mouseLocation: mouseLocation, screen: screen)
+            }
+        }
+    }
+
+    private func positionPickerPanel(_ panel: NSPanel, mode: PickerLayoutMode, mouseLocation: NSPoint, screen: NSScreen) {
+        let screenFrame = screen.visibleFrame
+        let windowFrame = panel.frame
+        let origin: NSPoint
+
+        switch mode {
+        case .radial:
+            // Keep the ring's center exactly under the link-click cursor. The radial view
+            // renders only inward-facing wedges at edges/corners, so the transparent half
+            // of this borderless panel may safely extend beyond the visible frame.
+            origin = NSPoint(
+                x: mouseLocation.x - windowFrame.width / 2,
+                y: mouseLocation.y - windowFrame.height / 2
+            )
+        case .minimal:
+            // The switcher stays near the cursor but remains fully reachable at an edge.
+            origin = NSPoint(
+                x: min(max(mouseLocation.x - windowFrame.width / 2, screenFrame.minX), screenFrame.maxX - windowFrame.width),
+                y: min(max(mouseLocation.y - windowFrame.height / 2, screenFrame.minY), screenFrame.maxY - windowFrame.height)
+            )
+        case .icons, .list:
+            origin = NSPoint(
+                x: screenFrame.origin.x + (screenFrame.width - windowFrame.width) / 2,
+                y: screenFrame.origin.y + (screenFrame.height - windowFrame.height) / 2
+            )
+        }
+        panel.setFrameOrigin(origin)
     }
 
     private func revealSettingsWindow(retries: Int) {

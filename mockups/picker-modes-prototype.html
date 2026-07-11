@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PROTOTYPE — Chowser Radial + Minimal Pickers</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #f6f7fa;
+    --muted: #9da3ad;
+    --line: rgba(255,255,255,.13);
+    --panel: rgba(25,27,31,.84);
+    --panel-strong: rgba(31,34,39,.97);
+    --accent: #74a7ff;
+    --accent-soft: rgba(88,145,255,.28);
+    --shadow: 0 22px 70px rgba(0,0,0,.46), 0 2px 14px rgba(0,0,0,.38);
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 74% 18%, rgba(86,109,164,.22), transparent 29%),
+      linear-gradient(115deg, rgba(5,7,10,.24), rgba(5,7,10,.64)),
+      repeating-linear-gradient(0deg, transparent 0 33px, rgba(255,255,255,.025) 34px),
+      #111419;
+    user-select: none;
+  }
+  button { font: inherit; }
+  .desktop {
+    position: absolute; inset: 0; overflow: hidden;
+    cursor: crosshair;
+  }
+  .fake-window {
+    position: absolute; left: 6%; top: 10%; width: 88%; height: 80%;
+    border: 1px solid rgba(255,255,255,.10); border-radius: 18px;
+    background: rgba(22,24,28,.54); box-shadow: 0 30px 90px rgba(0,0,0,.35);
+    overflow: hidden;
+  }
+  .fake-toolbar { height: 48px; border-bottom: 1px solid rgba(255,255,255,.08); display:flex; align-items:center; gap:8px; padding: 0 16px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #41464e; }
+  .fake-address { width: 42%; height: 25px; margin-left: 14px; border-radius: 7px; background: rgba(255,255,255,.055); }
+  .fake-copy { padding: 34px 44px; color: rgba(255,255,255,.14); font-size: clamp(18px,2.4vw,38px); font-weight: 650; line-height: 1.4; }
+  .fake-copy span { color: rgba(255,255,255,.23); }
+
+  .prototype-note {
+    position: fixed; left: 18px; top: 18px; z-index: 30; width: min(340px, calc(100vw - 36px));
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px;
+    background: rgba(20,22,26,.76); backdrop-filter: blur(18px) saturate(1.25); box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    pointer-events: none;
+  }
+  .prototype-note strong { display:block; font-size: 12px; letter-spacing:.01em; }
+  .prototype-note p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+  #pickerLayer { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+  #pickerLayer > * { pointer-events: auto; }
+
+  /* Radial */
+  #radialPicker { position: fixed; width: 340px; height: 340px; transform: translate(-50%,-50%); filter: drop-shadow(0 22px 38px rgba(0,0,0,.42)); }
+  #radialSvg { position:absolute; inset:0; overflow:visible; }
+  .wedge {
+    stroke: rgba(255,255,255,.12); stroke-width: 1;
+    fill: rgba(28,30,35,.87); transition: fill .08s ease, stroke .08s ease;
+  }
+  .wedge.selected { fill: var(--accent-soft); stroke: color-mix(in srgb, var(--accent) 78%, white 22%); stroke-width: 1.5; }
+  .wedge.more { fill: rgba(35,38,44,.91); }
+  .radial-item {
+    position: absolute; transform: translate(-50%,-50%); width: 68px; text-align:center;
+    transition: transform .1s ease, opacity .1s ease; pointer-events:none;
+  }
+  .radial-item.selected { transform: translate(-50%,-50%) scale(1.12); }
+  .app-icon {
+    width: 38px; height: 38px; margin: 0 auto; border-radius: 10px; display:grid; place-items:center;
+    color:white; font-size: 17px; font-weight: 800; letter-spacing:-.04em;
+    background: linear-gradient(145deg,var(--c1),var(--c2));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.24), 0 5px 12px rgba(0,0,0,.28);
+  }
+  .radial-item.selected .app-icon { box-shadow: inset 0 0 0 2px rgba(255,255,255,.72), 0 6px 16px rgba(0,0,0,.36), 0 0 0 3px color-mix(in srgb,var(--accent) 52%,transparent); }
+  .radial-label { margin-top: 5px; font-size: 10px; font-weight: 650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow: 0 1px 4px #000; }
+  .radial-profile { display:block; color: #b9bec7; font-weight: 500; font-size: 8px; margin-top:1px; }
+  .radial-hub {
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:64px; height:64px;
+    display:grid; place-items:center; border-radius:50%; border:1px solid rgba(255,255,255,.18);
+    color:#d6d9df; background: rgba(20,22,26,.96); box-shadow: inset 0 0 0 5px rgba(255,255,255,.025), 0 7px 25px rgba(0,0,0,.36);
+    cursor: grab; touch-action:none;
+  }
+  .radial-hub:active { cursor:grabbing; }
+  .hub-cross { width:18px; height:18px; position:relative; opacity:.8; }
+  .hub-cross::before,.hub-cross::after { content:""; position:absolute; background:currentColor; border-radius:2px; }
+  .hub-cross::before { width:18px; height:2px; left:0; top:8px; }
+  .hub-cross::after { width:2px; height:18px; top:0; left:8px; }
+  .selected-caption {
+    position:absolute; left:50%; transform:translateX(-50%); min-width:130px; max-width:210px; bottom:-4px;
+    padding:6px 10px; text-align:center; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+    color:#f8f9fb; background:rgba(20,22,26,.93); box-shadow:0 8px 20px rgba(0,0,0,.32);
+    font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .selected-caption .hint { color:var(--muted); font-weight:500; margin-left:5px; }
+
+  /* Minimal */
+  #minimalPicker {
+    position:fixed; transform:translate(-50%,-50%); padding: 6px 7px 5px;
+    border:1px solid rgba(255,255,255,.18); border-radius:14px;
+    background:var(--panel); backdrop-filter: blur(26px) saturate(1.35); box-shadow:var(--shadow);
+    touch-action:none;
+  }
+  .minimal-caption { height:16px; padding:0 5px 4px; color:#eef0f4; text-align:center; font-size:10px; font-weight:680; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .minimal-row { display:flex; gap:3px; }
+  .mini-item {
+    position:relative; width:42px; height:42px; padding:5px; border:0; border-radius:10px;
+    background:transparent; color:white; cursor:default; transition: background .08s ease, transform .08s ease;
+  }
+  .mini-item:hover,.mini-item.selected { background:rgba(255,255,255,.12); transform:scale(1.05); }
+  .mini-item.selected { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 75%,white 25%); background:var(--accent-soft); }
+  .mini-item .app-icon { width:32px; height:32px; border-radius:8px; font-size:14px; }
+  .keycap {
+    position:absolute; right:1px; bottom:0; min-width:13px; height:13px; padding:0 3px; display:grid; place-items:center;
+    border-radius:5px; color:#f3f4f6; background:rgba(16,18,21,.9); border:1px solid rgba(255,255,255,.14);
+    font:700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* Overflow */
+  .more-list {
+    position:fixed; width:214px; padding:6px; border-radius:13px; border:1px solid rgba(255,255,255,.17);
+    background:var(--panel-strong); backdrop-filter:blur(24px); box-shadow:var(--shadow); z-index:18;
+  }
+  .more-title { padding:5px 8px 7px; color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .more-row {
+    width:100%; border:0; color:var(--ink); background:transparent; border-radius:8px; padding:7px 8px;
+    display:flex; align-items:center; gap:9px; text-align:left;
+  }
+  .more-row:hover,.more-row.selected { background:rgba(255,255,255,.10); }
+  .more-row .app-icon { width:28px; height:28px; margin:0; border-radius:7px; font-size:12px; flex:0 0 auto; }
+  .more-copy { min-width:0; }
+  .more-name { font-size:11px; font-weight:680; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .more-profile { color:var(--muted); font-size:9px; margin-top:1px; }
+
+  .toast {
+    position:fixed; left:50%; top:22px; transform:translateX(-50%) translateY(-8px); z-index:40;
+    padding:9px 13px; border-radius:10px; color:white; background:rgba(27,30,35,.96); border:1px solid var(--line);
+    box-shadow:0 10px 30px rgba(0,0,0,.36); font-size:11px; font-weight:650; opacity:0; pointer-events:none;
+    transition:opacity .14s ease, transform .14s ease;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .switcher {
+    position:fixed; z-index:50; left:50%; bottom:18px; transform:translateX(-50%);
+    display:flex; align-items:center; gap:5px; padding:5px;
+    border:1px solid rgba(255,255,255,.18); border-radius:14px; background:rgba(21,23,27,.91);
+    backdrop-filter:blur(22px); box-shadow:0 12px 35px rgba(0,0,0,.38);
+  }
+  .switcher button { border:0; color:#d9dce2; background:transparent; border-radius:9px; height:30px; padding:0 10px; cursor:pointer; font-size:11px; font-weight:680; }
+  .switcher button:hover { background:rgba(255,255,255,.09); }
+  .switcher .active { color:white; background:rgba(92,145,255,.27); box-shadow:inset 0 0 0 1px rgba(126,171,255,.42); }
+  .divider { width:1px; height:18px; background:var(--line); margin:0 2px; }
+  .edge-button { color:var(--muted) !important; }
+  .private-on { --accent:#ca80ff; --accent-soft:rgba(176,86,235,.30); }
+  @media (max-width: 600px) { .prototype-note { display:none; } }
+</style>
+</head>
+<body>
+<div class="desktop" id="desktop">
+  <div class="fake-window">
+    <div class="fake-toolbar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="fake-address"></div></div>
+    <div class="fake-copy">A throwaway interaction prototype.<br><span>Click the background to move the link’s cursor origin. Move outward to choose a browser.</span></div>
+  </div>
+</div>
+
+<div class="prototype-note">
+  <strong>PROTOTYPE — not production UI</strong>
+  <p id="instructions">Move away from the center to select. Click/Return confirms. Press the center, drag, and release also confirms. Click the background to test edges and corners.</p>
+</div>
+<div id="pickerLayer"></div>
+<div class="toast" id="toast"></div>
+
+<div class="switcher" aria-label="Prototype variants">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <button data-mode="radial">A · Radial</button>
+  <button data-mode="minimal">B · Minimal</button>
+  <button id="next" aria-label="Next variant">→</button>
+  <span class="divider"></span>
+  <button class="edge-button" data-position="center">Center</button>
+  <button class="edge-button" data-position="edge">Edge</button>
+  <button class="edge-button" data-position="corner">Corner</button>
+</div>
+
+<script>
+/*
+  PROTOTYPE QUESTION:
+  Do cursor-centered Radial and app-switcher-style Minimal layouts feel faster than
+  Chowser's classic picker? Switch with ?variant=radial or ?variant=minimal.
+*/
+const direct = [
+  { name:'Zen', profile:'Personal', glyph:'◎', c1:'#3d424a', c2:'#111317' },
+  { name:'Dia', profile:'Default', glyph:'D', c1:'#ffdf6a', c2:'#5f8cff' },
+  { name:'Brave', profile:'Work', glyph:'B', c1:'#ff7449', c2:'#d72319' },
+  { name:'Brave', profile:'Personal', glyph:'B', c1:'#ff7f52', c2:'#ea2b1f' },
+  { name:'Safari', profile:'Default', glyph:'S', c1:'#65cfff', c2:'#1672df' },
+  { name:'Chrome', profile:'Work', glyph:'C', c1:'#f2cb47', c2:'#2da866' },
+  { name:'Firefox', profile:'Dev', glyph:'F', c1:'#f58132', c2:'#7a2eb8' },
+  { name:'Arc', profile:'Spaces', glyph:'A', c1:'#f59bc4', c2:'#7058e5' },
+];
+const overflow = [
+  { name:'Orion', profile:'Private', glyph:'O', c1:'#45cab9', c2:'#12689f' },
+  { name:'Vivaldi', profile:'Research', glyph:'V', c1:'#ef5264', c2:'#a81228' },
+  { name:'Firefox', profile:'Testing', glyph:'F', c1:'#ff9a3c', c2:'#7234bd' },
+  { name:'Chrome', profile:'Guest', glyph:'C', c1:'#e1bd3b', c2:'#248f62' },
+];
+const moreItem = { name:'More', profile:`${overflow.length} browsers`, glyph:'•••', c1:'#545a64', c2:'#25282e', more:true };
+const items = [...direct, moreItem];
+const modes = ['radial','minimal'];
+let mode = new URLSearchParams(location.search).get('variant');
+if (!modes.includes(mode)) mode = 'radial';
+let anchor = { x: innerWidth * .58, y: innerHeight * .52 };
+let selected = null;
+let moreOpen = false;
+let overflowSelected = 0;
+let geometry = null;
+let dragging = false;
+let privateMode = false;
+let toastTimer;
+const layer = document.querySelector('#pickerLayer');
+const desktop = document.querySelector('#desktop');
+
+function iconHTML(item) {
+  return `<span class="app-icon" style="--c1:${item.c1};--c2:${item.c2}">${item.glyph}</span>`;
+}
+function label(item) { return item.more ? 'More browsers' : `${item.name} — ${item.profile}`; }
+function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+function normAngle(a){ while(a < -Math.PI) a += Math.PI*2; while(a > Math.PI) a -= Math.PI*2; return a; }
+function angularDistance(a,b){ return Math.abs(normAngle(a-b)); }
+function polar(cx,cy,r,a){ return {x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)}; }
+function arcPath(cx,cy,ri,ro,a0,a1){
+  const p0=polar(cx,cy,ro,a0), p1=polar(cx,cy,ro,a1), p2=polar(cx,cy,ri,a1), p3=polar(cx,cy,ri,a0);
+  const large = Math.abs(a1-a0) > Math.PI ? 1 : 0;
+  return `M ${p0.x} ${p0.y} A ${ro} ${ro} 0 ${large} 1 ${p1.x} ${p1.y} L ${p2.x} ${p2.y} A ${ri} ${ri} 0 ${large} 0 ${p3.x} ${p3.y} Z`;
+}
+
+function radialGeometry(){
+  const outer=137, safe=outer+18;
+  const nearL=anchor.x<safe, nearR=anchor.x>innerWidth-safe, nearT=anchor.y<safe, nearB=anchor.y>innerHeight-safe;
+  const edges=[nearL,nearR,nearT,nearB].filter(Boolean).length;
+  let span=Math.PI*2, center=-Math.PI/2;
+  if(edges>=2){
+    center=Math.atan2(innerHeight/2-anchor.y,innerWidth/2-anchor.x); span=Math.PI*0.68;
+  } else if(nearL){ center=0; span=Math.PI; }
+  else if(nearR){ center=Math.PI; span=Math.PI; }
+  else if(nearT){ center=Math.PI/2; span=Math.PI; }
+  else if(nearB){ center=-Math.PI/2; span=Math.PI; }
+  const gap=span===Math.PI*2 ? .025 : .035;
+  const step=span/items.length;
+  const start=center-span/2;
+  const centers=items.map((_,i)=>start+step*(i+.5));
+  return {outer,inner:35,span,center,start,step,gap,centers,shape:edges>=2?'corner':edges===1?'edge':'circle'};
+}
+
+function render(){
+  selected=null; moreOpen=false; dragging=false;
+  document.body.classList.toggle('private-on',privateMode);
+  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+  document.querySelector('#instructions').textContent = mode==='radial'
+    ? 'Move away from the center to select. Click/Return confirms. Press the center, drag, and release also confirms. Click the background to test edges and corners.'
+    : 'Hover or move across the strip. Click/Return confirms. Press, drag, and release also confirms. Arrow and number keys work.';
+  if(mode==='radial') renderRadial(); else renderMinimal();
+  syncSelection();
+}
+
+function renderRadial(){
+  geometry=radialGeometry();
+  const size=340,c=size/2;
+  let wedges='', labels='';
+  items.forEach((item,i)=>{
+    const half=geometry.step/2;
+    const a0=geometry.centers[i]-half+geometry.gap;
+    const a1=geometry.centers[i]+half-geometry.gap;
+    wedges += `<path class="wedge ${item.more?'more':''}" data-index="${i}" d="${arcPath(c,c,geometry.inner,geometry.outer,a0,a1)}"></path>`;
+    const p=polar(c,c,91,geometry.centers[i]);
+    labels += `<div class="radial-item" data-index="${i}" style="left:${p.x}px;top:${p.y}px">${iconHTML(item)}<div class="radial-label">${item.name}<span class="radial-profile">${item.profile}</span></div></div>`;
+  });
+  layer.innerHTML=`<div id="radialPicker" style="left:${anchor.x}px;top:${anchor.y}px" aria-label="Radial browser picker">
+    <svg id="radialSvg" viewBox="0 0 ${size} ${size}">${wedges}</svg>${labels}
+    <div class="radial-hub" role="button" aria-label="Drag from center to choose"><i class="hub-cross"></i></div>
+    <div class="selected-caption" id="caption">Move to choose <span class="hint">↵ open</span></div>
+  </div>`;
+  const picker=document.querySelector('#radialPicker');
+  picker.querySelectorAll('.wedge').forEach(w=>{
+    w.addEventListener('mouseenter',()=>setSelected(+w.dataset.index));
+    w.addEventListener('click',e=>{e.stopPropagation(); setSelected(+w.dataset.index); activate();});
+  });
+  const hub=picker.querySelector('.radial-hub');
+  hub.addEventListener('pointerdown',e=>{ dragging=true; hub.setPointerCapture(e.pointerId); e.preventDefault(); });
+  hub.addEventListener('pointermove',e=>{ if(dragging) selectByDirection(e.clientX,e.clientY); });
+  hub.addEventListener('pointerup',e=>{ if(!dragging)return; dragging=false; hub.releasePointerCapture(e.pointerId); selectByDirection(e.clientX,e.clientY); if(selected!==null) activate(); });
+}
+
+function renderMinimal(){
+  const width=items.length*45+14;
+  const x=clamp(anchor.x,width/2+10,innerWidth-width/2-10);
+  const y=clamp(anchor.y,62,innerHeight-62);
+  const buttons=items.map((item,i)=>`<button class="mini-item" data-index="${i}" aria-label="${label(item)}">${iconHTML(item)}<span class="keycap">${i+1}</span></button>`).join('');
+  layer.innerHTML=`<div id="minimalPicker" style="left:${x}px;top:${y}px;width:${width}px" aria-label="Minimal browser picker">
+    <div class="minimal-caption" id="caption">Move to choose a browser</div><div class="minimal-row">${buttons}</div>
+  </div>`;
+  const picker=document.querySelector('#minimalPicker');
+  picker.querySelectorAll('.mini-item').forEach(btn=>{
+    btn.addEventListener('mouseenter',()=>setSelected(+btn.dataset.index));
+    btn.addEventListener('pointerdown',e=>{ dragging=true; picker.setPointerCapture(e.pointerId); setSelected(+btn.dataset.index); e.preventDefault(); });
+  });
+  picker.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    const under=document.elementFromPoint(e.clientX,e.clientY)?.closest('.mini-item');
+    if(under) setSelected(+under.dataset.index);
+  });
+  picker.addEventListener('pointerup',e=>{
+    if(!dragging)return; dragging=false; picker.releasePointerCapture(e.pointerId); activate();
+  });
+}
+
+function selectByDirection(x,y){
+  if(mode!=='radial')return;
+  const dx=x-anchor.x,dy=y-anchor.y,dist=Math.hypot(dx,dy);
+  if(dist<32){ setSelected(null); return; }
+  const angle=Math.atan2(dy,dx);
+  let best=0,bestDistance=Infinity;
+  geometry.centers.forEach((a,i)=>{ const d=angularDistance(angle,a); if(d<bestDistance){bestDistance=d;best=i;} });
+  setSelected(best);
+}
+function setSelected(i){
+  selected=i;
+  syncSelection();
+}
+function syncSelection(){
+  document.querySelectorAll('.wedge,.radial-item,.mini-item').forEach(el=>el.classList.toggle('selected',selected!==null && +el.dataset.index===selected));
+  const caption=document.querySelector('#caption');
+  if(caption){
+    if(selected===null) caption.innerHTML=mode==='radial'?'Move to choose <span class="hint">↵ open</span>':'Move to choose a browser';
+    else caption.innerHTML=`${label(items[selected])}${privateMode&&!items[selected].more?' · Private':''} <span class="hint">↵ open</span>`;
+  }
+}
+
+function positionMoreList(){
+  const w=214,h=overflow.length*44+36,pad=12;
+  let x=anchor.x+70,y=anchor.y-h/2;
+  if(x+w>innerWidth-pad) x=anchor.x-w-70;
+  x=clamp(x,pad,innerWidth-w-pad); y=clamp(y,pad,innerHeight-h-pad);
+  return {x,y};
+}
+function openMore(){
+  moreOpen=true; overflowSelected=0;
+  const p=positionMoreList();
+  const rows=overflow.map((item,i)=>`<button class="more-row ${i===0?'selected':''}" data-overflow="${i}">${iconHTML(item)}<span class="more-copy"><div class="more-name">${item.name}</div><div class="more-profile">${item.profile}</div></span></button>`).join('');
+  layer.insertAdjacentHTML('beforeend',`<div class="more-list" style="left:${p.x}px;top:${p.y}px"><div class="more-title">More browsers & profiles</div>${rows}</div>`);
+  document.querySelectorAll('.more-row').forEach(row=>{
+    row.addEventListener('mouseenter',()=>setOverflowSelected(+row.dataset.overflow));
+    row.addEventListener('click',e=>{e.stopPropagation();setOverflowSelected(+row.dataset.overflow);activateOverflow();});
+  });
+}
+function setOverflowSelected(i){
+  overflowSelected=(i+overflow.length)%overflow.length;
+  document.querySelectorAll('.more-row').forEach((r,n)=>r.classList.toggle('selected',n===overflowSelected));
+}
+function activateOverflow(){
+  const item=overflow[overflowSelected];
+  showToast(`Would open in ${item.name} — ${item.profile}${privateMode?' (Private)':''}`);
+  closeMore();
+}
+function closeMore(){ moreOpen=false; document.querySelector('.more-list')?.remove(); }
+function activate(){
+  if(selected===null)return;
+  const item=items[selected];
+  if(item.more){ if(moreOpen)closeMore(); else openMore(); return; }
+  showToast(`Would open in ${item.name} — ${item.profile}${privateMode?' (Private)':''}`);
+}
+function showToast(text){
+  const toast=document.querySelector('#toast'); toast.textContent=text; toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>toast.classList.remove('show'),1500);
+}
+function setMode(next){
+  mode=next; const url=new URL(location.href); url.searchParams.set('variant',mode); history.replaceState({},'',url); render();
+}
+function cycleMode(delta){ const i=modes.indexOf(mode); setMode(modes[(i+delta+modes.length)%modes.length]); }
+
+window.addEventListener('pointermove',e=>{
+  if(mode==='radial' && !moreOpen && !e.target.closest('.switcher,.prototype-note,.more-list')) selectByDirection(e.clientX,e.clientY);
+});
+desktop.addEventListener('click',e=>{
+  if(e.target.closest('.switcher'))return;
+  anchor={x:e.clientX,y:e.clientY}; render();
+});
+window.addEventListener('keydown',e=>{
+  if(e.key==='p'||e.key==='P'){ privateMode=!privateMode; document.body.classList.toggle('private-on',privateMode); syncSelection(); showToast(privateMode?'Private mode on':'Private mode off'); return; }
+  if(e.key==='Escape'){ if(moreOpen)closeMore(); else {selected=null;syncSelection();} return; }
+  if(moreOpen){
+    if(e.key==='ArrowDown'){setOverflowSelected(overflowSelected+1);e.preventDefault();}
+    if(e.key==='ArrowUp'){setOverflowSelected(overflowSelected-1);e.preventDefault();}
+    if(e.key==='Enter'){activateOverflow();e.preventDefault();}
+    return;
+  }
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){setSelected(selected===null?0:(selected+1)%items.length);e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){setSelected(selected===null?items.length-1:(selected-1+items.length)%items.length);e.preventDefault();}
+  if(e.key==='Enter'){activate();e.preventDefault();}
+  if(/^[1-9]$/.test(e.key)){setSelected(+e.key-1);activate();}
+  if(e.key==='[')cycleMode(-1);
+  if(e.key===']')cycleMode(1);
+});
+window.addEventListener('resize',()=>{anchor.x=clamp(anchor.x,8,innerWidth-8);anchor.y=clamp(anchor.y,8,innerHeight-8);render();});
+
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+document.querySelector('#prev').addEventListener('click',()=>cycleMode(-1));
+document.querySelector('#next').addEventListener('click',()=>cycleMode(1));
+document.querySelectorAll('[data-position]').forEach(b=>b.addEventListener('click',()=>{
+  const p=b.dataset.position;
+  anchor=p==='center'?{x:innerWidth*.58,y:innerHeight*.52}:p==='edge'?{x:54,y:innerHeight*.55}:{x:54,y:70};
+  render();
+}));
+render();
+</script>
+</body>
+</html>

@@ -17,6 +17,9 @@ struct ContentView: View {
     var isPreview = false
     @State private var hoveredBrowserId: UUID?
     @State private var keyboardSelectedBrowserId: UUID?
+    @State private var quickMoreSelected = false
+    @State private var quickOverflowPresented = false
+    @State private var quickOverflowSelectedBrowserId: UUID?
     @State private var appeared = false
     @State private var dismissTask: DispatchWorkItem?
     @State private var focusObserver: NSObjectProtocol?
@@ -135,11 +138,61 @@ struct ContentView: View {
         }
     }
 
+    private var usesQuickPicker: Bool {
+        !showingConfigureRule
+            && !isEditingURL
+            && !showingPhoneActionMenu
+            && !showingPhoneQRSheet
+            && !showingShortcutsInfo
+            && !browserManager.isResolvingIncomingURL
+            && !browserManager.configuredBrowsers.isEmpty
+            && (browserManager.pickerLayoutMode == .radial || browserManager.pickerLayoutMode == .minimal)
+    }
+
+    @ViewBuilder
+    private var pickerPresentation: some View {
+        if usesQuickPicker {
+            switch browserManager.pickerLayoutMode {
+            case .radial:
+                RadialPickerView(
+                    browsers: sortedBrowsers,
+                    shape: browserManager.radialPickerShape,
+                    selectedBrowserID: $keyboardSelectedBrowserId,
+                    moreSelected: $quickMoreSelected,
+                    overflowPresented: $quickOverflowPresented,
+                    overflowSelectedBrowserID: $quickOverflowSelectedBrowserId,
+                    privateMode: effectivePrivateMode,
+                    openBrowser: { browser in
+                        openUrl(with: browser, usePrivateMode: requestedPrivateMode(modifierFlags: NSEvent.modifierFlags))
+                    }
+                )
+            case .minimal:
+                MinimalPickerView(
+                    browsers: sortedBrowsers,
+                    selectedBrowserID: $keyboardSelectedBrowserId,
+                    moreSelected: $quickMoreSelected,
+                    overflowPresented: $quickOverflowPresented,
+                    overflowSelectedBrowserID: $quickOverflowSelectedBrowserId,
+                    privateMode: effectivePrivateMode,
+                    openBrowser: { browser in
+                        openUrl(with: browser, usePrivateMode: requestedPrivateMode(modifierFlags: NSEvent.modifierFlags))
+                    }
+                )
+            default:
+                EmptyView()
+            }
+        } else {
+            panelContent
+                .fixedSize(horizontal: false, vertical: true)
+                .pickerPanelSurface()
+                .padding(isPreview ? 24 : 64) // glow-shadow room; tighter in the Settings preview so the footer fits
+        }
+    }
+
     var body: some View {
-        panelContent
+        pickerPresentation
             .fixedSize(horizontal: false, vertical: true)
-            .pickerPanelSurface()
-            .padding(isPreview ? 24 : 64) // glow-shadow room; tighter in the Settings preview so the footer fits
+            .padding(usesQuickPicker ? (isPreview ? 24 : 12) : 0)
             .scaleEffect(appeared ? 1.0 : 0.96)
             .opacity(appeared ? 1.0 : 0.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: effectivePrivateMode)
@@ -154,6 +207,9 @@ struct ContentView: View {
             }
             .onChange(of: browserManager.currentURLPrivateModeRequested) {
                 syncPrivateModeRequest()
+            }
+            .onChange(of: browserManager.pickerLayoutMode) {
+                loadLinkPreview(for: browserManager.currentURL)
             }
             .onChange(of: browserManager.configuredBrowsers) {
                 syncKeyboardSelection(with: browserManager.configuredBrowsers)
@@ -379,10 +435,6 @@ struct ContentView: View {
                     .accessibilityIdentifier("picker.urlEditError")
             }
 
-            if !browserManager.currentRewriteTrace.isEmpty {
-                rewriteTraceView
-            }
-
             if browserManager.showLinkPreview {
                 previewRow
             }
@@ -424,31 +476,6 @@ struct ContentView: View {
         isEditingURL = false
         urlEditError = nil
         _ = openSelectedBrowser(usePrivateMode: effectivePrivateMode)
-    }
-
-    // MARK: - Rewrite Trace
-
-    /// Rewrite trace shown inline in the picker's existing preview area (Phase 3
-    /// cherry-pick) — one step per rule that actually fired, not a collapsed summary
-    /// (design review: hides which rule changed what).
-    private var rewriteTraceView: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(browserManager.currentRewriteTrace) { step in
-                HStack(spacing: 6) {
-                    Image(systemName: step.skipped ? "exclamationmark.triangle" : "arrow.triangle.2.circlepath")
-                        .font(.system(size: 9))
-                        .foregroundStyle(step.skipped ? Color.orange : Color.secondary)
-                    Text(step.skipped
-                        ? "\(step.ruleName): \(step.skipReason ?? "skipped")"
-                        : "\(step.ruleName): \(step.beforeURL.host ?? step.beforeURL.absoluteString) → \(step.afterURL.host ?? step.afterURL.absoluteString)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-        }
-        .accessibilityIdentifier("picker.rewriteTrace")
     }
 
     // MARK: - Send to Phone
@@ -861,6 +888,7 @@ struct ContentView: View {
     private func loadLinkPreview(for url: URL?) {
         previewTask?.cancel()
         withAnimation(.easeOut(duration: 0.2)) { previewState = .idle }
+        guard browserManager.pickerLayoutMode == .icons || browserManager.pickerLayoutMode == .list else { return }
         guard browserManager.showLinkPreview, let url else { return }
         // FR-034: the preview fetch is a real GET to the link's host — it must respect the
         // same off-by-default privacy posture as shortlink resolution, not a silent exception.
@@ -926,7 +954,7 @@ struct ContentView: View {
 
     private var browserBarPill: some View {
         let browsers = sortedBrowsers
-        let isListMode = browserManager.pickerLayoutMode == "list"
+        let isListMode = browserManager.pickerLayoutMode == .list
 
         return VStack(spacing: 0) {
             if isListMode {
@@ -1409,7 +1437,7 @@ struct ContentView: View {
     }
 
     private var pickerWidth: CGFloat {
-        if browserManager.pickerLayoutMode == "list" {
+        if browserManager.pickerLayoutMode == .list {
             return 400
         }
         let count = max(1, CGFloat(browserManager.configuredBrowsers.count))
@@ -1458,6 +1486,9 @@ struct ContentView: View {
         showingPhoneActionMenu = false
         showingPhoneQRSheet = false
         showingShortcutsInfo = false
+        quickMoreSelected = false
+        quickOverflowPresented = false
+        quickOverflowSelectedBrowserId = nil
         isEditingURL = false
         urlEditError = nil
         browserManager.currentRewriteTrace = []
@@ -1498,9 +1529,20 @@ struct ContentView: View {
     // MARK: - Keyboard Selection
 
     private func syncKeyboardSelection(with browsers: [BrowserConfig]) {
-        guard !browsers.isEmpty else { keyboardSelectedBrowserId = nil; return }
+        guard !browsers.isEmpty else {
+            keyboardSelectedBrowserId = nil
+            quickMoreSelected = false
+            quickOverflowPresented = false
+            quickOverflowSelectedBrowserId = nil
+            return
+        }
         if let selectedId = keyboardSelectedBrowserId, browsers.contains(where: { $0.id == selectedId }) { return }
         keyboardSelectedBrowserId = browsers.first?.id
+        quickMoreSelected = false
+        if let overflowID = quickOverflowSelectedBrowserId,
+           !browsers.dropFirst(8).contains(where: { $0.id == overflowID }) {
+            quickOverflowSelectedBrowserId = browsers.dropFirst(8).first?.id
+        }
     }
 
     private func installKeyEventMonitor() {
@@ -1562,8 +1604,9 @@ struct ContentView: View {
             return true
         }
 
-        // Escape — close sheet if open, otherwise dismiss picker
+        // Escape — close the most local surface first, otherwise dismiss the picker.
         if event.keyCode == 53 {
+            if quickOverflowPresented { quickOverflowPresented = false; return true }
             if showingConfigureRule { showingConfigureRule = false; return true }
             dismissPicker()
             return true
@@ -1699,6 +1742,40 @@ struct ContentView: View {
     private func moveSelection(by delta: Int) {
         let browsers = sortedBrowsers
         guard !browsers.isEmpty else { keyboardSelectedBrowserId = nil; return }
+
+        if usesQuickPicker, quickOverflowPresented {
+            let overflow = Array(browsers.dropFirst(8))
+            guard !overflow.isEmpty else { quickOverflowPresented = false; return }
+            let currentIndex = quickOverflowSelectedBrowserId.flatMap { id in overflow.firstIndex(where: { $0.id == id }) } ?? 0
+            quickOverflowSelectedBrowserId = overflow[(currentIndex + delta + overflow.count) % overflow.count].id
+            return
+        }
+
+        if usesQuickPicker {
+            let direct = Array(browsers.prefix(8))
+            let hasMore = browsers.count > direct.count
+            let itemCount = direct.count + (hasMore ? 1 : 0)
+            guard itemCount > 0 else { return }
+            let currentIndex: Int
+            if quickMoreSelected, hasMore {
+                currentIndex = direct.count
+            } else if let selectedId = keyboardSelectedBrowserId,
+                      let index = direct.firstIndex(where: { $0.id == selectedId }) {
+                currentIndex = index
+            } else {
+                currentIndex = delta > 0 ? -1 : 0
+            }
+            let nextIndex = (currentIndex + delta + itemCount) % itemCount
+            if hasMore, nextIndex == direct.count {
+                keyboardSelectedBrowserId = nil
+                quickMoreSelected = true
+            } else {
+                keyboardSelectedBrowserId = direct[nextIndex].id
+                quickMoreSelected = false
+            }
+            return
+        }
+
         guard let currentId = keyboardSelectedBrowserId,
               let currentIndex = browsers.firstIndex(where: { $0.id == currentId }) else {
             keyboardSelectedBrowserId = browsers.first?.id
@@ -1710,10 +1787,28 @@ struct ContentView: View {
     private func openSelectedBrowser(usePrivateMode: Bool = false) -> Bool {
         let browsers = sortedBrowsers
         guard !browsers.isEmpty else { return false }
+
+        if usesQuickPicker, quickOverflowPresented {
+            let overflow = Array(browsers.dropFirst(8))
+            guard let browser = quickOverflowSelectedBrowserId.flatMap({ id in overflow.first(where: { $0.id == id }) }) ?? overflow.first else {
+                return false
+            }
+            quickOverflowSelectedBrowserId = browser.id
+            openUrl(with: browser, usePrivateMode: usePrivateMode)
+            return true
+        }
+
+        if usesQuickPicker, quickMoreSelected, browsers.count > 8 {
+            quickOverflowSelectedBrowserId = browsers.dropFirst(8).first?.id
+            quickOverflowPresented = true
+            return true
+        }
+
         guard let selectedId = keyboardSelectedBrowserId,
               let browser = browsers.first(where: { $0.id == selectedId }) else {
             if let first = browsers.first {
                 keyboardSelectedBrowserId = first.id
+                quickMoreSelected = false
                 openUrl(with: first, usePrivateMode: usePrivateMode)
                 return true
             }

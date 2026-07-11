@@ -106,6 +106,30 @@ enum RadialPickerGeometry {
     }
 }
 
+struct RadialPickerSelectionState: Equatable {
+    private(set) var index: Int?
+
+    init(index: Int? = nil) {
+        self.index = index
+    }
+
+    mutating func update(
+        at location: CGPoint,
+        center: CGPoint,
+        itemCount: Int,
+        shape: RadialPickerShape,
+        deadZone: CGFloat = RadialPickerGeometry.deadZoneRadius
+    ) {
+        index = RadialPickerGeometry.selectedIndex(
+            at: location,
+            center: center,
+            itemCount: itemCount,
+            shape: shape,
+            deadZone: deadZone
+        )
+    }
+}
+
 private struct QuickPickerEntry: Identifiable {
     let id: String
     let browser: BrowserConfig?
@@ -122,9 +146,10 @@ struct RadialPickerView: View {
     @Binding var overflowSelectedBrowserID: UUID?
     let privateMode: Bool
     let openBrowser: (BrowserConfig) -> Void
+    @State private var activationInProgress = false
 
     // Extra transparent room keeps the expanded More list inside the borderless panel
-    // even when the ring itself is centered on a cursor at a screen edge.
+    // even when the directional orbit is centered on a cursor at a screen edge.
     private let size: CGFloat = 500
 
     private var directBrowsers: [BrowserConfig] { Array(browsers.prefix(8)) }
@@ -138,7 +163,7 @@ struct RadialPickerView: View {
 
     var body: some View {
         ZStack {
-            radialRing
+            directionalOrbit
                 .opacity(overflowPresented ? 0.18 : 1)
                 .blur(radius: overflowPresented ? 2 : 0)
 
@@ -156,6 +181,7 @@ struct RadialPickerView: View {
         }
         .frame(width: size, height: size)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("picker.radial")
         .onContinuousHover(coordinateSpace: .local) { phase in
             guard !overflowPresented else { return }
@@ -180,7 +206,7 @@ struct RadialPickerView: View {
         .animation(.spring(response: 0.2, dampingFraction: 0.82), value: overflowPresented)
     }
 
-    private var radialRing: some View {
+    private var directionalOrbit: some View {
         let angles = RadialPickerGeometry.centerAngles(itemCount: entries.count, shape: shape)
         let step = entries.isEmpty ? 0 : shape.span / CGFloat(entries.count)
         let gap: CGFloat = shape.span >= .pi * 2 - 0.001 ? 0.025 : 0.04
@@ -196,36 +222,37 @@ struct RadialPickerView: View {
                     endAngle: angles[index] + step / 2 - gap
                 )
 
-                wedge
-                    .fill(isSelected ? (privateMode ? Color.purple.opacity(0.35) : Color.pickerAccent.opacity(0.32)) : Color(nsColor: .windowBackgroundColor).opacity(0.88))
-                    .overlay(wedge.stroke(isSelected ? (privateMode ? Color.purple : Color.pickerAccentText) : Color.white.opacity(0.14), lineWidth: isSelected ? 1.5 : 0.8))
-                    .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
+                if isSelected {
+                    wedge
+                        .fill(privateMode ? Color.purple.opacity(0.24) : Color.pickerAccent.opacity(0.2))
+                        .overlay(
+                            wedge.stroke(
+                                privateMode ? Color.purple.opacity(0.9) : Color.pickerAccentText.opacity(0.85),
+                                lineWidth: 1.5
+                            )
+                        )
+                        .shadow(
+                            color: privateMode ? Color.purple.opacity(0.22) : Color.pickerAccent.opacity(0.18),
+                            radius: 10
+                        )
+                        .transition(.opacity)
+                }
 
-                radialEntry(entry, selected: isSelected)
+                Button {
+                    select(index: index)
+                    activateSelection()
+                } label: {
+                    radialEntry(entry, selected: isSelected)
+                }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .position(
                         x: center.x + cos(angles[index]) * RadialPickerGeometry.itemRadius,
                         y: center.y + sin(angles[index]) * RadialPickerGeometry.itemRadius
                     )
-                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel(accessibilityLabel(for: entry))
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAction {
-                        select(index: index)
-                        activateSelection()
-                    }
+                    .accessibilityValue(isSelected ? "selected" : "not selected")
             }
-
-            Circle()
-                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
-                .frame(width: RadialPickerGeometry.innerRadius * 2 - 8, height: RadialPickerGeometry.innerRadius * 2 - 8)
-                .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
-                .overlay {
-                    Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .shadow(color: .black.opacity(0.28), radius: 8, y: 3)
-                .accessibilityHidden(true)
         }
     }
 
@@ -253,6 +280,22 @@ struct RadialPickerView: View {
             .lineLimit(1)
             .frame(width: 64)
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(selected ? 0.96 : 0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(
+                            selected
+                                ? (privateMode ? Color.purple.opacity(0.9) : Color.pickerAccentText.opacity(0.85))
+                                : Color.primary.opacity(0.12),
+                            lineWidth: selected ? 1.5 : 0.8
+                        )
+                )
+                .shadow(color: .black.opacity(0.25), radius: selected ? 10 : 7, y: 3)
+        )
         .scaleEffect(selected ? 1.1 : 1)
         .animation(.spring(response: 0.16, dampingFraction: 0.72), value: selected)
     }
@@ -270,12 +313,14 @@ struct RadialPickerView: View {
     }
 
     private func updateSelection(at location: CGPoint) {
-        guard let index = RadialPickerGeometry.selectedIndex(
+        var state = RadialPickerSelectionState(index: selectionIndex)
+        state.update(
             at: location,
             center: center,
             itemCount: entries.count,
             shape: shape
-        ) else {
+        )
+        guard let index = state.index else {
             selectedBrowserID = nil
             moreSelected = false
             return
@@ -295,13 +340,19 @@ struct RadialPickerView: View {
     }
 
     private func activateSelection() {
+        guard !activationInProgress else { return }
         if moreSelected, !overflowBrowsers.isEmpty {
+            activationInProgress = true
             overflowSelectedBrowserID = overflowBrowsers.first?.id
             overflowPresented = true
         } else if let selectedBrowserID,
                   let browser = directBrowsers.first(where: { $0.id == selectedBrowserID }) {
+            activationInProgress = true
             openBrowser(browser)
+        } else {
+            return
         }
+        DispatchQueue.main.async { activationInProgress = false }
     }
 
     private func accessibilityLabel(for entry: QuickPickerEntry) -> String {

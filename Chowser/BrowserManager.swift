@@ -576,6 +576,13 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         loadHiddenBundleIDs()
         loadRecentURLs()
         loadPickerPreferences()
+        if AppEnvironment.shouldUseRadialPickerFixture {
+            configuredBrowsers = [
+                BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1"),
+                BrowserConfig(name: "Chrome - Work", bundleId: "com.google.Chrome", shortcutKey: "2", profile: "Work"),
+            ]
+            pickerLayoutMode = .radial
+        }
         loadImportPreferences()
         appMode = ChowserAppMode(rawValue: defaults.string(forKey: Constants.appModeKey) ?? "") ?? .app
         hasBeenAskedAppMode = defaults.bool(forKey: Constants.hasBeenAskedAppModeKey)

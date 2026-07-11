@@ -23,12 +23,20 @@ enum AppEnvironment {
         arguments.contains("-UITesting_OpenPicker")
     }
 
+    static var shouldUseNarrowSettingsWindow: Bool {
+        isUITesting && arguments.contains("-UITesting_NarrowSettings")
+    }
+
     static var shouldBypassOnboardingForRequestedUITestSurface: Bool {
         isUITesting && (shouldOpenSettingsOnLaunch || shouldOpenPickerOnLaunch)
     }
 
     static var shouldUseMockInstalledBrowsers: Bool {
         arguments.contains("-UITesting_MockInstalledBrowsers")
+    }
+
+    static var shouldUseRadialPickerFixture: Bool {
+        isUITesting && arguments.contains("-UITesting_RadialPickerFixture")
     }
 
     static var shouldDisableExternalURLOpen: Bool {

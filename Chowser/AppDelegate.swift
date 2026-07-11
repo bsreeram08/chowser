@@ -52,8 +52,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     // without triggering a Space switch. Overriding canBecomeKey allows it 
     // to still handle keyboard shortcuts and text input.
     class ChowserPanel: NSPanel {
+        /// Radial mode must keep its visual center on the cursor even when
+        /// `NSHostingView` changes the panel's preferred size after presentation.
+        var cursorAnchor: NSPoint?
+        var pinsCenterToCursor = false
+
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
+
+        func pinnedOrigin(for size: NSSize) -> NSPoint? {
+            guard pinsCenterToCursor, let cursorAnchor else { return nil }
+            return NSPoint(
+                x: cursorAnchor.x - size.width / 2,
+                y: cursorAnchor.y - size.height / 2
+            )
+        }
+
+        override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+            var adjustedFrame = frameRect
+            if let pinnedOrigin = pinnedOrigin(for: adjustedFrame.size) {
+                adjustedFrame.origin = pinnedOrigin
+            }
+            super.setFrame(adjustedFrame, display: flag)
+        }
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -810,7 +831,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Chowser Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 980, height: 660))
+        let settingsContentSize = AppEnvironment.shouldUseNarrowSettingsWindow
+            ? NSSize(width: 860, height: 560)
+            : NSSize(width: 980, height: 660)
+        window.setContentSize(settingsContentSize)
         window.minSize = NSSize(width: 860, height: 560)
         window.center()
         window.isReleasedWhenClosed = false
@@ -867,7 +891,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return panel
     }
 
-    private func configurePickerAndShow(_ panel: NSPanel) {
+    private func configurePickerAndShow(_ panel: ChowserPanel) {
         configurePickerWindow(panel)
 
         let mouseLocation = NSEvent.mouseLocation
@@ -880,8 +904,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     visibleFrame: screen.visibleFrame
                 )
             }
+            panel.cursorAnchor = mode == .radial ? mouseLocation : nil
+            panel.pinsCenterToCursor = mode == .radial
+            panel.acceptsMouseMovedEvents = mode == .radial || mode == .minimal
             panel.isMovableByWindowBackground = mode == .icons || mode == .list
-            panel.contentView?.layoutSubtreeIfNeeded()
             positionPickerPanel(panel, mode: mode, mouseLocation: mouseLocation, screen: screen)
         }
 
@@ -897,13 +923,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let mode = BrowserManager.shared.pickerLayoutMode
             DispatchQueue.main.async { [weak panel] in
                 guard let panel, panel.isVisible else { return }
-                panel.contentView?.layoutSubtreeIfNeeded()
                 self.positionPickerPanel(panel, mode: mode, mouseLocation: mouseLocation, screen: screen)
             }
         }
     }
 
-    private func positionPickerPanel(_ panel: NSPanel, mode: PickerLayoutMode, mouseLocation: NSPoint, screen: NSScreen) {
+    private func positionPickerPanel(_ panel: ChowserPanel, mode: PickerLayoutMode, mouseLocation: NSPoint, screen: NSScreen) {
         let screenFrame = screen.visibleFrame
         let windowFrame = panel.frame
         let origin: NSPoint
@@ -913,10 +938,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // Keep the ring's center exactly under the link-click cursor. The radial view
             // renders only inward-facing wedges at edges/corners, so the transparent half
             // of this borderless panel may safely extend beyond the visible frame.
-            origin = NSPoint(
-                x: mouseLocation.x - windowFrame.width / 2,
-                y: mouseLocation.y - windowFrame.height / 2
-            )
+            guard let pinnedOrigin = panel.pinnedOrigin(for: windowFrame.size) else { return }
+            origin = pinnedOrigin
         case .minimal:
             // The switcher stays near the cursor but remains fully reachable at an edge.
             origin = NSPoint(

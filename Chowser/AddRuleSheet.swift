@@ -97,6 +97,9 @@ struct AddRuleSheet: View {
                         VStack(spacing: 16) {
                             DetailRow(label: "Browser") {
                                 Picker("", selection: $selectedBrowserIdentity) {
+                                    if selectedBrowserIdentity.isEmpty {
+                                        Text("Choose Browser").tag("")
+                                    }
                                     ForEach(manager.configuredBrowsers) { browser in
                                         Text(browser.name).tag(browser.identity)
                                     }

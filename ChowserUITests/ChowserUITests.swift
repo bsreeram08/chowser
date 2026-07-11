@@ -4,6 +4,7 @@ import AppKit
 final class ChowserUITests: XCTestCase {
     private var app: XCUIApplication!
     private var logsDirectory: URL!
+    private var defaultsSuiteName: String!
     private let chowserBundleIdentifier = "in.sreerams.Chowser"
 
     override func setUpWithError() throws {
@@ -11,20 +12,16 @@ final class ChowserUITests: XCTestCase {
 
         terminateRunningChowserApps()
 
-        app = XCUIApplication()
         logsDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("chowser-ui-tests-\(UUID().uuidString)", isDirectory: true)
-        app.launchEnvironment["CHOWSER_LOGS_DIRECTORY"] = logsDirectory.path
-        app.launchEnvironment["CHOWSER_DEFAULTS_SUITE"] = "in.sreerams.Chowser.UITests.\(UUID().uuidString)"
-        app.launchArguments = [
+        launchTestApp(arguments: [
             "-UITesting",
             "-UITesting_ClearData",
             "-UITesting_MockInstalledBrowsers",
             "-UITesting_DisableExternalOpen",
             "-UITesting_DefaultURL",
             "-UITesting_OpenSettings",
-        ]
-        app.launch()
+        ])
     }
 
     override func tearDownWithError() throws {
@@ -36,7 +33,11 @@ final class ChowserUITests: XCTestCase {
         if let logsDirectory {
             try? FileManager.default.removeItem(at: logsDirectory)
         }
+        if let defaultsSuiteName {
+            UserDefaults(suiteName: defaultsSuiteName)?.removePersistentDomain(forName: defaultsSuiteName)
+        }
         logsDirectory = nil
+        defaultsSuiteName = nil
         app = nil
     }
 
@@ -62,6 +63,146 @@ final class ChowserUITests: XCTestCase {
                 return
             }
         }
+    }
+
+    private func launchTestApp(
+        arguments: [String],
+        suiteLabel: String = "default",
+        mouseLocation: CGPoint? = nil
+    ) {
+        if let app, app.state != .notRunning {
+            app.terminate()
+        }
+        terminateRunningChowserApps()
+        if let defaultsSuiteName {
+            UserDefaults(suiteName: defaultsSuiteName)?.removePersistentDomain(forName: defaultsSuiteName)
+        }
+
+        defaultsSuiteName = "in.sreerams.Chowser.UITests.\(suiteLabel).\(UUID().uuidString)"
+        app = XCUIApplication()
+        app.launchEnvironment["CHOWSER_LOGS_DIRECTORY"] = logsDirectory.path
+        app.launchEnvironment["CHOWSER_DEFAULTS_SUITE"] = defaultsSuiteName
+        app.launchArguments = arguments
+        if let mouseLocation {
+            CGWarpMouseCursorPosition(mouseLocation)
+        }
+        app.launch()
+    }
+
+    func testAppearancePreviewStaysVisibleWhileEditingLowerSettings() throws {
+        let appearanceButton = app.buttons["settings.sidebar.appearance"]
+        XCTAssertTrue(appearanceButton.waitForExistence(timeout: 5))
+        appearanceButton.click()
+
+        let previewTitle = app.staticTexts["Preview"]
+        XCTAssertTrue(previewTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewTitle.isHittable)
+
+        let accentLabel = app.staticTexts["Accent Color"]
+        let scrollView = app.scrollViews["settings.appearance.controls"]
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !accentLabel.isHittable { scrollView.swipeUp() }
+        XCTAssertTrue(accentLabel.isHittable, "Lower appearance controls should be reachable.")
+        XCTAssertTrue(previewTitle.isHittable, "The live preview should remain visible while editing lower appearance controls.")
+    }
+
+    func testAppearanceUsesPinnedTopPreviewAtNarrowWidth() throws {
+        launchTestApp(arguments: [
+            "-UITesting",
+            "-UITesting_ClearData",
+            "-UITesting_MockInstalledBrowsers",
+            "-UITesting_DisableExternalOpen",
+            "-UITesting_DefaultURL",
+            "-UITesting_OpenSettings",
+            "-UITesting_NarrowSettings",
+        ], suiteLabel: "narrow")
+
+        let appearanceButton = app.buttons["settings.sidebar.appearance"]
+        XCTAssertTrue(appearanceButton.waitForExistence(timeout: 5))
+        appearanceButton.click()
+
+        let preview = app.descendants(matching: .any).matching(identifier: "settings.appearance.preview").firstMatch
+        let controls = app.scrollViews["settings.appearance.controls"]
+        let layoutPicker = app.descendants(matching: .any).matching(identifier: "settings.appearance.layoutPicker").firstMatch
+
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        XCTAssertTrue(controls.waitForExistence(timeout: 5))
+        XCTAssertTrue(layoutPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(preview.isHittable)
+        XCTAssertTrue(layoutPicker.isHittable)
+        XCTAssertLessThanOrEqual(preview.frame.maxY, controls.frame.minY + 2, "The compact preview should be pinned above the independently scrolling controls.")
+
+        let accentLabel = app.staticTexts["Accent Color"]
+        for _ in 0..<4 where !accentLabel.isHittable { controls.swipeUp() }
+        XCTAssertTrue(accentLabel.isHittable, "Lower appearance controls should remain reachable in the narrow layout.")
+        XCTAssertTrue(preview.isHittable, "The compact preview should remain visible while narrow controls scroll.")
+    }
+
+    func testFallbackBrowserPickerHasExplicitEmptySelection() throws {
+        let behaviorButton = app.buttons["settings.sidebar.behavior"]
+        XCTAssertTrue(behaviorButton.waitForExistence(timeout: 5))
+        behaviorButton.click()
+
+        let fallbackModePicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.behavior.fallbackModePicker")
+            .firstMatch
+        XCTAssertTrue(fallbackModePicker.waitForExistence(timeout: 5))
+        fallbackModePicker.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).click()
+
+        let browserPicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.behavior.fallbackBrowserPicker")
+            .firstMatch
+        XCTAssertTrue(browserPicker.waitForExistence(timeout: 5))
+        XCTAssertEqual(browserPicker.value as? String, "Choose Browser")
+    }
+
+    func testRadialPickerUsesCursorAsCenterAndDirectionSelectsBrowser() throws {
+        let screenFrame = NSScreen.main!.frame
+        launchTestApp(arguments: [
+            "-UITesting",
+            "-UITesting_ClearData",
+            "-UITesting_RadialPickerFixture",
+            "-UITesting_DisableExternalOpen",
+            "-UITesting_DefaultURL",
+            "-UITesting_OpenPicker",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+        ], suiteLabel: "radial", mouseLocation: CGPoint(x: screenFrame.midX, y: screenFrame.midY))
+
+        let radial = app.descendants(matching: .any).matching(identifier: "picker.radial").firstMatch
+        XCTAssertTrue(radial.waitForExistence(timeout: 5), "Radial picker should be visible.")
+        // XCTest may move the pointer while establishing its automation session, so compare
+        // against the actual post-launch pointer position and convert AppKit's bottom-left
+        // coordinates to XCTest's top-left screen coordinates.
+        let actualCursor = NSEvent.mouseLocation
+        let xctCursor = CGPoint(x: actualCursor.x, y: screenFrame.maxY - actualCursor.y)
+        XCTAssertEqual(radial.frame.midX, xctCursor.x, accuracy: 3, "Cursor must be the radial picker's horizontal center.")
+        XCTAssertEqual(radial.frame.midY, xctCursor.y, accuracy: 3, "Cursor must be the radial picker's vertical center.")
+
+        let safariButton = app.buttons["Open in Safari"]
+        let chromeButton = app.buttons["Open in Chrome - Work"]
+        XCTAssertTrue(safariButton.waitForExistence(timeout: 2))
+        XCTAssertTrue(chromeButton.waitForExistence(timeout: 2))
+        XCTAssertEqual(safariButton.value as? String, "not selected", "The cursor dead zone must start with no destination selected.")
+        XCTAssertEqual(chromeButton.value as? String, "not selected", "The cursor dead zone must start with no destination selected.")
+
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(radial.exists, "Return must not activate an invisible destination while the cursor is in the dead zone.")
+
+        // With two destinations browser 1 is above center and browser 2 is below center.
+        // Moving down from the original cursor anchor must select Chrome, not merely hover a button.
+        radial.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).hover()
+        let directionSelected = NSPredicate(format: "value == 'selected'")
+        let selectionResult = XCTWaiter.wait(
+            for: [XCTNSPredicateExpectation(predicate: directionSelected, object: chromeButton)],
+            timeout: 2
+        )
+        XCTAssertEqual(selectionResult, .completed, "Pointer direction should visibly select Chrome before confirmation.")
+        chromeButton.click()
+
+        let pickerDismissed = NSPredicate(format: "exists == false")
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: pickerDismissed, object: radial)], timeout: 3)
+        XCTAssertEqual(result, .completed, "Activating the direction-selected Chrome destination should dismiss the radial picker.")
     }
 
     func testSettingsDeleteButtonDoesNotCloseSettingsWindow() throws {

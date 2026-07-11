@@ -328,6 +328,7 @@ struct SettingsDetailScaffold<Actions: View, Content: View>: View {
     let title: String
     let subtitle: String
     let systemImage: String
+    let scrollsContent: Bool
     let actions: Actions
     let content: Content
 
@@ -335,12 +336,14 @@ struct SettingsDetailScaffold<Actions: View, Content: View>: View {
         title: String,
         subtitle: String,
         systemImage: String,
+        scrollsContent: Bool = true,
         @ViewBuilder actions: () -> Actions,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
+        self.scrollsContent = scrollsContent
         self.actions = actions()
         self.content = content()
     }
@@ -371,11 +374,16 @@ struct SettingsDetailScaffold<Actions: View, Content: View>: View {
 
             Divider()
 
-            ScrollView {
+            if scrollsContent {
+                ScrollView {
+                    content
+                        .padding(24)
+                        .frame(maxWidth: 920, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            } else {
                 content
-                    .padding(24)
-                    .frame(maxWidth: 920, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
     }
@@ -386,9 +394,17 @@ extension SettingsDetailScaffold where Actions == EmptyView {
         title: String,
         subtitle: String,
         systemImage: String,
+        scrollsContent: Bool = true,
         @ViewBuilder content: () -> Content
     ) {
-        self.init(title: title, subtitle: subtitle, systemImage: systemImage, actions: { EmptyView() }, content: content)
+        self.init(
+            title: title,
+            subtitle: subtitle,
+            systemImage: systemImage,
+            scrollsContent: scrollsContent,
+            actions: { EmptyView() },
+            content: content
+        )
     }
 }
 

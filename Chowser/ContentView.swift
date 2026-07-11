@@ -140,6 +140,10 @@ struct ContentView: View {
 
     private var usesQuickPicker: Bool {
         !showingConfigureRule
+            && !isEditingURL
+            && !showingPhoneActionMenu
+            && !showingPhoneQRSheet
+            && !showingShortcutsInfo
             && !browserManager.isResolvingIncomingURL
             && !browserManager.configuredBrowsers.isEmpty
             && (browserManager.pickerLayoutMode == .radial || browserManager.pickerLayoutMode == .minimal)

@@ -10,17 +10,40 @@ import AppKit
 import CoreImage
 import os
 
+struct PickerDestinationDisplay: Equatable {
+    let host: String
+    let path: String?
+
+    init(url: URL) {
+        host = url.host ?? url.scheme.map { $0 + ":" } ?? "Link"
+        let decodedPath = url.path
+        path = decodedPath.isEmpty || decodedPath == "/" ? nil : decodedPath
+    }
+}
+
+enum PickerSelectionSource {
+    case pointer
+    case keyboard
+    case programmatic
+}
+
 struct ContentView: View {
     var browserManager = BrowserManager.shared
     /// When true the view is embedded in Settings as a live preview: no key monitor,
     /// no focus-dismiss, and clicks open the browser without tearing the preview down.
     var isPreview = false
+    /// Deterministic metadata used by the Settings sample. The live picker always
+    /// derives this from `LinkMetadataFetcher` instead.
+    var previewMetadata: LinkMetadata? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var contrast
     @State private var hoveredBrowserId: UUID?
     @State private var keyboardSelectedBrowserId: UUID?
+    @State private var selectionSource: PickerSelectionSource = .programmatic
     @State private var quickMoreSelected = false
     @State private var quickOverflowPresented = false
     @State private var quickOverflowSelectedBrowserId: UUID?
-    @State private var appeared = false
     @State private var dismissTask: DispatchWorkItem?
     @State private var focusObserver: NSObjectProtocol?
     @State private var keyEventMonitor: Any?
@@ -99,7 +122,7 @@ struct ContentView: View {
                 onSave: { dismissPicker() },
                 preselectedBrowserBundleId: suggestedBrowserBundleId
             )
-            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .transition(PickerMotion.transition(reduceMotion: reduceMotion))
         } else {
             VStack(alignment: .center, spacing: 0) {
                 if !browserManager.hasSeenNetworkPrivacyUpgradeNotice {
@@ -127,7 +150,7 @@ struct ContentView: View {
 
             }
             .frame(width: pickerWidth)
-            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .transition(PickerMotion.transition(reduceMotion: reduceMotion))
         }
     }
 
@@ -196,10 +219,7 @@ struct ContentView: View {
                         .accessibilityIdentifier("picker.lastOpenedBrowser")
                 }
             }
-            .scaleEffect(appeared ? 1.0 : 0.96)
-            .opacity(appeared ? 1.0 : 0.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.75, blendDuration: 0.2), value: effectivePrivateMode)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showingConfigureRule)
+            .animation(PickerMotion.occasional(reduceMotion: reduceMotion), value: showingConfigureRule)
             .onAppear(perform: handleAppear)
             .onDisappear(perform: handleDisappear)
             .onChange(of: browserManager.currentURL) {
@@ -228,9 +248,6 @@ struct ContentView: View {
         loadLinkPreview(for: browserManager.currentURL)
         syncPhoneHandoff()
 
-        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-            appeared = true
-        }
         prepareSelectionForPresentation()
         guard !isPreview else { return }
         installKeyEventMonitor()
@@ -262,7 +279,9 @@ struct ContentView: View {
                         }
                     }
                     dismissTask = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+                    // Defer only to the next run loop so AppKit can identify a child
+                    // popover/sheet before we make the immediate focus-loss decision.
+                    DispatchQueue.main.async(execute: work)
                 }
             }
         }
@@ -342,97 +361,125 @@ struct ContentView: View {
     // MARK: - URL Bubble
 
     private func urlBubble(url: URL) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-        HStack(spacing: 8) {
-            Image(systemName: "link")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
+        let destination = PickerDestinationDisplay(url: url)
 
-            if isEditingURL {
-                TextField("https://example.com", text: $editableURLText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .focused($urlFieldFocused)
-                    .accessibilityIdentifier("picker.urlEditField")
-            } else {
-                Text(previewState.metadata?.finalURL.host ?? url.host ?? url.absoluteString)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .contentShape(Rectangle())
-                    .onTapGesture { beginEditingURL(url: url) }
-                    .accessibilityIdentifier("picker.urlEditTrigger")
-            }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "link")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
 
-            Spacer(minLength: 0)
+                if isEditingURL {
+                    TextField("https://example.com", text: $editableURLText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .focused($urlFieldFocused)
+                        .accessibilityIdentifier("picker.urlEditField")
+                } else {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(destination.host)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .accessibilityIdentifier("picker.urlDisplay")
 
-            HStack(spacing: 8) {
-                Button(action: { showingConfigureRule = true }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(effectivePrivateMode ? Color.purple.opacity(0.8) : Color.secondary)
-                        .padding(6)
-                        .pickerInteractiveMiniButton()
-                }
-                .buttonStyle(.plain)
-                .help("Add routing rule for this URL (R)")
-                .accessibilityIdentifier("picker.configureRuleButton")
-                .accessibilityLabel("Add routing rule")
-
-                if isUnshortening {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(6)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
-                } else if unshorteningError != nil {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color.red)
-                        .padding(6)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
-                        .help(unshorteningError ?? "Failed to unshorten")
+                        if let path = destination.path {
+                            Text(path)
+                                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .accessibilityIdentifier("picker.destinationPath")
+                        }
+                    }
                 }
 
-                Button(action: { copyCurrentURL(url) }) {
-                    Image(systemName: urlCopied ? "checkmark" : "doc.on.clipboard")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(urlCopied ? Color.green : (effectivePrivateMode ? Color.purple.opacity(0.8) : Color.secondary))
-                        .contentTransition(.symbolEffect(.replace))
-                        .padding(6)
-                        .pickerInteractiveMiniButton()
-                }
-                .buttonStyle(.plain)
-                .help("Copy URL (⌘C)")
-                .accessibilityLabel("Copy URL")
+                Spacer(minLength: 0)
 
-                if !PhoneLinkTransferManager.shared.availableActions(for: url).isEmpty {
-                    Button(action: { openPhoneActionMenu(url: url) }) {
-                        Image(systemName: "iphone")
+                HStack(spacing: 8) {
+                    Button(action: { beginEditingURL(url: url) }) {
+                        Image(systemName: "pencil")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(effectivePrivateMode ? Color.purple.opacity(0.8) : Color.secondary)
+                            .foregroundStyle(.secondary)
                             .padding(6)
                             .pickerInteractiveMiniButton()
                     }
-                    .buttonStyle(.plain)
-                    .help("\(PhoneLinkTransferManager.Strings.buttonLabel) (I)")
-                    .accessibilityIdentifier("picker.sendToIPhoneButton")
-                    .accessibilityLabel(PhoneLinkTransferManager.Strings.buttonLabel)
-                    .popover(isPresented: $showingPhoneActionMenu, arrowEdge: .top) {
-                        phoneActionMenu(url: url)
-                            .presentationBackground(.ultraThinMaterial)
+                    .buttonStyle(PickerPressButtonStyle())
+                    .help("Edit URL (E)")
+                    .accessibilityIdentifier("picker.urlEditTrigger")
+                    .accessibilityLabel("Edit URL")
+
+                    Button(action: { showingConfigureRule = true }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .padding(6)
+                            .pickerInteractiveMiniButton()
                     }
-                    .popover(isPresented: $showingPhoneQRSheet, arrowEdge: .top) {
-                        PhoneQRPanelView(
-                            url: url,
-                            faviconURL: previewState.metadata?.faviconURL,
-                            onClose: { showingPhoneQRSheet = false }
-                        )
-                        .presentationBackground(.ultraThinMaterial)
+                    .buttonStyle(PickerPressButtonStyle())
+                    .help("Add routing rule for this URL (R)")
+                    .accessibilityIdentifier("picker.configureRuleButton")
+                    .accessibilityLabel("Add routing rule")
+
+                    if isUnshortening {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(6)
+                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                    } else if unshorteningError != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.red)
+                            .padding(6)
+                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+                            .help(unshorteningError ?? "Failed to unshorten")
+                    }
+
+                    Button(action: { copyCurrentURL(url) }) {
+                        Image(systemName: urlCopied ? "checkmark" : "doc.on.clipboard")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(urlCopied ? Color.green : Color.secondary)
+                            .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                            .padding(6)
+                            .pickerInteractiveMiniButton()
+                    }
+                    .buttonStyle(PickerPressButtonStyle())
+                    .help("Copy URL (⌘C)")
+                    .accessibilityLabel("Copy URL")
+
+                    if !PhoneLinkTransferManager.shared.availableActions(for: url).isEmpty {
+                        Button(action: { openPhoneActionMenu(url: url) }) {
+                            Image(systemName: "iphone")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .padding(6)
+                                .pickerInteractiveMiniButton()
+                        }
+                        .buttonStyle(PickerPressButtonStyle())
+                        .help("\(PhoneLinkTransferManager.Strings.buttonLabel) (I)")
+                        .accessibilityIdentifier("picker.sendToIPhoneButton")
+                        .accessibilityLabel(PhoneLinkTransferManager.Strings.buttonLabel)
+                        .popover(isPresented: $showingPhoneActionMenu, arrowEdge: .top) {
+                            phoneActionMenu(url: url)
+                                .presentationBackground(.ultraThinMaterial)
+                        }
+                        .popover(isPresented: $showingPhoneQRSheet, arrowEdge: .top) {
+                            PhoneQRPanelView(
+                                url: url,
+                                faviconURL: previewState.metadata?.faviconURL,
+                                onClose: { showingPhoneQRSheet = false }
+                            )
+                            .presentationBackground(.ultraThinMaterial)
+                        }
                     }
                 }
             }
-        }
+
+            if effectivePrivateMode {
+                privateModeIndicator
+            }
 
             if let urlEditError {
                 Label(urlEditError, systemImage: "exclamationmark.triangle.fill")
@@ -447,7 +494,20 @@ struct ContentView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .accessibilityIdentifier("picker.urlDisplay")
+    }
+
+    private var privateModeIndicator: some View {
+        Label("Private", systemImage: "lock.fill")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.purple.opacity(0.14))
+                    .stroke(Color.purple.opacity(contrast == .increased ? 0.9 : 0.45), lineWidth: contrast == .increased ? 2 : 1)
+            )
+            .accessibilityIdentifier("picker.privateModeIndicator")
     }
 
     // MARK: - URL Editing (FR-040/041/042/043)
@@ -749,67 +809,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var previewRow: some View {
-        switch previewState {
-        case .idle:
-            EmptyView()
-        case .networkLookupsDisabled:
-            HStack(spacing: 8) {
-                Image(systemName: "network.slash")
-                    .foregroundStyle(.secondary)
-                Text("Previews need network lookups, off by default. Turn on in Settings → Behavior.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: 60, alignment: .leading)
-            .transition(.opacity)
-        case .loading:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Loading preview…")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: 60, alignment: .leading)
-            .transition(.opacity)
-        case .skippedSingleUse:
-            HStack(spacing: 8) {
-                Image(systemName: "lock.shield")
-                    .foregroundStyle(.secondary)
-                Text("Preview skipped — looks like a one-time link. Loading it here could use it up before your browser opens.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: 60, alignment: .leading)
-            .transition(.opacity)
-        case let .unavailable(code):
-            HStack(spacing: 8) {
-                Image(systemName: unavailableIcon(code))
-                    .foregroundStyle(.secondary)
-                Text(unavailableMessage(code))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: 60, alignment: .leading)
-            .transition(.opacity)
-        case .noPreview:
-            HStack(spacing: 8) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .foregroundStyle(.secondary)
-                Text("No preview available for this link.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: 60, alignment: .leading)
-            .transition(.opacity)
-        case let .loaded(meta):  // assignment only stores meaningful metadata here
+        if let meta = isPreview ? previewMetadata : previewState.metadata {
             HStack(alignment: .top, spacing: 10) {
                 previewThumbnail(meta)
                 VStack(alignment: .leading, spacing: 2) {
@@ -831,6 +831,7 @@ struct ContentView: View {
             .padding(8)
             .pickerInlineCard()
             .transition(.opacity)
+            .accessibilityIdentifier("picker.linkPreview")
         }
     }
 
@@ -874,27 +875,10 @@ struct ContentView: View {
             .foregroundStyle(.secondary)
     }
 
-    /// 401/403 mean "sign-in required", not broken — the link opens fine in the user's
-    /// signed-in browser; only our cookie-less preview fetch is refused.
-    private func unavailableMessage(_ code: Int) -> String {
-        switch code {
-        case 401, 403: return "No preview — this link needs you to be signed in. It’ll open normally in your browser."
-        case 404, 410: return "Page not found (\(code)) — this link may no longer be available."
-        default: return "This page may not be available (HTTP \(code))."
-        }
-    }
-
-    private func unavailableIcon(_ code: Int) -> String {
-        switch code {
-        case 401, 403: return "lock"
-        default: return "exclamationmark.triangle"
-        }
-    }
-
     private func loadLinkPreview(for url: URL?) {
         guard !isPreview else { return }
         previewTask?.cancel()
-        withAnimation(.easeOut(duration: 0.2)) { previewState = .idle }
+        previewState = .idle
         guard browserManager.pickerLayoutMode == .icons || browserManager.pickerLayoutMode == .list else { return }
         guard browserManager.showLinkPreview, let url else { return }
         // FR-034: the preview fetch is a real GET to the link's host — it must respect the
@@ -902,13 +886,13 @@ struct ContentView: View {
         // Surfaced as an explicit state (not left at .idle/EmptyView) so turning previews on
         // in Settings without also enabling network lookups doesn't look like a silent bug.
         guard browserManager.networkLookupsEnabled else {
-            withAnimation(.easeOut(duration: 0.2)) { previewState = .networkLookupsDisabled }
+            previewState = .networkLookupsDisabled
             return
         }
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
         // Single-use links: don't fetch (would burn the token) and tell the user why.
         if LinkMetadataFetcher.isLikelySingleUse(url) {
-            withAnimation(.easeOut(duration: 0.2)) { previewState = .skippedSingleUse }
+            previewState = .skippedSingleUse
             return
         }
         previewState = .loading
@@ -917,13 +901,18 @@ struct ContentView: View {
             if Task.isCancelled { return }
             await MainActor.run {
                 guard browserManager.currentURL == url else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
+                let applyResult = {
                     switch result {
                     case let .metadata(meta) where meta.isMeaningful: previewState = .loaded(meta)
                     case .metadata: previewState = .noPreview  // reached, but nothing worth showing
                     case let .unavailable(code): previewState = .unavailable(code)
                     case .failed: previewState = .noPreview    // couldn't reach / not a web page
                     }
+                }
+                if reduceMotion {
+                    applyResult()
+                } else {
+                    withAnimation(.easeOut(duration: 0.2), applyResult)
                 }
             }
         }
@@ -978,7 +967,7 @@ struct ContentView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "wand.and.stars")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.pickerAccentText)
+                            .foregroundStyle(.primary)
                         Text("Always open \(domain) in \(browser.name)?")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
@@ -990,10 +979,10 @@ struct ContentView: View {
                     .padding(.vertical, 6)
                     .pickerInlineCard()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PickerPressButtonStyle())
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(PickerMotion.transition(reduceMotion: reduceMotion, anchor: .top))
             }
         }
     }
@@ -1006,15 +995,15 @@ struct ContentView: View {
             if showScroll {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 2) {
-                        ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                            browserIconButton(browser: browser, index: index)
+                        ForEach(browsers) { browser in
+                            browserIconButton(browser: browser)
                         }
                     }
                     .padding(.horizontal, 2)
                 }
             } else {
-                ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                    browserIconButton(browser: browser, index: index)
+                ForEach(browsers) { browser in
+                    browserIconButton(browser: browser)
                 }
             }
         }
@@ -1030,26 +1019,24 @@ struct ContentView: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 2) {
-                        ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                            browserListRow(browser: browser, index: index)
+                        ForEach(browsers) { browser in
+                            browserListRow(browser: browser)
                                 .id(browser.id)
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .onChange(of: keyboardSelectedBrowserId) { _, id in
-                        guard let id else { return }
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                            proxy.scrollTo(id, anchor: .center)
-                        }
+                        guard selectionSource == .keyboard, let id else { return }
+                        proxy.scrollTo(id, anchor: .center)
                     }
                 }
                 .frame(maxHeight: 320)
             }
         } else {
             VStack(spacing: 2) {
-                ForEach(Array(browsers.enumerated()), id: \.element.id) { index, browser in
-                    browserListRow(browser: browser, index: index)
+                ForEach(browsers) { browser in
+                    browserListRow(browser: browser)
                 }
             }
             .padding(.horizontal, 12)
@@ -1057,7 +1044,7 @@ struct ContentView: View {
         }
     }
 
-    private func browserListRow(browser: BrowserConfig, index: Int) -> some View {
+    private func browserListRow(browser: BrowserConfig) -> some View {
         let isSelected = keyboardSelectedBrowserId == browser.id
         let isHovered = hoveredBrowserId == browser.id
         let isSuggested = suggestedBrowserBundleId == browser.bundleId
@@ -1087,7 +1074,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(browser.name)
                         .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                        .foregroundStyle(isSelected ? (effectivePrivateMode ? Color.purple : .primary) : .primary)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     if let profileLabel = displayProfileLabel(for: browser) {
@@ -1103,7 +1090,13 @@ struct ContentView: View {
                 if isSuggested {
                     Image(systemName: "wand.and.stars")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.pickerAccentText)
+                        .foregroundStyle(.primary)
+                }
+
+                if isSelected && differentiateWithoutColor {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.primary)
                 }
 
                 Text(browser.shortcutKey)
@@ -1118,25 +1111,26 @@ struct ContentView: View {
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isSelected ? (effectivePrivateMode ? Color.purple.opacity(0.2) : Color.primary.opacity(0.1)) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(
+                                isSelected ? (effectivePrivateMode ? Color.purple : Color.pickerAccent) : Color.clear,
+                                lineWidth: isSelected && contrast == .increased ? 2 : 1
+                            )
+                    )
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PickerPressButtonStyle())
         .accessibilityIdentifier("picker.browserRow")
-        .accessibilityLabel("Open in \(browser.name)")
+        .accessibilityLabel(browserAccessibilityLabel(for: browser))
         .onHover { hovering in
-            withAnimation(.spring(response: 0.18, dampingFraction: 0.65)) {
-                hoveredBrowserId = hovering ? browser.id : nil
-                if hovering { keyboardSelectedBrowserId = browser.id }
-            }
+            selectionSource = .pointer
+            hoveredBrowserId = hovering ? browser.id : nil
+            if hovering { keyboardSelectedBrowserId = browser.id }
         }
-        .opacity(appeared ? 1 : 0)
-        .animation(
-            .spring(response: 0.3, dampingFraction: 0.7).delay(Double(index) * 0.02),
-            value: appeared
-        )
     }
 
-    private func browserIconButton(browser: BrowserConfig, index: Int) -> some View {
+    private func browserIconButton(browser: BrowserConfig) -> some View {
         let isSelected = keyboardSelectedBrowserId == browser.id
         let isHovered = hoveredBrowserId == browser.id
         let isSuggested = suggestedBrowserBundleId == browser.bundleId
@@ -1177,7 +1171,7 @@ struct ContentView: View {
                     if isSuggested {
                         Image(systemName: "wand.and.stars")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.pickerAccent)
+                            .foregroundStyle(.primary)
                             .padding(3)
                             .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.95)))
                             .shadow(color: Color.pickerAccent.opacity(0.3), radius: 2)
@@ -1194,37 +1188,35 @@ struct ContentView: View {
                         .padding(2)
                         .offset(x: 2, y: 2)
                 }
+                .overlay(alignment: .topTrailing) {
+                    if isSelected && differentiateWithoutColor {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .padding(2)
+                    }
+                }
 
                 // Selection & Browser name label
                 if browserManager.pickerShowLabels {
                     Text(displayName(for: browser))
                         .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
-                        .foregroundStyle(isSelected ? (effectivePrivateMode ? Color.purple : Color.primary) : Color.primary.opacity(0.6))
+                        .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.6))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(width: iconDimensions.hitArea + 4)
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PickerPressButtonStyle())
         .accessibilityIdentifier("picker.browserRow")
-        .accessibilityLabel("Open in \(browser.name)")
+        .accessibilityLabel(browserAccessibilityLabel(for: browser))
         .help(isSuggested ? "Suggested — you often open this domain in \(browser.name)" : toolTip(for: browser))
         .onHover { hovering in
-            withAnimation(.spring(response: 0.18, dampingFraction: 0.65)) {
-                hoveredBrowserId = hovering ? browser.id : nil
-                if hovering { keyboardSelectedBrowserId = browser.id }
-            }
+            selectionSource = .pointer
+            hoveredBrowserId = hovering ? browser.id : nil
+            if hovering { keyboardSelectedBrowserId = browser.id }
         }
-        .scaleEffect(isHovered ? 1.05 : (isSelected ? 1.02 : 1.0))
-        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isHovered)
-        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isSelected)
-        .opacity(appeared ? 1 : 0)
-        .scaleEffect(appeared ? 1 : 0.8)
-        .animation(
-            .spring(response: 0.4, dampingFraction: 0.65).delay(Double(index) * 0.03),
-            value: appeared
-        )
     }
 
     @ViewBuilder
@@ -1255,7 +1247,7 @@ struct ContentView: View {
             }
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(selectionStrokeColor, lineWidth: 1)
+                .strokeBorder(selectionStrokeColor, lineWidth: contrast == .increased && isSelected ? 2 : 1)
                 .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -1289,8 +1281,6 @@ struct ContentView: View {
         .padding(.horizontal, 16)
         .padding(.top, 4)
         .padding(.bottom, 6)
-        .opacity(appeared ? 1 : 0)
-        .animation(.easeIn(duration: 0.2).delay(0.3), value: appeared)
     }
 
     private var shortcutsInfoPopover: some View {
@@ -1350,7 +1340,7 @@ struct ContentView: View {
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     // Key glyph = the "shortcut badge"; all of them honor the accent
                     // (purple only while a toggle like Private is active).
-                    .foregroundStyle(isActive ? Color.purple : Color.pickerAccentText)
+                    .foregroundStyle(.primary)
                     .fixedSize()
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
@@ -1360,8 +1350,7 @@ struct ContentView: View {
                 .font(.system(size: 9, weight: .semibold))
                 .fixedSize()
                 .foregroundStyle(
-                    isAccent ? Color.pickerAccentText :
-                        (isActive ? Color.purple : Color.secondary)
+                    isAccent || isActive ? Color.primary : Color.secondary
                 )
             Spacer(minLength: 0)
         }
@@ -1408,24 +1397,35 @@ struct ContentView: View {
     // MARK: - Empty State
 
     private var emptyStatePill: some View {
-        HStack(spacing: 12) {
-            Image(nsImage: BrowserManager.currentAppIcon())
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 32, height: 32)
-                .opacity(0.8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("No browsers configured")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-                Text("Open Settings from the menu bar to add a browser.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(nsImage: BrowserManager.currentAppIcon())
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 32, height: 32)
+                    .opacity(0.8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("No browsers configured")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("picker.emptyState")
+                    Text("Add a browser in Settings to keep going.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
+
+            Button("Open Settings") {
+                guard !isPreview else { return }
+                dismissPicker()
+                AppDelegate.shared?.openSettings()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .accessibilityIdentifier("picker.openSettingsButton")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 24)
-        .accessibilityIdentifier("picker.emptyState")
     }
 
     // MARK: - Layout
@@ -1484,6 +1484,10 @@ struct ContentView: View {
         return tip
     }
 
+    private func browserAccessibilityLabel(for browser: BrowserConfig) -> String {
+        effectivePrivateMode ? "Open in \(browser.name) privately" : "Open in \(browser.name)"
+    }
+
     // MARK: - Dismiss
 
     private func dismissPicker() {
@@ -1522,21 +1526,22 @@ struct ContentView: View {
 
     private func togglePrivateMode() {
         guard supportsPrivateLaunchMode else { return }
-        withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) { privateMode.toggle() }
+        privateMode.toggle()
     }
 
     private func copyCurrentURL(_ url: URL) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
-        withAnimation(.spring(response: 0.2)) { urlCopied = true }
+        withAnimation(PickerMotion.occasional(reduceMotion: reduceMotion)) { urlCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.spring(response: 0.2)) { urlCopied = false }
+            withAnimation(PickerMotion.occasional(reduceMotion: reduceMotion)) { urlCopied = false }
         }
     }
 
     // MARK: - Keyboard Selection
 
     private func prepareSelectionForPresentation() {
+        selectionSource = .programmatic
         quickMoreSelected = false
         quickOverflowPresented = false
         quickOverflowSelectedBrowserId = nil
@@ -1549,6 +1554,7 @@ struct ContentView: View {
     }
 
     private func syncKeyboardSelection(with browsers: [BrowserConfig]) {
+        selectionSource = .programmatic
         guard !browsers.isEmpty else {
             keyboardSelectedBrowserId = nil
             quickMoreSelected = false
@@ -1658,7 +1664,7 @@ struct ContentView: View {
             switch letter {
             case "p":
                 guard supportsPrivateLaunchMode else { return false }
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) { privateMode.toggle() }
+                privateMode.toggle()
                 return true
             case "r":
                 if browserManager.currentURL != nil { showingConfigureRule = true }
@@ -1759,6 +1765,7 @@ struct ContentView: View {
             $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().first.map { String($0) } == normalizedInitial
         }
         guard !matching.isEmpty else { return false }
+        selectionSource = .keyboard
         if let selectedId = keyboardSelectedBrowserId,
            let currentIndex = matching.firstIndex(where: { $0.id == selectedId }) {
             keyboardSelectedBrowserId = matching[(currentIndex + 1) % matching.count].id
@@ -1769,6 +1776,7 @@ struct ContentView: View {
     }
 
     private func moveSelection(by delta: Int) {
+        selectionSource = .keyboard
         let browsers = sortedBrowsers
         guard !browsers.isEmpty else { keyboardSelectedBrowserId = nil; return }
 
@@ -1873,7 +1881,13 @@ struct ContentView: View {
                     // Clear error after 3 seconds
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         if self.unshorteningError != nil {
-                            withAnimation { self.unshorteningError = nil }
+                            if reduceMotion {
+                                self.unshorteningError = nil
+                            } else {
+                                withAnimation(PickerMotion.occasional(reduceMotion: false)) {
+                                    self.unshorteningError = nil
+                                }
+                            }
                         }
                     }
                 }

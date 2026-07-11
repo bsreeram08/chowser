@@ -89,6 +89,50 @@ final class ChowserUITests: XCTestCase {
         app.launch()
     }
 
+    private func launchClassicPickerFixture(suiteLabel: String) {
+        launchTestApp(arguments: [
+            "-UITesting",
+            "-UITesting_ClearData",
+            "-UITesting_IconsPickerFixture",
+            "-UITesting_DisableExternalOpen",
+            "-UITesting_DefaultURL",
+            "-UITesting_OpenPicker",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+        ], suiteLabel: suiteLabel)
+    }
+
+    private func waitForOpenInvocationCount(_ expectedCount: Int, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let defaults = UserDefaults(suiteName: defaultsSuiteName)
+            if defaults?.integer(forKey: "uiTestOpenInvocationCount") == expectedCount {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return false
+    }
+
+    private func performSystemDrag(from start: CGPoint, to end: CGPoint) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)?
+            .post(tap: .cghidEventTap)
+        for step in 1...12 {
+            let progress = CGFloat(step) / 12
+            let point = CGPoint(
+                x: start.x + (end.x - start.x) * progress,
+                y: start.y + (end.y - start.y) * progress
+            )
+            CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: point, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: end, mouseButton: .left)?
+            .post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+    }
+
     func testAppearancePreviewStaysVisibleWhileEditingLowerSettings() throws {
         let appearanceButton = app.buttons["settings.sidebar.appearance"]
         XCTAssertTrue(appearanceButton.waitForExistence(timeout: 5))
@@ -104,6 +148,20 @@ final class ChowserUITests: XCTestCase {
         for _ in 0..<4 where !accentLabel.isHittable { scrollView.swipeUp() }
         XCTAssertTrue(accentLabel.isHittable, "Lower appearance controls should be reachable.")
         XCTAssertTrue(previewTitle.isHittable, "The live preview should remain visible while editing lower appearance controls.")
+    }
+
+    func testAppearancePreviewShowsLinkMetadataInClassicPicker() throws {
+        let appearanceButton = app.buttons["settings.sidebar.appearance"]
+        XCTAssertTrue(appearanceButton.waitForExistence(timeout: 5))
+        appearanceButton.click()
+
+        let linkPreview = app.staticTexts[
+            "Page titles and descriptions appear here before you choose a browser."
+        ]
+        XCTAssertTrue(
+            linkPreview.waitForExistence(timeout: 5),
+            "The Appearance sample should demonstrate the enabled Link Preview in Icons mode."
+        )
     }
 
     func testAppearanceUsesPinnedTopPreviewAtNarrowWidth() throws {
@@ -171,13 +229,11 @@ final class ChowserUITests: XCTestCase {
 
         let radial = app.descendants(matching: .any).matching(identifier: "picker.radial").firstMatch
         XCTAssertTrue(radial.waitForExistence(timeout: 5), "Radial picker should be visible.")
-        // XCTest may move the pointer while establishing its automation session, so compare
-        // against the actual post-launch pointer position and convert AppKit's bottom-left
-        // coordinates to XCTest's top-left screen coordinates.
-        let actualCursor = NSEvent.mouseLocation
-        let xctCursor = CGPoint(x: actualCursor.x, y: screenFrame.maxY - actualCursor.y)
-        XCTAssertEqual(radial.frame.midX, xctCursor.x, accuracy: 3, "Cursor must be the radial picker's horizontal center.")
-        XCTAssertEqual(radial.frame.midY, xctCursor.y, accuracy: 3, "Cursor must be the radial picker's vertical center.")
+        // Compare against the launch anchor, not the live pointer: XCTest can move the
+        // pointer again while establishing its accessibility session after the picker is placed.
+        let launchAnchor = CGPoint(x: screenFrame.midX, y: screenFrame.maxY - screenFrame.midY)
+        XCTAssertEqual(radial.frame.midX, launchAnchor.x, accuracy: 3, "Cursor must be the radial picker's horizontal center.")
+        XCTAssertEqual(radial.frame.midY, launchAnchor.y, accuracy: 3, "Cursor must be the radial picker's vertical center.")
 
         let safariButton = app.buttons["Open in Safari"]
         let chromeButton = app.buttons["Open in Chrome - Work"]
@@ -203,6 +259,213 @@ final class ChowserUITests: XCTestCase {
         let pickerDismissed = NSPredicate(format: "exists == false")
         let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: pickerDismissed, object: radial)], timeout: 3)
         XCTAssertEqual(result, .completed, "Activating the direction-selected Chrome destination should dismiss the radial picker.")
+        XCTAssertTrue(waitForOpenInvocationCount(1), "Radial pointer activation should launch exactly once.")
+    }
+
+    func testClassicPickerShowsPathAndUsesExplicitURLEditAction() throws {
+        let layouts = [
+            ("icons-destination", "-UITesting_IconsPickerFixture"),
+            ("list-destination", "-UITesting_ListPickerFixture"),
+        ]
+
+        for (label, fixture) in layouts {
+            launchTestApp(arguments: [
+                "-UITesting",
+                "-UITesting_ClearData",
+                fixture,
+                "-UITesting_DisableExternalOpen",
+                "-UITesting_SensitiveURL",
+                "-UITesting_OpenPicker",
+                "-ApplePersistenceIgnoreState",
+                "YES",
+            ], suiteLabel: label)
+
+            let path = app.staticTexts["picker.destinationPath"]
+            XCTAssertTrue(path.waitForExistence(timeout: 5), "Expected destination path in \(label).")
+            XCTAssertEqual(path.value as? String, "/account/reset password")
+            XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "secret")).count, 0)
+
+            let editButton = app.buttons["picker.urlEditTrigger"]
+            XCTAssertTrue(editButton.waitForExistence(timeout: 2))
+            editButton.click()
+
+            let editField = app.textFields["picker.urlEditField"]
+            XCTAssertTrue(editField.waitForExistence(timeout: 2))
+            XCTAssertEqual(
+                editField.value as? String,
+                "https://example.com/account/reset%20password?token=secret#confirm"
+            )
+        }
+    }
+
+    func testPrivateModeIsVisibleAndAnnouncedInEveryPickerLayout() throws {
+        let layouts = [
+            ("icons", "-UITesting_IconsPickerFixture", "picker.urlDisplay"),
+            ("list", "-UITesting_ListPickerFixture", "picker.urlDisplay"),
+            ("radial-private", "-UITesting_RadialPickerFixture", "picker.radial"),
+            ("minimal", "-UITesting_MinimalPickerFixture", "picker.minimal"),
+        ]
+
+        for (label, fixture, rootIdentifier) in layouts {
+            launchTestApp(arguments: [
+                "-UITesting",
+                "-UITesting_ClearData",
+                fixture,
+                "-UITesting_PrivatePicker",
+                "-UITesting_DisableExternalOpen",
+                "-UITesting_DefaultURL",
+                "-UITesting_OpenPicker",
+                "-ApplePersistenceIgnoreState",
+                "YES",
+            ], suiteLabel: label)
+
+            let root = app.descendants(matching: .any).matching(identifier: rootIdentifier).firstMatch
+            XCTAssertTrue(root.waitForExistence(timeout: 5), "Expected \(label) picker.")
+
+            let indicator = app.descendants(matching: .any).matching(identifier: "picker.privateModeIndicator").firstMatch
+            XCTAssertTrue(indicator.waitForExistence(timeout: 2), "Expected visible private mode in \(label).")
+            XCTAssertTrue(app.buttons["Open in Safari privately"].waitForExistence(timeout: 2), "Expected private launch announcement in \(label).")
+        }
+
+        for (label, fixture) in [
+            ("radial-overflow-private", "-UITesting_RadialPickerFixture"),
+            ("minimal-overflow-private", "-UITesting_MinimalPickerFixture"),
+        ] {
+            launchTestApp(arguments: [
+                "-UITesting",
+                "-UITesting_ClearData",
+                fixture,
+                "-UITesting_OverflowPickerFixture",
+                "-UITesting_PrivatePicker",
+                "-UITesting_DisableExternalOpen",
+                "-UITesting_DefaultURL",
+                "-UITesting_OpenPicker",
+                "-ApplePersistenceIgnoreState",
+                "YES",
+            ], suiteLabel: label)
+
+            let moreButton = app.buttons["More browsers and profiles"]
+            XCTAssertTrue(moreButton.waitForExistence(timeout: 5), "Expected More in \(label).")
+            moreButton.click()
+
+            let overflow = app.descendants(matching: .any).matching(identifier: "picker.moreList").firstMatch
+            XCTAssertTrue(overflow.waitForExistence(timeout: 2), "Expected overflow in \(label).")
+            XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "picker.privateModeIndicator").firstMatch.waitForExistence(timeout: 2))
+            XCTAssertTrue(app.buttons["Open in Zen privately"].waitForExistence(timeout: 2))
+        }
+    }
+
+    func testQuickPickersSupportImmediateKeyboardSelectionAndLaunch() throws {
+        for (label, fixture, arrowCount) in [
+            ("radial-keyboard", "-UITesting_RadialPickerFixture", 2),
+            ("minimal-keyboard", "-UITesting_MinimalPickerFixture", 1),
+        ] {
+            launchTestApp(arguments: [
+                "-UITesting",
+                "-UITesting_ClearData",
+                fixture,
+                "-UITesting_DisableExternalOpen",
+                "-UITesting_DefaultURL",
+                "-UITesting_OpenPicker",
+                "-ApplePersistenceIgnoreState",
+                "YES",
+            ], suiteLabel: label)
+
+            let chromeButton = app.buttons["Open in Chrome - Work"]
+            XCTAssertTrue(chromeButton.waitForExistence(timeout: 5))
+            for _ in 0..<arrowCount { app.typeKey(.rightArrow, modifierFlags: []) }
+            XCTAssertEqual(chromeButton.value as? String, "selected", "Arrow selection should update immediately in \(label).")
+
+            let picker = app.descendants(matching: .any)
+                .matching(identifier: fixture.contains("Radial") ? "picker.radial" : "picker.minimal")
+                .firstMatch
+            app.typeKey(.return, modifierFlags: [])
+
+            XCTAssertEqual(
+                XCTWaiter.wait(
+                    for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: picker)],
+                    timeout: 5
+                ),
+                .completed,
+                "Return should launch the selected browser and dismiss \(label)."
+            )
+            XCTAssertTrue(waitForOpenInvocationCount(1), "Return should launch exactly once in \(label).")
+        }
+    }
+
+    func testMinimalPickerHoverTracksPointerAndLaunchesOnce() throws {
+        launchTestApp(arguments: [
+            "-UITesting",
+            "-UITesting_ClearData",
+            "-UITesting_MinimalPickerFixture",
+            "-UITesting_DisableExternalOpen",
+            "-UITesting_DefaultURL",
+            "-UITesting_OpenPicker",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+        ], suiteLabel: "minimal-hover")
+
+        let picker = app.descendants(matching: .any).matching(identifier: "picker.minimal").firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), app.debugDescription)
+        let chromeButton = app.buttons["Open in Chrome - Work"]
+        XCTAssertTrue(chromeButton.waitForExistence(timeout: 5), app.debugDescription)
+        chromeButton.hover()
+        XCTAssertEqual(chromeButton.value as? String, "selected")
+        chromeButton.click()
+        XCTAssertTrue(waitForOpenInvocationCount(1), "Minimal pointer activation should launch exactly once.")
+    }
+
+    func testQuickPickerDragSelectionLaunchesOnce() throws {
+        for (label, fixture, rootIdentifier) in [
+            ("radial-drag", "-UITesting_RadialPickerFixture", "picker.radial"),
+            ("minimal-drag", "-UITesting_MinimalPickerFixture", "picker.minimal"),
+        ] {
+            launchTestApp(arguments: [
+                "-UITesting",
+                "-UITesting_ClearData",
+                fixture,
+                "-UITesting_DisableExternalOpen",
+                "-UITesting_DefaultURL",
+                "-UITesting_OpenPicker",
+                "-ApplePersistenceIgnoreState",
+                "YES",
+            ], suiteLabel: label)
+
+            let picker = app.descendants(matching: .any).matching(identifier: rootIdentifier).firstMatch
+            let safariButton = app.buttons["Open in Safari"]
+            let chromeButton = app.buttons["Open in Chrome - Work"]
+            XCTAssertTrue(picker.waitForExistence(timeout: 5))
+            XCTAssertTrue(safariButton.waitForExistence(timeout: 2))
+            XCTAssertTrue(chromeButton.waitForExistence(timeout: 2))
+
+            let start = rootIdentifier == "picker.radial"
+                ? CGPoint(x: picker.frame.midX, y: picker.frame.midY)
+                : CGPoint(x: safariButton.frame.midX, y: safariButton.frame.midY)
+            let end = CGPoint(x: chromeButton.frame.midX, y: chromeButton.frame.midY)
+            performSystemDrag(from: start, to: end)
+
+            XCTAssertTrue(waitForOpenInvocationCount(1), "Drag activation should launch exactly once in \(label).")
+            XCTAssertFalse(picker.exists, "Drag activation should dismiss \(label).")
+        }
+    }
+
+    func testEmptyPickerOffersDirectSettingsRecovery() throws {
+        launchTestApp(arguments: [
+            "-UITesting",
+            "-UITesting_ClearData",
+            "-UITesting_EmptyPickerFixture",
+            "-UITesting_DisableExternalOpen",
+            "-UITesting_DefaultURL",
+            "-UITesting_OpenPicker",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+        ], suiteLabel: "empty-picker")
+
+        let settingsButton = app.buttons["picker.openSettingsButton"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), app.debugDescription)
+        settingsButton.click()
+
+        XCTAssertTrue(app.buttons["settings.addBrowserButton"].waitForExistence(timeout: 5))
     }
 
     func testSettingsDeleteButtonDoesNotCloseSettingsWindow() throws {
@@ -241,6 +504,7 @@ final class ChowserUITests: XCTestCase {
     }
 
     func testPickerSelectionClearsPendingURL() throws {
+        launchClassicPickerFixture(suiteLabel: "picker-selection")
         let ui = ChowserAppDriver(app: app)
         ui.assertPickerVisible()
         XCTAssertTrue(ui.lastOpenedBrowserText.waitForExistence(timeout: 3), "Expected picker selection marker before choosing a browser.")
@@ -252,6 +516,7 @@ final class ChowserUITests: XCTestCase {
     }
 
     func testPickerNumberShortcutSelectsBrowser() throws {
+        launchClassicPickerFixture(suiteLabel: "picker-number")
         let ui = ChowserAppDriver(app: app)
         ui.assertPickerVisible()
         XCTAssertTrue(ui.lastOpenedBrowserText.waitForExistence(timeout: 3), "Expected picker selection marker before using keyboard shortcut.")
@@ -289,6 +554,7 @@ final class ChowserUITests: XCTestCase {
     }
 
     func testSendToIPhoneActionMenu() throws {
+        launchClassicPickerFixture(suiteLabel: "picker-phone")
         let ui = ChowserAppDriver(app: app)
         ui.assertPickerVisible()
 
@@ -473,6 +739,9 @@ private struct ChowserAppDriver {
     let app: XCUIApplication
 
     var pickerSettingsButton: XCUIElement { app.buttons["picker.openSettingsButton"] }
+    var pickerRoot: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "picker.urlDisplay").firstMatch
+    }
     var settingsAddBrowserButton: XCUIElement { app.buttons["settings.addBrowserButton"] }
 
     var browserDeleteButtons: XCUIElementQuery {
@@ -540,7 +809,7 @@ private struct ChowserAppDriver {
     }
 
     func assertPickerVisible(file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(pickerSettingsButton.waitForExistence(timeout: 5), "Picker UI should be visible.", file: file, line: line)
+        XCTAssertTrue(pickerRoot.waitForExistence(timeout: 5), "Picker UI should be visible.", file: file, line: line)
     }
 
     func assertBrowserSelectionRecorded(file: StaticString = #filePath, line: UInt = #line) {

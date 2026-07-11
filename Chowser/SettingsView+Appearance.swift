@@ -283,13 +283,20 @@ private struct AppearanceStackedRow<Content: View>: View {
 }
 
 /// Live preview that embeds the real picker (`ContentView`) so it looks exactly like
-/// the picker — no separate mock. `currentURL` points at a sample link, so clicking a
-/// browser actually opens it.
+/// the picker. `currentURL` points at a sample link, so clicking a browser actually
+/// opens it; metadata is deterministic so Settings never performs an unsolicited GET.
 private struct AppearancePreview: View {
     @State private var manager = BrowserManager.shared
     @State private var backdrop: PreviewBackdrop = .color
     let compact: Bool
     private static let sampleURL = URL(string: "https://sreerams.in")!
+    private static let sampleMetadata = LinkMetadata(
+        finalURL: sampleURL,
+        title: "sreerams.in",
+        description: "Page titles and descriptions appear here before you choose a browser.",
+        imageURL: nil,
+        faviconURL: nil
+    )
 
     private enum PreviewBackdrop: String, CaseIterable, Identifiable {
         case light = "Light", dark = "Dark", color = "Color", checker = "Checker"
@@ -309,13 +316,13 @@ private struct AppearancePreview: View {
                 .labelsHidden()
                 .frame(maxWidth: 210)
             }
-            Text("This is the real picker. Clicking a browser opens \(Self.sampleURL.absoluteString).")
+            Text("Live picker sample. Clicking a browser opens \(Self.sampleURL.absoluteString).")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
             ZStack {
                 backdropView
-                FittedPickerPreview()
+                FittedPickerPreview(metadata: Self.sampleMetadata)
             }
             .frame(maxWidth: .infinity)
             .frame(height: compact ? 190 : 320)
@@ -360,6 +367,7 @@ private struct PickerPreviewContentSizeKey: PreferenceKey {
 }
 
 private struct FittedPickerPreview: View {
+    let metadata: LinkMetadata
     @State private var contentSize: CGSize = .zero
 
     var body: some View {
@@ -369,7 +377,7 @@ private struct FittedPickerPreview: View {
                 availableSize: geometry.size
             )
 
-            ContentView(isPreview: true)
+            ContentView(isPreview: true, previewMetadata: metadata)
                 .fixedSize()
                 .background {
                     GeometryReader { contentGeometry in

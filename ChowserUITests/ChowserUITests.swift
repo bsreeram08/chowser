@@ -150,6 +150,20 @@ final class ChowserUITests: XCTestCase {
         XCTAssertTrue(previewTitle.isHittable, "The live preview should remain visible while editing lower appearance controls.")
     }
 
+    func testAppearancePreviewShowsLinkMetadataInClassicPicker() throws {
+        let appearanceButton = app.buttons["settings.sidebar.appearance"]
+        XCTAssertTrue(appearanceButton.waitForExistence(timeout: 5))
+        appearanceButton.click()
+
+        let linkPreview = app.staticTexts[
+            "Page titles and descriptions appear here before you choose a browser."
+        ]
+        XCTAssertTrue(
+            linkPreview.waitForExistence(timeout: 5),
+            "The Appearance sample should demonstrate the enabled Link Preview in Icons mode."
+        )
+    }
+
     func testAppearanceUsesPinnedTopPreviewAtNarrowWidth() throws {
         launchTestApp(arguments: [
             "-UITesting",

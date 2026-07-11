@@ -32,6 +32,9 @@ struct ContentView: View {
     /// When true the view is embedded in Settings as a live preview: no key monitor,
     /// no focus-dismiss, and clicks open the browser without tearing the preview down.
     var isPreview = false
+    /// Deterministic metadata used by the Settings sample. The live picker always
+    /// derives this from `LinkMetadataFetcher` instead.
+    var previewMetadata: LinkMetadata? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var contrast
@@ -806,8 +809,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var previewRow: some View {
-        switch previewState {
-        case let .loaded(meta):  // assignment only stores meaningful metadata here
+        if let meta = isPreview ? previewMetadata : previewState.metadata {
             HStack(alignment: .top, spacing: 10) {
                 previewThumbnail(meta)
                 VStack(alignment: .leading, spacing: 2) {
@@ -829,8 +831,7 @@ struct ContentView: View {
             .padding(8)
             .pickerInlineCard()
             .transition(.opacity)
-        default:
-            EmptyView()
+            .accessibilityIdentifier("picker.linkPreview")
         }
     }
 

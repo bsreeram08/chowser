@@ -138,6 +138,24 @@ final class ChowserUITests: XCTestCase {
         XCTAssertTrue(preview.isHittable, "The compact preview should remain visible while narrow controls scroll.")
     }
 
+    func testFallbackBrowserPickerHasExplicitEmptySelection() throws {
+        let behaviorButton = app.buttons["settings.sidebar.behavior"]
+        XCTAssertTrue(behaviorButton.waitForExistence(timeout: 5))
+        behaviorButton.click()
+
+        let fallbackModePicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.behavior.fallbackModePicker")
+            .firstMatch
+        XCTAssertTrue(fallbackModePicker.waitForExistence(timeout: 5))
+        fallbackModePicker.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).click()
+
+        let browserPicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.behavior.fallbackBrowserPicker")
+            .firstMatch
+        XCTAssertTrue(browserPicker.waitForExistence(timeout: 5))
+        XCTAssertEqual(browserPicker.value as? String, "Choose Browser")
+    }
+
     func testRadialPickerUsesCursorAsCenterAndDirectionSelectsBrowser() throws {
         let screenFrame = NSScreen.main!.frame
         launchTestApp(arguments: [

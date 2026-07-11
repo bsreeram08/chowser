@@ -295,6 +295,7 @@ struct ContentView: View {
     /// frontmost app, so gate on `NSApp.isActive` instead of firing unconditionally and
     /// silently never actually broadcasting.
     private func syncPhoneHandoff() {
+        guard !isPreview else { return }
         // Never broadcast a link the user marked private to every iCloud-paired device.
         if let url = browserManager.currentURL,
            !browserManager.currentURLPrivateModeRequested,
@@ -891,6 +892,7 @@ struct ContentView: View {
     }
 
     private func loadLinkPreview(for url: URL?) {
+        guard !isPreview else { return }
         previewTask?.cancel()
         withAnimation(.easeOut(duration: 0.2)) { previewState = .idle }
         guard browserManager.pickerLayoutMode == .icons || browserManager.pickerLayoutMode == .list else { return }

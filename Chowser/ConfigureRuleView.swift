@@ -68,6 +68,9 @@ struct ConfigureRuleView: View {
                     
                     DetailRow(label: "Open In") {
                         Picker("", selection: $selectedBrowserIdentity) {
+                            if selectedBrowserIdentity.isEmpty {
+                                Text("Choose Browser").tag("")
+                            }
                             ForEach(browserManager.configuredBrowsers) { browser in
                                 Text(browser.name).tag(browser.identity)
                             }

@@ -77,6 +77,7 @@ extension SettingsView {
                 subtitle: browserManager.configuredBrowsers.isEmpty ? "Add a browser to enable fallback" : nil
             ) {
                 Picker("", selection: fallbackBrowserBinding) {
+                    Text("Choose Browser").tag(UUID?.none)
                     ForEach(browserManager.configuredBrowsers) { browser in
                         Text(fallbackBrowserDisplayName(browser)).tag(Optional(browser.id))
                     }

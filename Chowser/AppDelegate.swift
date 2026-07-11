@@ -908,7 +908,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             panel.pinsCenterToCursor = mode == .radial
             panel.acceptsMouseMovedEvents = mode == .radial || mode == .minimal
             panel.isMovableByWindowBackground = mode == .icons || mode == .list
-            panel.contentView?.layoutSubtreeIfNeeded()
             positionPickerPanel(panel, mode: mode, mouseLocation: mouseLocation, screen: screen)
         }
 
@@ -924,7 +923,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let mode = BrowserManager.shared.pickerLayoutMode
             DispatchQueue.main.async { [weak panel] in
                 guard let panel, panel.isVisible else { return }
-                panel.contentView?.layoutSubtreeIfNeeded()
                 self.positionPickerPanel(panel, mode: mode, mouseLocation: mouseLocation, screen: screen)
             }
         }

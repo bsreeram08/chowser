@@ -1,209 +1,164 @@
-# Chowser — Distribution Guide
+# Chowser Distribution
 
-Chowser is distributed through two channels:
+Chowser has two products built from the same source tree. Their distribution-specific code and dependencies are separated at the Xcode target boundary.
 
-| Channel | Sandbox | Profiles | Updates | Price |
-|---------|---------|----------|---------|-------|
-| **Direct Download** (DMG) | No | Full profile support | Sparkle auto-update | Free |
-| **Mac App Store** | Yes | No (NSWorkspace only) | App Store updates | ₹500 |
+| Product | Scheme | Sandbox | Profiles | Updater |
+|---|---|---:|---|---|
+| Direct download | `Chowser` | No | Full supported-browser profile launching | Sparkle through GitHub Releases |
+| Mac App Store | `Chowser-AppStore` | Yes | `NSWorkspace` launch fallback | Mac App Store / TestFlight only |
 
----
+## Direct-download product
 
-## Prerequisites
+The direct target defines `DIRECT_DISTRIBUTION`, uses `Chowser.entitlements`, and is the only target that links Sparkle. Its finished app contains:
 
-- macOS with Xcode installed
-- **Paid Apple Developer account** ($99/yr) — required for signing, notarization, and App Store
-- Developer ID Application certificate (direct download)
-- Apple Distribution certificate (App Store)
+- `Sparkle.framework`
+- stable and opt-in beta update policy
+- `Check for Updates…` menu actions
+- General Settings controls for automatic checks, automatic downloads, and beta releases
+- the signed appcast URL and Sparkle public EdDSA key
 
----
+### Release track
 
-## Channel 1: Direct Download (Signed + Notarized DMG)
+Releases are explicit and tag-driven:
 
-Full-featured build with browser profile support, distributed as a signed and notarized DMG via GitHub Releases. Auto-updates via Sparkle.
+```text
+reviewed version commit on main
+  -> v3.10.0 tag
+  -> signed/notarized stable GitHub Release
+  -> signed default-channel appcast item
 
-### Release Flow
-
+reviewed version commit on main
+  -> v3.10.0-beta.1 tag
+  -> signed/notarized GitHub prerelease
+  -> signed beta-channel appcast item
 ```
-main branch → git tag v2.12.0 → GitHub Actions → signed DMG → GitHub Release + Sparkle appcast
-```
 
-For beta releases:
-```
-main branch → git tag v2.12.0-beta.1 → GitHub Actions → signed DMG → GitHub Pre-release + beta appcast
-```
+A normal push or merge to `main` does not publish a release.
 
-### Manual Release
+Stable and beta entries share one appcast. Sparkle always considers the default channel; users who enable beta releases additionally allow the `beta` channel. Stable releases therefore bring beta users back to the production line naturally.
+
+### Prepare a release
+
+First add a reviewed `CHANGELOG.md` section for the exact version. Then run:
 
 ```bash
-# Standard release
-./scripts/release.sh 2.12.0
+SPARKLE_PUBLIC_ED_KEY=<public-key> ./scripts/release.sh 3.10.0
 
-# Beta release
-./scripts/release.sh 2.12.0-beta.1
-
-# With notarization
-NOTARIZE=YES APPLE_ID="you@email.com" APPLE_ID_PASSWORD="xxxx" ./scripts/release.sh 2.12.0
+# or
+SPARKLE_PUBLIC_ED_KEY=<public-key> ./scripts/release.sh 3.10.0-beta.1
 ```
 
-### Auto-Updates (Sparkle)
+The preparation script requires a clean worktree, updates all Xcode marketing/build versions, runs unit tests, builds both products, and verifies their binary boundaries. It does not stage files, commit, tag, push, sign, or publish.
 
-Users are automatically notified of new versions every 4 hours. They can also check manually via the menu bar → **Check for Updates…**
-
-Beta users who opt in via Settings → General → **Join Beta Program** receive beta channel updates.
-
-Appcast files:
-- Stable: `https://chowser.sreerams.in/appcast.xml`
-- Beta: `https://chowser.sreerams.in/appcast-beta.xml`
-
-### Sparkle EdDSA Key Setup (One-Time)
-
-1. Clone Sparkle and build the key generation tool:
-   ```bash
-   git clone https://github.com/sparkle-project/Sparkle.git /tmp/Sparkle
-   cd /tmp/Sparkle && swift build -c release --product generate_keys
-   .build/release/generate_keys
-   ```
-2. Copy the **public key** to `Info.plist` → `SUPublicEDKey`
-3. Store the **private key** as GitHub Secret: `SPARKLE_PRIVATE_KEY`
-4. Build the signing tool for CI:
-   ```bash
-   swift build -c release --product sign_update
-   cp .build/release/sign_update /path/to/chowser/scripts/sign_update
-   ```
-
-### Required GitHub Secrets (Direct Download)
-
-| Secret | Description |
-|--------|-------------|
-| `APPLE_CERTIFICATE_P12` | Base64-encoded Developer ID Application .p12 certificate |
-| `APPLE_CERTIFICATE_PASSWORD` | Password for the .p12 file |
-| `APPLE_ID` | Apple ID email for notarization |
-| `APPLE_ID_PASSWORD` | App-specific password ([generate here](https://appleid.apple.com)) |
-| `APPLE_TEAM_ID` | `TH2VPAUX6Y` |
-| `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA private key for update signing |
-
----
-
-## Channel 2: Mac App Store
-
-Sandboxed build without browser profile support (uses `NSWorkspace` for all launches). Distributed via App Store Connect with TestFlight for beta testing.
-
-### Release Flow
-
-Current TestFlight uploads are manual through Xcode Organizer. There is no `pre-release` branch workflow in `.github/workflows/` that uploads to App Store Connect.
-
-```
-feature branch → archive in Xcode or xcodebuild → Xcode Organizer → Distribute App → App Store Connect → TestFlight
-```
-
-The public Mac App Store listing currently resolves at:
-
-- `https://apps.apple.com/in/app/chowser/id6760034779`
-
-### App Store Archive Command
-
-Use the Release configuration so the project applies the App Store sandbox entitlements and `APP_STORE` compilation condition:
+After reviewing and merging the version commit to `main`, create and push only the intended tag:
 
 ```bash
-xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
-  -archivePath release/Chowser.xcarchive \
-  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE'
+git tag -s v3.10.0 -m "Chowser v3.10.0"
+git push origin v3.10.0
 ```
 
-### TestFlight Beta
+### GitHub release workflow
 
-1. Create an archive from Xcode or with the archive command above.
-2. Open Xcode → Window → Organizer.
-3. Select the Chowser archive.
-4. Click **Distribute App** → **App Store Connect** → **Upload**.
-5. Go to [App Store Connect → TestFlight](https://appstoreconnect.apple.com) to manage beta testers.
-6. Add internal testers or create public beta links after Apple processing completes.
-7. Beta testers install via the TestFlight app on macOS.
+`.github/workflows/release-macos.yml` fails closed. It will not create a public release unless it can:
 
-### Required Local Signing Setup (App Store)
+1. Validate the tag, committed version/build, and changelog.
+2. Confirm every release secret exists.
+3. Run unit tests.
+4. Build and inspect the App Store product to prove Sparkle is absent.
+5. Developer ID-sign and archive the direct product.
+6. Notarize and staple both the app and DMG.
+7. Verify code signing, Gatekeeper assessment, entitlements, bundle metadata, and Sparkle metadata.
+8. Generate the DMG, SHA-256 checksum, reviewed notes, provenance attestation, and signed appcast.
+9. Upload every required asset to a draft GitHub Release.
+10. Publish only after the draft contains the complete verified asset set.
+11. Publish the signed appcast to the `updates` branch after the public DMG is reachable and checksum-identical.
 
-The current TestFlight path uses local Xcode signing, not GitHub Secrets. Make sure this machine has:
+All release and recovery feed writers share one repository-wide concurrency lock, so two tags cannot overwrite each other's appcast history.
 
-| Item | Value |
-|------|-------|
-| Apple Distribution certificate | Installed in Keychain |
-| App Store provisioning profile | Installed in Xcode or downloaded from Apple Developer |
-| Team ID | `TH2VPAUX6Y` |
-| Bundle ID | `in.sreerams.Chowser` |
-| Entitlements | `Chowser/ChowserAppStore.entitlements` |
+Required release assets:
 
-### Pricing & Promo Codes
+- `Chowser-<version>.dmg`
+- `Chowser-<version>.md`
+- `SHA256SUMS`
 
-- **Price**: ₹500 (set in App Store Connect → Pricing and Availability)
-- **Promo Codes**: Generate up to 100 promo codes per version in App Store Connect → Marketing → Promo Codes
-- Promo codes allow free downloads for reviewers, friends, and beta testers
+### Required GitHub Environment and secrets
 
----
+Create a GitHub Environment named `release`. Store these secrets in that environment or at repository level:
 
-## Apple Developer Portal Setup
+| Secret | Purpose |
+|---|---|
+| `APPLE_CERTIFICATE_P12` | Base64-encoded Developer ID Application certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` |
+| `APPLE_ID` | Notarization Apple ID |
+| `APPLE_ID_PASSWORD` | App-specific password for `notarytool` |
+| `APPLE_TEAM_ID` | Apple Developer team ID |
+| `SPARKLE_PRIVATE_KEY` | Exported EdDSA private key consumed through stdin by `generate_appcast` |
+| `SPARKLE_PUBLIC_ED_KEY` | Matching public key embedded in the direct app |
 
-### 1. Register App ID
+The private Sparkle key must never be committed. Back it up separately before the first public updater build; every installed updater trusts the matching public key.
 
-Go to [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources):
+### Appcast hosting
 
-- **Identifier**: `in.sreerams.Chowser`
-- **Platform**: macOS
-- **Capabilities**: None required (URL schemes are Info.plist only)
+The signed feed is published at:
 
-### 2. Create Certificates
+```text
+https://raw.githubusercontent.com/bsreeram08/chowser/updates/appcast.xml
+```
 
-- **Developer ID Application** — for direct download signing + notarization
-- **Apple Distribution** — for App Store / TestFlight
+Each enclosure points to an immutable versioned GitHub Release URL. Stable entries use a one-day phased-rollout interval. Manual checks bypass Sparkle's phased rollout, as expected. Beta entries are unphased.
 
-### 3. App Store Connect
+The feed may later move behind `chowser.sreerams.in`, but the new URL must be shipped in an app update before switching hosting.
 
-1. Go to [App Store Connect](https://appstoreconnect.apple.com) → My Apps → New App
-2. **Bundle ID**: `in.sreerams.Chowser`
-3. **Platform**: macOS
-4. **Price**: ₹500 (Tier appropriate for Indian market)
-5. **Category**: Utilities
-6. Fill in app metadata, screenshots, description
-7. Set up TestFlight → add internal/external testers
+## Mac App Store product
 
-### 4. Export Certificates as .p12
+The App Store target defines `APP_STORE`, uses `ChowserAppStore.entitlements`, enables the app sandbox, and does not link or embed Sparkle. It has no GitHub feed keys or updater menu actions.
+
+Build or archive it with the dedicated scheme:
 
 ```bash
-# From Keychain Access: right-click certificate → Export → .p12
-# Then base64 encode for GitHub Secrets:
-base64 -i DeveloperIDApplication.p12 | pbcopy
-base64 -i AppleDistribution.p12 | pbcopy
+xcodebuild archive \
+  -project Chowser.xcodeproj \
+  -scheme Chowser-AppStore \
+  -configuration Release \
+  -archivePath release/Chowser-AppStore.xcarchive
 ```
 
----
+Uploads remain manual through Xcode Organizer:
 
-## Conditional Compilation
+1. Open Xcode -> Window -> Organizer.
+2. Select the `Chowser-AppStore` archive.
+3. Choose Distribute App -> App Store Connect -> Upload.
+4. Use TestFlight for beta distribution.
 
-The two builds share the same codebase. The `APP_STORE` Swift compilation condition controls differences:
+The public listing is:
 
-| Feature | Direct Download | App Store (`APP_STORE`) |
-|---------|----------------|------------------------|
-| Browser profiles | `Process` + `/usr/bin/open` | `NSWorkspace.open()` |
-| Auto-updates | Sparkle (menu bar + Settings) | App Store managed |
-| Sandbox | Disabled | Enabled |
-| Entitlements | `Chowser.entitlements` | `ChowserAppStore.entitlements` |
+<https://apps.apple.com/in/app/chowser/id6760034779>
 
----
+## Artifact verification
 
-## Setting Up as Default Browser
+Use the same verifier locally and in CI:
 
-After installing, users should:
-1. Open Chowser (it appears in the menu bar)
-2. Click the menu bar icon → **Set as Default Browser**
-3. Or go to **System Settings → Desktop & Dock → Default Web Browser → Chowser**
+```bash
+scripts/verify-distribution-artifact.sh direct /path/to/Chowser.app
+scripts/verify-distribution-artifact.sh app-store /path/to/Chowser.app
+```
 
-## Troubleshooting
+Unsigned local builds may opt out of signature checks only:
 
-| Issue | Fix |
-|-------|-----|
-| "App is damaged" | Right-click → Open, or `xattr -cr Chowser.app` |
-| Not appearing as browser option | Run once, then check System Settings |
-| Menu bar icon missing | Check if app is running in Activity Monitor |
-| Sparkle update fails | Check `SUFeedURL` in Info.plist and network connectivity |
-| App Store rejection | Ensure `APP_STORE` flag is set and sandbox is enabled |
+```bash
+ALLOW_UNSIGNED=1 scripts/verify-distribution-artifact.sh direct /path/to/Chowser.app
+```
+
+The direct verifier requires Sparkle, signed-feed metadata, a numeric build number, and no app sandbox. The App Store verifier requires Sparkle and all `SU*` updater metadata to be absent, rejects updater helpers and implementation markers, and requires a signed bundle with the app sandbox. Release verification also enforces universal architecture, hardened runtime, and Developer ID authority where applicable.
+
+## Recovery and rollback
+
+Published assets and tags are never replaced.
+
+- **Release published, feed update failed:** rerun feed publication for the existing verified release; users remain on the previous feed until it succeeds.
+- **Bad release not yet in the feed:** leave or remove the release as policy allows, but do not publish its appcast entry.
+- **Bad release already offered:** remove the bad feed item if necessary, then publish a corrected version with a higher numeric build.
+- **Lost Sparkle key:** stop publishing updates and follow Sparkle's Developer ID-backed key-rotation procedure before issuing another feed.
+- **Notarization outage:** leave the release unpublished and retry later; never fall back to an unsigned or unstapled DMG.
+
+Rollback is always roll-forward. Sparkle orders updates by `CFBundleVersion`, so a correction must have a higher numeric build even when the marketing version is unchanged.

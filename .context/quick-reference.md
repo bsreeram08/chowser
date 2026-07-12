@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-02-28 against commit 892fcaf -->
+<!-- Last verified: 2026-07-12 -->
 
 # Quick Reference
 
@@ -7,8 +7,11 @@ Developer cheat sheet for building, testing, and navigating Chowser.
 ## Build & Test Commands
 
 ```bash
-# Build (Release)
+# Build direct-download product (Release)
 xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+
+# Build App Store product (Release)
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-AppStore -configuration Release build
 
 # Unit tests
 xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
@@ -16,8 +19,10 @@ xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platfor
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
-# Release (bumps version, builds, creates DMG, tags git)
-./scripts/release.sh <version>
+# Prepare version/build metadata and verify both products locally
+SPARKLE_PUBLIC_ED_KEY=<public-key> ./scripts/release.sh <version>
+
+# The reviewed version commit is released only by pushing its explicit version tag.
 ```
 
 ## Key Paths
@@ -32,12 +37,19 @@ xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination '
 | `Chowser/SettingsView+Rules.swift` | Rule list management |
 | `Chowser/SettingsView+General.swift` | General settings, hidden apps, about |
 | `Chowser/AppEnvironment.swift` | UI test flags and defaults suite override |
+| `Chowser/AppUpdateProviding.swift` | Direct updater interface used by app-owned callers |
+| `Chowser/AppUpdateController.swift` | Direct Sparkle updater and beta policy |
+| `Chowser/AppStoreUpdateProvider.swift` | App Store update handoff without Sparkle |
 | `Chowser/BrowserProfileDetector.swift` | Chromium/Firefox profile discovery |
 | `Chowser/AppMetadataCache.swift` | Process-lifetime icon/name cache |
 | `Chowser/DomainFrequencyTracker.swift` | Domain→browser frequency tracking |
 | `Chowser/UI/Onboarding/` | Onboarding wizard (Manager, View, Steps) |
-| `scripts/release.sh` | Release script (version bump + DMG) |
-| `.github/workflows/release.yml` | CI: build + publish on tag push |
+| `scripts/release.sh` | Safe local version preparation and two-product verification |
+| `scripts/verify-distribution-artifact.sh` | Direct/App Store binary boundary verification |
+| `scripts/prepare-sparkle-feed.sh` | Signed stable/beta appcast generation |
+| `scripts/fetch-sparkle-feed.sh` | Fail-closed existing-feed retrieval from GitHub |
+| `scripts/publish-sparkle-feed.sh` | Idempotent updates-branch appcast publication and verification |
+| `.github/workflows/release-macos.yml` | Signed/notarized direct release on explicit version tags |
 
 ## UserDefaults Keys
 
@@ -49,6 +61,7 @@ xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination '
 | `onboardingCompleted` | Bool | BrowserManager |
 | `hasCompletedOnboarding` | Bool | OnboardingManager |
 | `DomainFrequencyStats` | JSON Data (`[String: [String: Int]]`) | DomainFrequencyTracker |
+| `updates.includeBetaReleases` | Bool | AppUpdateController (direct build only) |
 
 **UI test suite**: `in.sreerams.Chowser.UITests`
 
@@ -201,3 +214,12 @@ org.videolan.vlc
 | `settings.addRule.browserPicker` | Browser picker |
 | `settings.addRule.fillTestHostButton` | "Use example host" button |
 | `settings.addRule.confirmButton` | Add rule button |
+
+### Settings — Updates
+| Identifier | Element |
+|------------|---------|
+| `settings.updates.automaticChecks` | Direct automatic update checks toggle |
+| `settings.updates.automaticDownloads` | Direct automatic download toggle |
+| `settings.updates.includeBeta` | Direct beta-channel opt-in toggle |
+| `settings.updates.checkNow` | Direct manual update check button |
+| `settings.updates.openAppStore` | App Store product-page button |

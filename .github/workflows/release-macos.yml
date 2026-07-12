@@ -1,170 +1,224 @@
-name: Release — macOS (Native)
+name: Release — macOS Direct Download
 
 on:
   push:
-    branches:
-      - main
     tags:
-      - "v[0-9]+.*"
+      - "v*"
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
-  group: release-macos-${{ github.ref }}
-  cancel-in-progress: true
+  group: chowser-appcast-publisher
+  cancel-in-progress: false
 
 env:
   SCHEME: Chowser
+  APP_STORE_SCHEME: Chowser-AppStore
   PROJECT: Chowser.xcodeproj
   APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
   APPLE_ID: ${{ secrets.APPLE_ID }}
   APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+  SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
-  build:
-    name: Build macOS DMG
+  release:
+    name: Build, verify, and publish
     runs-on: macos-15
+    environment: release
     steps:
-      - name: Checkout
+      - name: Checkout tagged source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Select latest stable Xcode
+      - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: "26.3"
 
-      - name: Check signing credentials
-        id: credentials
-        run: |
-          if [ -n "$APPLE_CERTIFICATE_P12" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] \
-             && [ -n "$APPLE_ID" ] && [ -n "$APPLE_ID_PASSWORD" ]; then
-            echo "can_sign=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "can_sign=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Signing secrets are incomplete. The GitHub release will contain source archives only; no unsafe unsigned DMG will be published."
-          fi
-
-      # ── Install signing certificate ──
-      - name: Install signing certificate
-        if: steps.credentials.outputs.can_sign == 'true'
-        run: |
-          CERT_FILE=$(mktemp /tmp/cert.XXXXXX.p12)
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
-          KEYCHAIN_PASSWORD=$(uuidgen)
-
-          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_FILE"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_FILE" -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: \
-            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
-
-          rm "$CERT_FILE"
-
-      # The version and build are committed with each release. Keeping the project
-      # as the source of truth makes local archives and GitHub artifacts identical.
-      - name: Read and validate version
+      - name: Validate tag and committed version
         id: version
+        shell: bash
         run: |
-          VERSION=$(grep -m1 'MARKETING_VERSION = ' "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/')
-          BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION = ' "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/')
-          if [ -z "$VERSION" ] || [ -z "$BUILD" ]; then
-            echo "Could not read version metadata from $PROJECT/project.pbxproj"
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?)$ ]]; then
+            echo "Unsupported release tag: $GITHUB_REF_NAME"
             exit 1
           fi
 
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            TAG_VERSION="${GITHUB_REF_NAME#v}"
-            if [ "$TAG_VERSION" != "$VERSION" ]; then
-              echo "Tag v$TAG_VERSION does not match MARKETING_VERSION $VERSION"
-              exit 1
-            fi
-          elif git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
-            echo "v$VERSION already exists. Bump MARKETING_VERSION and CURRENT_PROJECT_VERSION before merging to main."
+          VERSION="${BASH_REMATCH[1]}"
+          PROJECT_VERSION=$(grep -m1 'MARKETING_VERSION = ' "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/')
+          BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION = ' "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/')
+
+          if [[ "$PROJECT_VERSION" != "$VERSION" ]]; then
+            echo "Tag version $VERSION does not match MARKETING_VERSION $PROJECT_VERSION"
+            exit 1
+          fi
+          if [[ ! "$BUILD" =~ ^[0-9]+$ ]]; then
+            echo "CURRENT_PROJECT_VERSION must be numeric: $BUILD"
+            exit 1
+          fi
+          if ! rg -q "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "CHANGELOG.md has no reviewed section for $VERSION"
+            exit 1
+          fi
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists"
             exit 1
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          if [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+          if [[ "$VERSION" == *-beta.* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "Releasing version $VERSION (build $BUILD)"
 
-      # ── Build archive ──
-      - name: Build archive
-        if: steps.credentials.outputs.can_sign == 'true'
+      - name: Require all release credentials
+        shell: bash
         run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            APPLE_CERTIFICATE_P12 \
+            APPLE_CERTIFICATE_PASSWORD \
+            APPLE_ID \
+            APPLE_ID_PASSWORD \
+            APPLE_TEAM_ID \
+            SPARKLE_PRIVATE_KEY \
+            SPARKLE_PUBLIC_ED_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing required release secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/direct-tests" \
+            -only-testing:ChowserTests \
+            CODE_SIGNING_ALLOWED=NO \
+            SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY"
+
+      - name: Build and inspect App Store product
+        run: |
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$APP_STORE_SCHEME" \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/app-store-build" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            DEVELOPMENT_TEAM=""
+
+          REQUIRE_UNIVERSAL=1 scripts/verify-distribution-artifact.sh \
+            app-store \
+            "$RUNNER_TEMP/app-store-build/Build/Products/Release/Chowser.app"
+
+      - name: Install Developer ID certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          CERT_FILE=$(mktemp "$RUNNER_TEMP/certificate.XXXXXX.p12")
+          KEYCHAIN_PATH="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_FILE"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_FILE" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          rm -f "$CERT_FILE"
+
+      - name: Archive direct-download product
+        run: |
+          mkdir -p release
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath release/Chowser.xcarchive \
+            -derivedDataPath "$RUNNER_TEMP/direct-archive" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="${APPLE_TEAM_ID:-TH2VPAUX6Y}" \
-            -quiet
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY"
 
-      # ── Export app ──
-      - name: Export app
-        if: steps.credentials.outputs.can_sign == 'true'
-        run: |
-          mkdir -p release
           cp -R release/Chowser.xcarchive/Products/Applications/Chowser.app release/Chowser.app
+          REQUIRE_DEVELOPER_ID=1 REQUIRE_UNIVERSAL=1 \
+            scripts/verify-distribution-artifact.sh direct release/Chowser.app
 
-      # ── Notarize (if secrets are available) ──
-      - name: Notarize
-        if: steps.credentials.outputs.can_sign == 'true'
+      - name: Notarize and staple app
         run: |
           ditto -c -k --keepParent release/Chowser.app release/Chowser-notarize.zip
           xcrun notarytool submit release/Chowser-notarize.zip \
             --apple-id "$APPLE_ID" \
-            --team-id "${APPLE_TEAM_ID:-TH2VPAUX6Y}" \
+            --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --wait
           xcrun stapler staple release/Chowser.app
           rm -f release/Chowser-notarize.zip
 
-      # ── Create DMG ──
-      - name: Create DMG
-        if: steps.credentials.outputs.can_sign == 'true'
+          REQUIRE_DEVELOPER_ID=1 REQUIRE_UNIVERSAL=1 REQUIRE_NOTARIZATION=1 \
+            scripts/verify-distribution-artifact.sh \
+            direct release/Chowser.app
+
+      - name: Create styled DMG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          DMG_PATH="release/Chowser-${VERSION}.dmg"
+          set -euo pipefail
+          DMG_PATH="release/Chowser-$VERSION.dmg"
+          VOLUME_NAME="Chowser $VERSION"
 
-          # Generate background
           swift scripts/generate-dmg-background.swift release/background.png
+          mkdir -p release/dmg-staging/.background
+          cp -R release/Chowser.app release/dmg-staging/
+          ln -s /Applications release/dmg-staging/Applications
+          cp release/background.png release/dmg-staging/.background/background.png
 
-          # Create staging dir
-          mkdir -p release/dmg_staging/.background
-          cp -R release/Chowser.app release/dmg_staging/
-          ln -s /Applications release/dmg_staging/Applications
-          cp release/background.png release/dmg_staging/.background/background.png
-
-          # Create read-write DMG
           hdiutil create \
-            -volname "Chowser ${VERSION}" \
-            -srcfolder release/dmg_staging \
+            -volname "$VOLUME_NAME" \
+            -srcfolder release/dmg-staging \
             -ov -format UDRW -fs HFS+ \
-            release/rw_temp.dmg
-          rm -rf release/dmg_staging
+            release/read-write.dmg
+          rm -rf release/dmg-staging
 
-          # Mount, style, and convert
-          MOUNT_OUTPUT=$(hdiutil attach -readwrite -noverify release/rw_temp.dmg)
-          DEVICE=$(echo "$MOUNT_OUTPUT" | grep '/dev/' | head -1 | awk '{print $1}')
-          MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | sed 's/.*\/Volumes/\/Volumes/')
+          MOUNT_OUTPUT=$(hdiutil attach -readwrite -noverify release/read-write.dmg)
+          DEVICE=$(echo "$MOUNT_OUTPUT" | awk '/\/dev\// {print $1; exit}')
+          MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | sed -n 's|.*\(/Volumes/.*\)|\1|p' | head -1)
 
           osascript <<EOF
           tell application "Finder"
-            tell disk "Chowser ${VERSION}"
+            tell disk "$VOLUME_NAME"
               open
               set current view of container window to icon view
               set the bounds of container window to {200, 120, 860, 520}
@@ -184,47 +238,122 @@ jobs:
           end tell
           EOF
 
-          if [ -f "release/Chowser.app/Contents/Resources/AppIcon.icns" ]; then
-            cp "release/Chowser.app/Contents/Resources/AppIcon.icns" "$MOUNT_POINT/.VolumeIcon.icns"
+          if [[ -f release/Chowser.app/Contents/Resources/AppIcon.icns ]]; then
+            cp release/Chowser.app/Contents/Resources/AppIcon.icns "$MOUNT_POINT/.VolumeIcon.icns"
             SetFile -c icnC "$MOUNT_POINT/.VolumeIcon.icns" 2>/dev/null || true
             SetFile -a C "$MOUNT_POINT" 2>/dev/null || true
           fi
 
           sync
           hdiutil detach "$DEVICE" -quiet
-          hdiutil convert release/rw_temp.dmg -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH"
-          rm -f release/rw_temp.dmg release/background.png
+          hdiutil convert release/read-write.dmg \
+            -format UDZO -imagekey zlib-level=9 \
+            -o "$DMG_PATH"
+          rm -f release/read-write.dmg release/background.png
 
-          echo "dmg_path=$DMG_PATH" >> "$GITHUB_ENV"
-          echo "DMG created: $(du -h "$DMG_PATH" | cut -f1)"
-
-      # ── Notarize DMG ──
-      - name: Notarize DMG
-        if: steps.credentials.outputs.can_sign == 'true'
+      - name: Notarize and staple DMG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          xcrun notarytool submit "$dmg_path" \
+          DMG_PATH="release/Chowser-$VERSION.dmg"
+          xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
-            --team-id "${APPLE_TEAM_ID:-TH2VPAUX6Y}" \
+            --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --wait
-          xcrun stapler staple "$dmg_path"
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+          spctl --assess --type install --verbose=2 "$DMG_PATH"
 
-      # ── Upload artifact ──
-      - name: Upload DMG artifact
-        if: steps.credentials.outputs.can_sign == 'true'
+      - name: Prepare reviewed release assets and signed appcast
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_PATH="release/Chowser-$VERSION.md"
+          awk -v version="$VERSION" '
+            $0 == "## [" version "]" || index($0, "## [" version "] - ") == 1 { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > "$NOTES_PATH"
+          if [[ ! -s "$NOTES_PATH" ]]; then
+            echo "Release notes for $VERSION are empty"
+            exit 1
+          fi
+
+          (cd release && shasum -a 256 "Chowser-$VERSION.dmg" > SHA256SUMS)
+
+          scripts/fetch-sparkle-feed.sh release/appcast.xml
+
+          GENERATE_APPCAST=$(find "$RUNNER_TEMP/direct-archive/SourcePackages/artifacts" \
+            -type f -path '*/Sparkle/bin/generate_appcast' -print -quit)
+          if [[ -z "$GENERATE_APPCAST" ]]; then
+            echo "Sparkle generate_appcast tool was not resolved"
+            exit 1
+          fi
+
+          SPARKLE_GENERATE_APPCAST="$GENERATE_APPCAST" \
+            scripts/prepare-sparkle-feed.sh "$VERSION" "$BUILD" release
+
+      - name: Attest DMG
+        uses: actions/attest@v4
+        with:
+          subject-path: release/Chowser-${{ steps.version.outputs.version }}.dmg
+
+      - name: Create draft GitHub Release with complete assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--draft --verify-tag)
+          if [[ "$PRERELEASE" == "true" ]]; then
+            flags+=(--prerelease)
+          fi
+
+          gh release create "$GITHUB_REF_NAME" \
+            "release/Chowser-$VERSION.dmg" \
+            "release/Chowser-$VERSION.md" \
+            release/SHA256SUMS \
+            --title "Chowser $GITHUB_REF_NAME" \
+            --notes-file "release/Chowser-$VERSION.md" \
+            "${flags[@]}"
+
+          assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          for expected in "Chowser-$VERSION.dmg" "Chowser-$VERSION.md" SHA256SUMS; do
+            if ! grep -Fxq "$expected" <<<"$assets"; then
+              echo "Draft release is missing $expected"
+              exit 1
+            fi
+          done
+
+      - name: Publish and verify GitHub Release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+          curl -fsSL --retry 3 \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Chowser-$VERSION.dmg" \
+            -o "$RUNNER_TEMP/published.dmg"
+          (cd release && shasum -a 256 -c SHA256SUMS)
+          cmp release/Chowser-$VERSION.dmg "$RUNNER_TEMP/published.dmg"
+
+      - name: Publish signed appcast to updates branch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          scripts/publish-sparkle-feed.sh "$VERSION" release/appcast.xml
+
+      - name: Upload workflow evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Chowser-macOS-${{ steps.version.outputs.version }}
-          path: release/Chowser-*.dmg
-
-      # ── Create GitHub Release ──
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          name: Chowser v${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: ${{ steps.version.outputs.prerelease }}
-          generate_release_notes: true
-          files: release/Chowser-*.dmg
+          name: release-evidence-${{ github.ref_name }}
+          if-no-files-found: ignore
+          path: |
+            release/SHA256SUMS
+            release/appcast.xml
+            release/Chowser-*.md

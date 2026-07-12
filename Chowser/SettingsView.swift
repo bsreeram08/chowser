@@ -3,6 +3,11 @@ import AppKit
 
 struct SettingsView: View {
     @State var browserManager = BrowserManager.shared
+    #if DIRECT_DISTRIBUTION
+    @State var updateController = AppUpdateController.shared
+    #else
+    @State var appStoreUpdateProvider = AppStoreUpdateProvider.shared
+    #endif
 
     @State var showingAddSheet = false
     @State var showingAddRuleSheet = false

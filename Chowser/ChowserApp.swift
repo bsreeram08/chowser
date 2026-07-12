@@ -27,6 +27,15 @@ struct ChowserApp: App {
                 }
             }
 
+            #if DIRECT_DISTRIBUTION
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    appDelegate.checkForAppUpdates()
+                }
+                .disabled(!AppUpdateController.shared.canCheckForUpdates)
+            }
+            #endif
+
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
                     appDelegate.openSettings()

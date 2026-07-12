@@ -134,6 +134,8 @@ extension SettingsView {
                         MCPServerSettingsRow()
                     }
 
+                    updatesSettingsGroup
+
                     SettingsGroup("Maintenance") {
                         SettingsRow(
                             title: "Reset Setup",
@@ -204,6 +206,96 @@ extension SettingsView {
         let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(shortVersion) (\(build))"
+    }
+
+    @ViewBuilder
+    private var updatesSettingsGroup: some View {
+        #if DIRECT_DISTRIBUTION
+        SettingsGroup(
+            "Updates",
+            subtitle: updateController.isConfigured
+                ? "Keep the direct-download build current through signed GitHub releases."
+                : "Update signing is not configured in this local build."
+        ) {
+            SettingsRow(
+                title: "Check for updates automatically",
+                subtitle: "Check once a day while Chowser is running."
+            ) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { updateController.automaticallyChecksForUpdates },
+                        set: { updateController.automaticallyChecksForUpdates = $0 }
+                    )
+                )
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .disabled(!updateController.isConfigured)
+                .accessibilityIdentifier("settings.updates.automaticChecks")
+            }
+
+            SettingsDivider()
+
+            SettingsRow(
+                title: "Download updates automatically",
+                subtitle: "Download in the background and install when Chowser quits."
+            ) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { updateController.automaticallyDownloadsUpdates },
+                        set: { updateController.automaticallyDownloadsUpdates = $0 }
+                    )
+                )
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .disabled(!updateController.isConfigured)
+                .accessibilityIdentifier("settings.updates.automaticDownloads")
+            }
+
+            SettingsDivider()
+
+            SettingsRow(
+                title: "Include beta releases",
+                subtitle: "Get early builds that may be less stable. Stable releases remain available."
+            ) {
+                Toggle("", isOn: $updateController.includesBetaReleases)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier("settings.updates.includeBeta")
+            }
+
+            SettingsDivider()
+
+            SettingsRow(
+                title: "Current Version",
+                subtitle: "Version \(appVersion)"
+            ) {
+                Button("Check Now…") {
+                    updateController.checkForUpdates()
+                }
+                .controlSize(.small)
+                .disabled(!updateController.canCheckForUpdates)
+                .accessibilityIdentifier("settings.updates.checkNow")
+            }
+        }
+        #else
+        SettingsGroup(
+            "Updates",
+            subtitle: "This build receives reviewed updates from Apple."
+        ) {
+            SettingsRow(
+                title: "Managed by the Mac App Store",
+                subtitle: "Automatic update preferences are controlled in the App Store."
+            ) {
+                Button("Open App Store…") {
+                    appStoreUpdateProvider.openAppStore()
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.updates.openAppStore")
+            }
+        }
+        #endif
     }
 
     private func addHiddenBundleIDFromField() {

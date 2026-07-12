@@ -39,21 +39,5 @@
 	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Chowser</string>
-	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/bsreeram08/chowser/updates/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>$(SPARKLE_PUBLIC_ED_KEY)</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUAllowsAutomaticUpdates</key>
-	<true/>
-	<key>SUAutomaticallyUpdate</key>
-	<false/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
-	<key>SUVerifyUpdateBeforeExtraction</key>
-	<true/>
-	<key>SURequireSignedFeed</key>
-	<true/>
 </dict>
 </plist>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -108,7 +108,66 @@ const QrGlyph = () => (
   </div>
 );
 
+const useReducedMotion = () => {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  return prefersReducedMotion;
+};
+
+const usePageVisibility = () => {
+  const [isPageVisible, setIsPageVisible] = useState(() => !document.hidden);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => setIsPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  return isPageVisible;
+};
+
+const useElementInView = <T extends Element>(threshold: number) => {
+  const elementRef = useRef<T>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting && entry.intersectionRatio >= threshold);
+      },
+      { threshold },
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return [elementRef, isInView] as const;
+};
+
 export const Home: React.FC = () => {
+  const prefersReducedMotion = useReducedMotion();
+  const isPageVisible = usePageVisibility();
+  const [pickerDemoRef, isPickerDemoInView] =
+    useElementInView<HTMLDivElement>(0.35);
+  const [aiDemoRef, isAiDemoInView] =
+    useElementInView<HTMLElement>(0.25);
   const [isPrivate, setIsPrivate] = useState(false);
   const [isRuleSimulatorOpen, setIsRuleSimulatorOpen] = useState(false);
   const [selectedBrowser, setSelectedBrowser] = useState<string | null>(null);
@@ -117,67 +176,120 @@ export const Home: React.FC = () => {
   // Animation Demo State
   const [demoStep, setDemoStep] = useState(0);
   const [userInteracted, setUserInteracted] = useState(false);
+  const [pickerDemoComplete, setPickerDemoComplete] = useState(false);
+  const shouldResetPickerPlayback = useRef(true);
 
   // AI Setup Animation State
   const [aiDemoStep, setAiDemoStep] = useState(0);
+  const [aiDemoComplete, setAiDemoComplete] = useState(false);
+  const shouldResetAiPlayback = useRef(true);
+  const renderedPickerDemoStep = prefersReducedMotion ? 4 : demoStep;
+  const renderedAiDemoStep = prefersReducedMotion ? 6 : aiDemoStep;
+
+  const completePickerDemo = useCallback(() => {
+    shouldResetPickerPlayback.current = false;
+    setUserInteracted(true);
+    setPickerDemoComplete(true);
+    setDemoStep(4);
+  }, []);
 
   useEffect(() => {
-    const aiInterval = setInterval(() => {
-      setAiDemoStep((prev) => (prev >= 6 ? 0 : prev + 1));
-    }, 2500);
-    return () => clearInterval(aiInterval);
-  }, []);
+    if (
+      prefersReducedMotion ||
+      pickerDemoComplete ||
+      userInteracted
+    ) {
+      return;
+    }
+
+    if (!isPickerDemoInView || !isPageVisible) return;
+
+    shouldResetPickerPlayback.current = true;
+    const timers = [
+      setTimeout(() => setDemoStep(1), 1000),
+      setTimeout(() => setDemoStep(2), 2500),
+      setTimeout(() => setDemoStep(3), 2800),
+      setTimeout(() => {
+        shouldResetPickerPlayback.current = false;
+        setDemoStep(4);
+        setPickerDemoComplete(true);
+      }, 3100),
+    ];
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (shouldResetPickerPlayback.current) setDemoStep(0);
+    };
+  }, [
+    isPageVisible,
+    isPickerDemoInView,
+    pickerDemoComplete,
+    prefersReducedMotion,
+    userInteracted,
+  ]);
+
+  useEffect(() => {
+    if (prefersReducedMotion || aiDemoComplete) return;
+
+    if (!isAiDemoInView || !isPageVisible) return;
+
+    shouldResetAiPlayback.current = true;
+    const timers = [
+      ...Array.from({ length: 6 }, (_, index) =>
+        setTimeout(() => {
+          const nextStep = index + 1;
+          setAiDemoStep(nextStep);
+          if (nextStep === 6) {
+            shouldResetAiPlayback.current = false;
+            setAiDemoComplete(true);
+          }
+        }, 2500 * (index + 1)),
+      ),
+    ];
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (shouldResetAiPlayback.current) setAiDemoStep(0);
+    };
+  }, [aiDemoComplete, isAiDemoInView, isPageVisible, prefersReducedMotion]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "p") {
-        setIsPrivate((prev) => !prev);
-        toast.info(`Private Mode ${!isPrivate ? "Enabled" : "Disabled"}`, {
-          duration: 1500,
-          icon: <Shield className="w-4 h-4" />,
+        completePickerDemo();
+        setIsPrivate((previous) => {
+          const next = !previous;
+          toast.info(`Private Mode ${next ? "Enabled" : "Disabled"}`, {
+            duration: 1500,
+            icon: <Shield className="w-4 h-4" />,
+          });
+          return next;
         });
       }
       if (e.key.toLowerCase() === "r") {
+        completePickerDemo();
         setIsRuleSimulatorOpen((prev) => !prev);
-        if (selectedBrowser) setSelectedBrowser(null);
+        setSelectedBrowser(null);
       }
       if (e.key.toLowerCase() === "h") {
-        setIsRevealed((prev) => !prev);
-        toast.success(
-          !isRevealed ? "URL unshortened successfully!" : "Preview reset",
-          {
-            duration: 1500,
-            icon: <Search className="w-4 h-4" />,
-          },
-        );
+        completePickerDemo();
+        setIsRevealed((previous) => {
+          const next = !previous;
+          toast.success(
+            next ? "URL unshortened successfully!" : "Preview reset",
+            {
+              duration: 1500,
+              icon: <Search className="w-4 h-4" />,
+            },
+          );
+          return next;
+        });
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    if (!userInteracted) {
-      const runLoop = () => {
-        setDemoStep(0);
-        timers.push(setTimeout(() => setDemoStep(1), 1000)); // Mouse starts moving
-        timers.push(setTimeout(() => setDemoStep(2), 2500)); // Mouse hovers link
-        timers.push(setTimeout(() => setDemoStep(3), 2800)); // Mouse clicks link
-        timers.push(setTimeout(() => setDemoStep(4), 3100)); // Panel opens
-        timers.push(setTimeout(runLoop, 8000)); // Reset after 8s
-      };
-      runLoop();
-    }
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      timers.forEach(clearTimeout);
-    };
-  }, [
-    isPrivate,
-    isRuleSimulatorOpen,
-    selectedBrowser,
-    isRevealed,
-    userInteracted,
-  ]);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [completePickerDemo]);
 
   const handleBrowserSelect = (name: string) => {
     if (isRuleSimulatorOpen) {
@@ -216,21 +328,21 @@ export const Home: React.FC = () => {
       <main className="relative">
         {/* ── Hero ── */}
         <section className="text-center pt-36 sm:pt-44 pb-14 px-6">
-          <h1 className="font-display font-bold tracking-tight leading-[1.02] text-5xl sm:text-7xl text-foreground animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <h1 className="font-display font-bold tracking-tight leading-[1.02] text-5xl sm:text-7xl text-foreground animate-in fade-in slide-in-from-bottom-4 duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:animate-none">
             The right browser.
             <br />
             Every link.
           </h1>
-          <p className="mt-6 mx-auto max-w-xl text-lg sm:text-2xl text-muted-foreground leading-snug animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-100">
+          <p className="mt-6 mx-auto max-w-xl text-lg sm:text-2xl text-muted-foreground leading-snug animate-in fade-in slide-in-from-bottom-4 duration-[var(--duration-marketing)] ease-[var(--ease-out)] delay-[50ms] motion-reduce:animate-none">
             Chowser lives in your menu bar and routes every link you click to
             the browser it belongs in.
           </p>
-          <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
+          <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-[var(--duration-marketing)] ease-[var(--ease-out)] delay-[100ms] motion-reduce:animate-none">
             <a
               href={APP_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground px-7 py-3.5 text-base font-medium transition-all hover:brightness-110 hover:-translate-y-0.5 shadow-sm"
+              className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground px-7 py-3.5 text-base font-medium transition-[filter,transform] duration-[var(--duration-press)] ease-[var(--ease-out)] hover:brightness-110 hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-[filter] motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100 shadow-sm"
             >
               Get Chowser
             </a>
@@ -282,21 +394,19 @@ export const Home: React.FC = () => {
             }}
           >
             <div
+              ref={pickerDemoRef}
               className="relative flex justify-center w-full h-[290px]"
-              onMouseEnter={() => {
-                setUserInteracted(true);
-                setDemoStep(4);
-              }}
-              onClick={() => {
-                setUserInteracted(true);
-                setDemoStep(4);
-              }}
+              onMouseEnter={completePickerDemo}
+              onClick={completePickerDemo}
             >
               {/* Mock chat message with the link being clicked */}
               <div
                 className={cn(
-                  "absolute top-2 left-1/2 -translate-x-1/2 w-full max-w-[320px] bg-white/70 border border-black/5 rounded-2xl p-4 flex flex-col gap-3 shadow-sm transition-all duration-1000 origin-bottom",
-                  demoStep >= 4
+                  "absolute top-2 left-1/2 -translate-x-1/2 w-full max-w-[320px] bg-white/70 border border-black/5 rounded-2xl p-4 flex flex-col gap-3 shadow-sm transition-[transform,opacity,filter] ease-[var(--ease-out)] origin-bottom motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:blur-none motion-reduce:transition-opacity",
+                  userInteracted
+                    ? "duration-[var(--duration-ui)]"
+                    : "duration-[var(--duration-marketing)]",
+                  renderedPickerDemoStep >= 4
                     ? "opacity-30 scale-95 blur-sm translate-y-[-20px]"
                     : "opacity-100 scale-100 blur-none translate-y-0",
                 )}
@@ -320,8 +430,8 @@ export const Home: React.FC = () => {
                 <div className="pl-11">
                   <span
                     className={cn(
-                      "text-primary text-sm cursor-pointer transition-colors duration-300",
-                      demoStep === 2 || demoStep === 3
+                      "text-primary text-sm cursor-pointer transition-colors duration-[var(--duration-ui)] ease-[var(--ease-out)]",
+                      renderedPickerDemoStep === 2 || renderedPickerDemoStep === 3
                         ? "underline bg-primary/10 rounded px-1"
                         : "hover:underline",
                     )}
@@ -331,19 +441,33 @@ export const Home: React.FC = () => {
                 </div>
 
                 {/* Animated mouse cursor */}
-                {!userInteracted && (
+                {!userInteracted && !prefersReducedMotion && (
                   <div
-                    className="absolute pointer-events-none z-50 text-foreground drop-shadow-xl transition-all"
+                    className="absolute inset-0 pointer-events-none z-50 origin-top-left"
                     style={{
-                      left: demoStep === 0 ? "80%" : demoStep >= 1 ? "40%" : "80%",
-                      top: demoStep === 0 ? "150%" : demoStep >= 1 ? "70%" : "150%",
-                      transitionDuration: demoStep === 1 ? "1.5s" : "0.3s",
-                      transitionProperty: "all",
-                      transitionTimingFunction: "ease-out",
-                      transform: demoStep === 3 ? "scale(0.8)" : "scale(1)",
+                      transform:
+                        renderedPickerDemoStep === 0
+                          ? "translate3d(80%, 150%, 0)"
+                          : "translate3d(40%, 70%, 0)",
+                      transitionDuration:
+                        renderedPickerDemoStep === 1
+                          ? "1500ms"
+                          : "var(--duration-press)",
+                      transitionProperty: "transform",
+                      transitionTimingFunction:
+                        renderedPickerDemoStep === 1
+                          ? "var(--ease-in-out)"
+                          : "var(--ease-out)",
                     }}
                   >
-                    <MousePointer2 className="w-6 h-6 fill-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.35)]" />
+                    <MousePointer2
+                      className={cn(
+                        "w-6 h-6 fill-white text-foreground drop-shadow-[0_4px_4px_rgba(0,0,0,0.35)] transition-transform duration-[var(--duration-press)] ease-[var(--ease-out)]",
+                        renderedPickerDemoStep === 3
+                          ? "scale-[0.97]"
+                          : "scale-100",
+                      )}
+                    />
                   </div>
                 )}
               </div>
@@ -351,19 +475,27 @@ export const Home: React.FC = () => {
               {/* Soft glow behind panel */}
               <div
                 className={cn(
-                  "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[20%] w-full max-w-[420px] h-[200px] bg-primary/20 blur-[90px] -z-0 transition-all duration-1000",
-                  demoStep >= 4 ? "opacity-100 scale-100" : "opacity-0 scale-50",
+                  "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[20%] w-full max-w-[420px] h-[200px] bg-primary/20 blur-[90px] -z-0 transition-[transform,opacity] ease-[var(--ease-out)] motion-reduce:transition-opacity",
+                  userInteracted
+                    ? "duration-[var(--duration-ui)]"
+                    : "duration-[var(--duration-marketing)]",
+                  renderedPickerDemoStep >= 4
+                    ? "opacity-100 scale-100"
+                    : "opacity-0 scale-50",
                 )}
               />
 
               {/* The Chowser picker panel — frosted white */}
               <div
                 className={cn(
-                  "flex flex-col w-full max-w-[380px] sm:max-w-[480px] mx-auto rounded-[18px] absolute origin-center overflow-hidden transition-all duration-700 backdrop-blur-[30px] shadow-[0_30px_70px_rgba(20,30,60,0.25),inset_0_0_0_1px_rgba(255,255,255,0.6)]",
+                  "flex flex-col w-full max-w-[380px] sm:max-w-[480px] mx-auto rounded-[18px] absolute origin-center overflow-hidden transition-[transform,opacity] ease-[var(--ease-out)] motion-reduce:transition-opacity backdrop-blur-[30px] shadow-[0_30px_70px_rgba(20,30,60,0.25),inset_0_0_0_1px_rgba(255,255,255,0.6)]",
+                  userInteracted
+                    ? "duration-[var(--duration-ui)]"
+                    : "duration-[var(--duration-marketing)]",
                   isPrivate
                     ? "bg-[#eef1ff]/85 ring-1 ring-primary/15"
                     : "bg-white/72",
-                  demoStep >= 4
+                  renderedPickerDemoStep >= 4
                     ? "opacity-100 scale-100 top-1/2 -translate-y-1/2"
                     : "opacity-0 scale-90 top-1/2 -translate-y-[42%] pointer-events-none",
                 )}
@@ -431,12 +563,20 @@ export const Home: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Body: browser bar or rule simulator */}
-                <div className="relative min-h-[140px] flex items-center justify-center">
-                  {isRuleSimulatorOpen ? (
-                    <div className="flex flex-col items-center gap-4 px-6 text-center animate-in fade-in slide-in-from-top-4 duration-500">
+                {/* Body: browser bar and rule simulator share one interruptible layer */}
+                <div className="relative min-h-[140px] grid items-center justify-items-center">
+                  <div
+                    aria-hidden={!isRuleSimulatorOpen}
+                    inert={!isRuleSimulatorOpen}
+                    className={cn(
+                      "col-start-1 row-start-1 flex flex-col items-center gap-4 px-6 text-center transition-[opacity,filter] duration-[var(--duration-ui)] ease-[var(--ease-in-out)] motion-reduce:blur-none",
+                      isRuleSimulatorOpen
+                        ? "opacity-100 blur-none pointer-events-auto"
+                        : "opacity-0 blur-[2px] pointer-events-none",
+                    )}
+                  >
                       <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
-                        <Zap className="w-6 h-6 text-primary animate-pulse" />
+                        <Zap className="w-6 h-6 text-primary animate-pulse motion-reduce:animate-none" />
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm font-semibold text-foreground">
@@ -455,34 +595,40 @@ export const Home: React.FC = () => {
                           <button
                             key={browser.name}
                             onClick={() => handleBrowserSelect(browser.name)}
-                            className="transition-all hover:scale-110 active:scale-95"
+                            className="transition-transform duration-[var(--duration-press)] ease-[var(--ease-out)] hover:scale-105 active:scale-[0.97] motion-reduce:transform-none"
                             title={browser.name}
                           >
                             <BrowserTileArt kind={browser.kind} size={40} />
                           </button>
                         ))}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-center gap-6 sm:gap-7 px-5 py-7 w-full">
+                  </div>
+
+                  <div
+                    aria-hidden={isRuleSimulatorOpen}
+                    inert={isRuleSimulatorOpen}
+                    className={cn(
+                      "col-start-1 row-start-1 flex items-start justify-center gap-6 sm:gap-7 px-5 py-7 w-full transition-[opacity,filter] duration-[var(--duration-ui)] ease-[var(--ease-in-out)] motion-reduce:blur-none",
+                      isRuleSimulatorOpen
+                        ? "opacity-0 blur-[2px] pointer-events-none"
+                        : "opacity-100 blur-none pointer-events-auto",
+                    )}
+                  >
                       {DEMO_BROWSERS.map((browser, i) => (
                         <div
                           key={browser.name}
-                          className="flex flex-col items-center gap-2 group/browser cursor-pointer"
-                          onClick={() => handleBrowserSelect(browser.name)}
+                          className="flex flex-col items-center gap-2"
                         >
                           <div
                             className={cn(
-                              "p-[5px] rounded-[19px] relative transition-all duration-300",
+                              "p-[5px] rounded-[19px] relative transition-[transform,background-color,box-shadow] duration-[var(--duration-ui)] ease-[var(--ease-out)]",
                               selectedBrowser === browser.name ||
                                 (!selectedBrowser && i === 0)
                                 ? "bg-black/[0.06] ring-1 ring-black/10 scale-105"
-                                : "hover:bg-black/[0.04]",
+                                : "bg-transparent",
                             )}
                           >
-                            <div className="transition-transform duration-300 group-hover/browser:scale-105">
-                              <BrowserTileArt kind={browser.kind} />
-                            </div>
+                            <BrowserTileArt kind={browser.kind} />
                             <span className="absolute -bottom-1 -right-1 z-20 text-[10px] font-bold font-mono text-white bg-[#1d1d1f] rounded-md px-1.5 py-0.5 leading-none shadow-md">
                               {browser.key}
                             </span>
@@ -493,15 +639,14 @@ export const Home: React.FC = () => {
                               selectedBrowser === browser.name ||
                                 (!selectedBrowser && i === 0)
                                 ? "text-foreground"
-                                : "text-muted-foreground group-hover/browser:text-foreground",
+                                : "text-muted-foreground",
                             )}
                           >
                             {browser.name}
                           </span>
                         </div>
                       ))}
-                    </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Footer: keyboard hints */}
@@ -737,6 +882,7 @@ export const Home: React.FC = () => {
 
         {/* ── AI-Enhanced Setup ── */}
         <section
+          ref={aiDemoRef}
           id="agentic-setup"
           className="max-w-4xl mx-auto px-6 mt-8 mb-28 scroll-mt-28"
         >
@@ -782,8 +928,8 @@ export const Home: React.FC = () => {
                 <div
                   key={rule.pattern}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl border border-black/[0.06] bg-[#f5f5f7] px-4 py-2.5 font-mono text-[13px] transition-all duration-500",
-                    aiDemoStep >= i + 2
+                    "flex items-center gap-2 rounded-xl border border-black/[0.06] bg-[#f5f5f7] px-4 py-2.5 font-mono text-[13px] transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
+                    renderedAiDemoStep >= i + 2
                       ? "opacity-100 translate-y-0"
                       : "opacity-0 translate-y-2",
                   )}
@@ -855,26 +1001,30 @@ export const Home: React.FC = () => {
                         <div className="relative flex-1 min-w-0">
                           <div className="flex flex-col gap-1.5">
                             <span
-                              className="overflow-hidden whitespace-normal inline-block text-[10px] leading-relaxed"
-                              style={{
-                                opacity: aiDemoStep >= 1 ? 1 : 0,
-                                transition: "opacity 0.5s ease-in",
-                              }}
+                              className={cn(
+                                "overflow-hidden whitespace-normal inline-block text-[10px] leading-relaxed transition-opacity duration-[var(--duration-marketing)] ease-[var(--ease-out)]",
+                                renderedAiDemoStep >= 1
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
                             >
                               Run `curl -s https://chowser...`
                             </span>
                             <div
                               className={cn(
-                                "h-px bg-black/10 transition-all duration-700",
-                                aiDemoStep >= 2 ? "w-full" : "w-0",
+                                "h-px w-full origin-left bg-black/10 transition-transform duration-[var(--duration-marketing)] ease-[var(--ease-in-out)] motion-reduce:transform-none",
+                                renderedAiDemoStep >= 2
+                                  ? "scale-x-100"
+                                  : "scale-x-0",
                               )}
                             />
                             <span
-                              className="text-[9px] text-primary/70 italic"
-                              style={{
-                                opacity: aiDemoStep >= 2 ? 1 : 0,
-                                transition: "opacity 0.5s ease-in",
-                              }}
+                              className={cn(
+                                "text-[9px] text-primary/70 italic transition-opacity duration-[var(--duration-marketing)] ease-[var(--ease-out)]",
+                                renderedAiDemoStep >= 2
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
                             >
                               Fetching config...
                             </span>
@@ -883,13 +1033,13 @@ export const Home: React.FC = () => {
                       </div>
                       <div
                         className={cn(
-                          "absolute bottom-3 right-3 transition-all duration-300",
-                          aiDemoStep >= 2
+                          "absolute bottom-3 right-3 transition-[transform,opacity] duration-[var(--duration-ui)] ease-[var(--ease-out)] motion-reduce:transform-none",
+                          renderedAiDemoStep >= 2
                             ? "opacity-100 translate-y-0"
                             : "opacity-0 translate-y-2 pointer-events-none",
                         )}
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
+                        <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse motion-reduce:animate-none" />
                       </div>
                     </div>
                   </div>
@@ -946,8 +1096,8 @@ export const Home: React.FC = () => {
                       {/* User message */}
                       <div
                         className={cn(
-                          "flex justify-end transition-all duration-500",
-                          aiDemoStep >= 3
+                          "flex justify-end transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
+                          renderedAiDemoStep >= 3
                             ? "opacity-100 translate-y-0"
                             : "opacity-0 translate-y-4",
                         )}
@@ -968,8 +1118,8 @@ export const Home: React.FC = () => {
                       {/* AI message */}
                       <div
                         className={cn(
-                          "flex justify-start transition-all duration-500",
-                          aiDemoStep >= 4
+                          "flex justify-start transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
+                          renderedAiDemoStep >= 4
                             ? "opacity-100 translate-y-0"
                             : "opacity-0 translate-y-4",
                         )}
@@ -980,26 +1130,27 @@ export const Home: React.FC = () => {
                             <span className="font-medium text-[10px]">
                               Analyzing browsers...
                             </span>
-                            {aiDemoStep === 4 && (
+                            {renderedAiDemoStep === 4 && (
                               <span className="flex gap-0.5 ml-1">
-                                <span className="w-1 h-1 bg-primary rounded-full animate-bounce" />
+                                <span className="w-1 h-1 bg-primary rounded-full animate-bounce motion-reduce:animate-none" />
                                 <span
-                                  className="w-1 h-1 bg-primary rounded-full animate-bounce"
+                                  className="w-1 h-1 bg-primary rounded-full animate-bounce motion-reduce:animate-none"
                                   style={{ animationDelay: "150ms" }}
                                 />
                                 <span
-                                  className="w-1 h-1 bg-primary rounded-full animate-bounce"
+                                  className="w-1 h-1 bg-primary rounded-full animate-bounce motion-reduce:animate-none"
                                   style={{ animationDelay: "300ms" }}
                                 />
                               </span>
                             )}
                           </div>
                           <div
+                            aria-hidden={renderedAiDemoStep < 5}
                             className={cn(
-                              "bg-[#1d1d1f] p-2.5 rounded-lg font-mono text-[9px] text-green-400 overflow-hidden transition-all duration-700",
-                              aiDemoStep >= 5
-                                ? "opacity-100 max-h-32 scale-100"
-                                : "opacity-0 max-h-0 scale-95 pointer-events-none",
+                              "bg-[#1d1d1f] p-2.5 rounded-lg font-mono text-[9px] text-green-400 overflow-hidden transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
+                              renderedAiDemoStep >= 5
+                                ? "opacity-100 translate-y-0"
+                                : "opacity-0 translate-y-2 pointer-events-none",
                             )}
                           >
                             <pre>{`{

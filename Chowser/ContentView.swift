@@ -165,6 +165,16 @@ struct ContentView: View {
             && (browserManager.pickerLayoutMode == .radial || browserManager.pickerLayoutMode == .minimal)
     }
 
+    private var pickerPresentationPadding: CGFloat {
+        guard usesQuickPicker else { return 0 }
+
+        // RadialPickerView already owns the complete canvas needed by its orbit and
+        // overflow list. Padding it again makes the borderless panel larger than the
+        // radial interaction layer, leaving an oversized transparent box around it.
+        guard browserManager.pickerLayoutMode != .radial else { return 0 }
+        return isPreview ? 24 : 12
+    }
+
     @ViewBuilder
     private var pickerPresentation: some View {
         if usesQuickPicker {
@@ -208,7 +218,7 @@ struct ContentView: View {
     var body: some View {
         pickerPresentation
             .fixedSize(horizontal: false, vertical: true)
-            .padding(usesQuickPicker ? (isPreview ? 24 : 12) : 0)
+            .padding(pickerPresentationPadding)
             .overlay(alignment: .topLeading) {
                 // Keep the UI-test launch marker available in every presentation,
                 // including quick pickers that intentionally omit the classic panel.

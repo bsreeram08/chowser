@@ -72,6 +72,39 @@ struct QuickPickerTests {
         #expect(upperLeft.anchor.y > 0.5)
     }
 
+    @Test("Radial wheel grows with its destination count instead of reserving the maximum canvas")
+    func adaptiveRadialWheelSize() {
+        let two = RadialPickerGeometry.metrics(itemCount: 2, shape: .circle)
+        let four = RadialPickerGeometry.metrics(itemCount: 4, shape: .circle)
+        let six = RadialPickerGeometry.metrics(itemCount: 6, shape: .circle)
+        let nine = RadialPickerGeometry.metrics(itemCount: 9, shape: .circle)
+        let edgeTwo = RadialPickerGeometry.metrics(
+            itemCount: 2,
+            shape: RadialPickerShape(centerAngle: 0, span: .pi)
+        )
+
+        #expect(two.canvasSize == 216)
+        #expect(four.canvasSize == 256)
+        #expect(six.canvasSize == 304)
+        #expect(nine.canvasSize == 352)
+        #expect(edgeTwo.canvasSize == 248)
+        #expect(two.centerHubSize == 56)
+        #expect(two.outerRadius < four.outerRadius)
+        #expect(four.outerRadius < six.outerRadius)
+        #expect(six.outerRadius < nine.outerRadius)
+    }
+
+    @Test("Radial mode keeps at most five visible destinations")
+    func radialVisibleDestinationLimit() {
+        for totalBrowserCount in 1...5 {
+            #expect(RadialPickerGeometry.directBrowserCount(totalBrowserCount: totalBrowserCount) == totalBrowserCount)
+        }
+
+        #expect(RadialPickerGeometry.directBrowserCount(totalBrowserCount: 6) == 4)
+        #expect(RadialPickerGeometry.directBrowserCount(totalBrowserCount: 8) == 4)
+        #expect(RadialPickerGeometry.directBrowserCount(totalBrowserCount: 12) == 4)
+    }
+
     @Test("Up to nine radial cards do not overlap in circle, edge, or corner layouts")
     func radialCardsDoNotOverlap() {
         let center = CGPoint(x: 250, y: 250)
@@ -202,6 +235,24 @@ struct QuickPickerTests {
             itemCount: 9,
             shape: .circle
         ) == 0)
+    }
+
+    @Test("Even full-circle layouts straddle twelve o'clock while odd and two-item layouts retain their anchors")
+    func evenFullCircleStagger() throws {
+        for itemCount in [4, 6, 8] {
+            let angles = RadialPickerGeometry.centerAngles(itemCount: itemCount, shape: .circle)
+            let step = CGFloat.pi * 2 / CGFloat(itemCount)
+
+            #expect(angles.first == -.pi / 2 + step / 2)
+            #expect(angles.contains(where: { abs($0 + .pi / 2) < 0.001 }) == false)
+            #expect(angles.contains(where: { abs($0 - .pi / 2) < 0.001 }) == false)
+        }
+
+        let two = RadialPickerGeometry.centerAngles(itemCount: 2, shape: .circle)
+        let five = RadialPickerGeometry.centerAngles(itemCount: 5, shape: .circle)
+        #expect(try #require(two.first) == -.pi / 2)
+        #expect(try #require(two.last) == .pi / 2)
+        #expect(try #require(five.first) == -.pi / 2)
     }
 
     @Test("Returning to the radial dead zone clears an active selection")

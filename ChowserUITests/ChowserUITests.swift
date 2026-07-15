@@ -234,6 +234,8 @@ final class ChowserUITests: XCTestCase {
         let launchAnchor = CGPoint(x: screenFrame.midX, y: screenFrame.maxY - screenFrame.midY)
         XCTAssertEqual(radial.frame.midX, launchAnchor.x, accuracy: 3, "Cursor must be the radial picker's horizontal center.")
         XCTAssertEqual(radial.frame.midY, launchAnchor.y, accuracy: 3, "Cursor must be the radial picker's vertical center.")
+        XCTAssertEqual(radial.frame.width, radial.frame.height, accuracy: 1, "The radial picker canvas must stay square.")
+        XCTAssertLessThan(radial.frame.width, 300, "Two destinations should use the compact radial wheel, not the maximum canvas.")
 
         let safariButton = app.buttons["Open in Safari"]
         let chromeButton = app.buttons["Open in Chrome - Work"]

@@ -10,6 +10,15 @@ struct RadialPickerShape: Equatable {
     static let circle = RadialPickerShape(centerAngle: -.pi / 2, span: .pi * 2)
 }
 
+struct RadialPickerMetrics: Equatable {
+    let innerRadius: CGFloat
+    let itemRadius: CGFloat
+    let outerRadius: CGFloat
+
+    var canvasSize: CGFloat { (outerRadius + 16) * 2 }
+    var centerHubSize: CGFloat { min(56, innerRadius * 2 - 8) }
+}
+
 /// Pure geometry shared by the radial view, AppKit window placement, and unit tests.
 enum RadialPickerGeometry {
     static let outerRadius: CGFloat = 160
@@ -17,6 +26,38 @@ enum RadialPickerGeometry {
     static let itemRadius: CGFloat = 108
     static let deadZoneRadius: CGFloat = 38
     static let entrySize = CGSize(width: 56, height: 56)
+
+    static func directBrowserCount(totalBrowserCount: Int) -> Int {
+        totalBrowserCount <= 5 ? totalBrowserCount : 4
+    }
+
+    static func metrics(itemCount: Int, shape: RadialPickerShape) -> RadialPickerMetrics {
+        let base: RadialPickerMetrics
+        switch itemCount {
+        case ...2:
+            base = RadialPickerMetrics(innerRadius: 36, itemRadius: 64, outerRadius: 92)
+        case 3...4:
+            base = RadialPickerMetrics(innerRadius: 38, itemRadius: 78, outerRadius: 112)
+        case 5...6:
+            base = RadialPickerMetrics(innerRadius: 40, itemRadius: 94, outerRadius: 136)
+        default:
+            base = RadialPickerMetrics(innerRadius: innerRadius, itemRadius: itemRadius, outerRadius: outerRadius)
+        }
+
+        guard shape.span < .pi * 2 - 0.001 else { return base }
+        let fanOuterRadius: CGFloat
+        switch itemCount {
+        case ...2: fanOuterRadius = 108
+        case 3...4: fanOuterRadius = 138
+        case 5...6: fanOuterRadius = 170
+        default: fanOuterRadius = 210
+        }
+        return RadialPickerMetrics(
+            innerRadius: base.innerRadius,
+            itemRadius: base.itemRadius,
+            outerRadius: fanOuterRadius
+        )
+    }
 
     static func shape(anchor: CGPoint, visibleFrame: CGRect, requiredRadius: CGFloat = outerRadius + 12) -> RadialPickerShape {
         let nearLeft = anchor.x - visibleFrame.minX < requiredRadius
@@ -46,8 +87,13 @@ enum RadialPickerGeometry {
         guard itemCount > 0 else { return [] }
         let step = shape.span / CGFloat(itemCount)
         if shape.span >= .pi * 2 - 0.001 {
-            // Browser shortcut 1 starts at twelve o'clock; configured order proceeds clockwise.
-            return (0..<itemCount).map { -.pi / 2 + step * CGFloat($0) }
+            // Odd counts have a natural twelve-o'clock anchor. Even counts above two
+            // look rigid when their cards land on every cardinal axis, so straddle
+            // twelve o'clock instead while preserving clockwise destination order.
+            let startAngle = itemCount > 2 && itemCount.isMultiple(of: 2)
+                ? -.pi / 2 + step / 2
+                : -.pi / 2
+            return (0..<itemCount).map { startAngle + step * CGFloat($0) }
         }
         let start = shape.centerAngle - shape.span / 2
         return (0..<itemCount).map { start + step * (CGFloat($0) + 0.5) }
@@ -58,7 +104,8 @@ enum RadialPickerGeometry {
         shape: RadialPickerShape,
         center: CGPoint,
         panelBounds: CGRect,
-        inset: CGFloat = 12
+        inset: CGFloat = 12,
+        itemRadius: CGFloat = RadialPickerGeometry.itemRadius
     ) -> [CGPoint] {
         let angles = centerAngles(itemCount: itemCount, shape: shape)
         guard !angles.isEmpty else { return [] }
@@ -122,30 +169,6 @@ enum RadialPickerGeometry {
             .enumerated()
             .min(by: { angularDistance(angle, $0.element) < angularDistance(angle, $1.element) })?
             .offset
-    }
-
-    static func wedgePath(
-        center: CGPoint,
-        innerRadius: CGFloat,
-        outerRadius: CGFloat,
-        startAngle: CGFloat,
-        endAngle: CGFloat
-    ) -> Path {
-        var path = Path()
-        let samples = 18
-        for sample in 0...samples {
-            let progress = CGFloat(sample) / CGFloat(samples)
-            let angle = startAngle + (endAngle - startAngle) * progress
-            let point = CGPoint(x: center.x + cos(angle) * outerRadius, y: center.y + sin(angle) * outerRadius)
-            if sample == 0 { path.move(to: point) } else { path.addLine(to: point) }
-        }
-        for sample in (0...samples).reversed() {
-            let progress = CGFloat(sample) / CGFloat(samples)
-            let angle = startAngle + (endAngle - startAngle) * progress
-            path.addLine(to: CGPoint(x: center.x + cos(angle) * innerRadius, y: center.y + sin(angle) * innerRadius))
-        }
-        path.closeSubpath()
-        return path
     }
 
     private static func angularDistance(_ lhs: CGFloat, _ rhs: CGFloat) -> CGFloat {
@@ -251,21 +274,27 @@ struct RadialPickerView: View {
     let privateMode: Bool
     let openBrowser: (BrowserConfig) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var activationGuard = PickerActivationGuard()
 
-    // Extra transparent room keeps the expanded More list inside the borderless panel
-    // even when the directional orbit is centered on a cursor at a screen edge.
-    private let size: CGFloat = 500
-
-    private var directBrowsers: [BrowserConfig] { Array(browsers.prefix(8)) }
-    private var overflowBrowsers: [BrowserConfig] { Array(browsers.dropFirst(8)) }
+    private var directBrowserCount: Int {
+        RadialPickerGeometry.directBrowserCount(totalBrowserCount: browsers.count)
+    }
+    private var directBrowsers: [BrowserConfig] { Array(browsers.prefix(directBrowserCount)) }
+    private var overflowBrowsers: [BrowserConfig] { Array(browsers.dropFirst(directBrowserCount)) }
     private var entries: [QuickPickerEntry] {
         var result = directBrowsers.map { QuickPickerEntry(id: $0.id.uuidString, browser: $0) }
         if !overflowBrowsers.isEmpty { result.append(QuickPickerEntry(id: "more", browser: nil)) }
         return result
     }
+    private var metrics: RadialPickerMetrics {
+        RadialPickerGeometry.metrics(itemCount: entries.count, shape: shape)
+    }
+    // The idle panel hugs the wheel. The larger canvas exists only while the
+    // expanded More list needs to remain inside the borderless window.
+    private var size: CGFloat { overflowPresented ? 500 : metrics.canvasSize }
     private var center: CGPoint { CGPoint(x: size / 2, y: size / 2) }
 
     var body: some View {
@@ -273,22 +302,6 @@ struct RadialPickerView: View {
             directionalOrbit
                 .opacity(overflowPresented ? 0.18 : 1)
                 .blur(radius: overflowPresented && !reduceMotion ? 2 : 0)
-
-            if privateMode && !overflowPresented {
-                Label("Private", systemImage: "lock.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.94))
-                            .stroke(Color.purple.opacity(contrast == .increased ? 0.9 : 0.5), lineWidth: contrast == .increased ? 2 : 1)
-                    )
-                    .position(center)
-                    .allowsHitTesting(false)
-                    .accessibilityIdentifier("picker.privateModeIndicator")
-            }
 
             if overflowPresented {
                 QuickPickerOverflowList(
@@ -334,39 +347,29 @@ struct RadialPickerView: View {
     }
 
     private var directionalOrbit: some View {
-        let angles = RadialPickerGeometry.centerAngles(itemCount: entries.count, shape: shape)
         let entryCenters = RadialPickerGeometry.entryCenters(
             itemCount: entries.count,
             shape: shape,
             center: center,
-            panelBounds: CGRect(x: 0, y: 0, width: size, height: size)
+            panelBounds: CGRect(x: 0, y: 0, width: size, height: size),
+            itemRadius: metrics.itemRadius
         )
-        let step = entries.isEmpty ? 0 : shape.span / CGFloat(entries.count)
-        let gap: CGFloat = shape.span >= .pi * 2 - 0.001 ? 0.025 : 0.04
-        let wedgeOuterRadius = shape.span >= .pi * 2 - 0.001 ? RadialPickerGeometry.outerRadius : 210
 
         return ZStack {
+            if let selectionIndex, entryCenters.indices.contains(selectionIndex) {
+                selectionConnector(to: entryCenters[selectionIndex])
+                    .stroke(
+                        privateMode ? Color.purple.opacity(0.72) : Color.pickerAccent.opacity(0.72),
+                        style: StrokeStyle(lineWidth: contrast == .increased ? 3 : 2, lineCap: .round)
+                    )
+                    .shadow(
+                        color: privateMode ? Color.purple.opacity(0.24) : Color.pickerAccent.opacity(0.24),
+                        radius: 4
+                    )
+            }
+
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 let isSelected = selectionIndex == index
-                let wedge = RadialPickerGeometry.wedgePath(
-                    center: center,
-                    innerRadius: RadialPickerGeometry.innerRadius,
-                    outerRadius: wedgeOuterRadius,
-                    startAngle: angles[index] - step / 2 + gap,
-                    endAngle: angles[index] + step / 2 - gap
-                )
-
-                if isSelected {
-                    wedge
-                        .fill(privateMode ? Color.purple.opacity(0.24) : Color.pickerAccent.opacity(0.2))
-                        .overlay(
-                            wedge.stroke(
-                                privateMode ? Color.purple.opacity(0.9) : Color.pickerAccent.opacity(0.9),
-                                lineWidth: contrast == .increased ? 2 : 1.5
-                            )
-                        )
-                        .transition(.opacity)
-                }
 
                 Button {
                     select(index: index)
@@ -380,19 +383,91 @@ struct RadialPickerView: View {
                 .accessibilityLabel(accessibilityLabel(for: entry))
                 .accessibilityValue(accessibilityValue(isSelected: isSelected))
             }
+
+            radialCenterHub
+                .position(center)
+                .allowsHitTesting(false)
         }
+        .animation(PickerMotion.occasional(reduceMotion: reduceMotion), value: selectionIndex)
+    }
+
+    private func selectionConnector(to target: CGPoint) -> Path {
+        let delta = CGVector(dx: target.x - center.x, dy: target.y - center.y)
+        let distance = max(1, hypot(delta.dx, delta.dy))
+        let direction = CGVector(dx: delta.dx / distance, dy: delta.dy / distance)
+        let startInset = metrics.centerHubSize / 2 + 2
+        let endInset = min(RadialPickerGeometry.entrySize.width, RadialPickerGeometry.entrySize.height) / 2 + 2
+
+        var path = Path()
+        path.move(to: CGPoint(
+            x: center.x + direction.dx * startInset,
+            y: center.y + direction.dy * startInset
+        ))
+        path.addLine(to: CGPoint(
+            x: target.x - direction.dx * endInset,
+            y: target.y - direction.dy * endInset
+        ))
+        return path
+    }
+
+    private var radialCenterHub: some View {
+        let accent = privateMode ? Color.purple : Color.pickerAccent
+
+        return ZStack {
+            if reduceTransparency || contrast == .increased {
+                Circle().fill(Color(nsColor: .controlBackgroundColor))
+            } else {
+                Circle().fill(.ultraThinMaterial)
+            }
+
+            Circle()
+                .stroke(
+                    privateMode ? accent.opacity(0.75) : Color.primary.opacity(contrast == .increased ? 0.4 : 0.14),
+                    lineWidth: contrast == .increased ? 2 : 0.8
+                )
+
+            VStack(spacing: 2) {
+                Image(systemName: privateMode ? "lock.fill" : "cursorarrow.motionlines")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(privateMode ? accent : Color.secondary)
+                if privateMode {
+                    Text("Private")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(width: metrics.centerHubSize, height: metrics.centerHubSize)
+        .shadow(color: .black.opacity(0.14), radius: 6, y: 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(privateMode ? "Private mode active" : "Choose a browser")
+        .accessibilityIdentifier(privateMode ? "picker.privateModeIndicator" : "picker.radialCenter")
     }
 
     @ViewBuilder
     private func radialEntry(_ entry: QuickPickerEntry, selected: Bool) -> some View {
-        VStack(spacing: 1) {
+        let accent = privateMode ? Color.purple : Color.pickerAccent
+
+        VStack(spacing: 2) {
             if let browser = entry.browser {
-                QuickBrowserIcon(browser: browser, size: 26)
+                QuickBrowserIcon(browser: browser, size: 27)
+                    .overlay(alignment: .bottomTrailing) {
+                        Text(browser.shortcutKey)
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .frame(width: 14, height: 14)
+                            .background(
+                                Circle()
+                                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.94))
+                                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+                            )
+                            .offset(x: 5, y: 4)
+                    }
             } else {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 27, height: 27)
             }
 
             VStack(spacing: 0) {
@@ -405,29 +480,34 @@ struct RadialPickerView: View {
                 }
             }
             .lineLimit(1)
-            .frame(width: 50)
+            .frame(width: 52)
         }
         .frame(width: RadialPickerGeometry.entrySize.width, height: RadialPickerGeometry.entrySize.height)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color(nsColor: .windowBackgroundColor).opacity(selected ? 0.96 : 0.9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(
-                            selected
-                                ? (privateMode ? Color.purple.opacity(0.9) : Color.pickerAccent.opacity(0.9))
-                                : Color.primary.opacity(0.12),
-                            lineWidth: selected ? (contrast == .increased ? 2 : 1.5) : 0.8
-                        )
+        .background {
+            if reduceTransparency || contrast == .increased {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            } else {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(
+                    selected ? accent.opacity(contrast == .increased ? 1 : 0.88) : Color.primary.opacity(contrast == .increased ? 0.34 : 0.12),
+                    lineWidth: selected ? (contrast == .increased ? 2 : 1.5) : 0.7
                 )
-                .shadow(color: .black.opacity(0.25), radius: 7, y: 3)
         )
+        .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.86))
+        .scaleEffect(selected && !reduceMotion ? 1.07 : 1)
+        .shadow(color: selected ? accent.opacity(0.28) : Color.black.opacity(0.16), radius: selected ? 8 : 6, y: selected ? 0 : 3)
         .overlay(alignment: .topTrailing) {
             if selected && differentiateWithoutColor {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .padding(3)
+                    .foregroundStyle(accent)
+                    .padding(1)
             }
         }
     }
@@ -437,7 +517,7 @@ struct RadialPickerView: View {
         guard !overflowBrowsers.isEmpty, angles.indices.contains(directBrowsers.count) else {
             return QuickPickerOverflowPlacement(offset: .zero, anchor: .center)
         }
-        return .radial(moreAngle: angles[directBrowsers.count])
+        return .radial(moreAngle: angles[directBrowsers.count], panelSize: size)
     }
 
     private var selectionIndex: Int? {

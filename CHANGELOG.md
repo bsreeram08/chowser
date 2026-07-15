@@ -2,6 +2,15 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.7] - 2026-07-15
+
+### Changed
+- **The radial picker is now a compact command wheel.** Browser destinations use readable glass chips around the cursor, scale with the number of choices, and move extra browsers into the existing More list once five destinations are visible.
+
+### Fixed
+- **Radial layouts no longer reserve an oversized invisible panel** around the actual controls, which could interfere with nearby UI.
+- **Even browser counts now stay visually balanced.** Four, six, and eight destinations straddle the twelve-o'clock axis instead of forming a rigid horizontal and vertical grid.
+
 ## [3.9.4] - 2026-07-11
 
 ### Added

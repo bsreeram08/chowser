@@ -49,7 +49,7 @@ fi
 if [[ -f "$appcast_path" ]]; then
     xmllint --noout "$appcast_path"
     highest_existing_build="$(
-        rg -o '<sparkle:version>[0-9]+</sparkle:version>' "$appcast_path" \
+        grep -Eo '<sparkle:version>[0-9]+</sparkle:version>' "$appcast_path" \
             | sed -E 's/.*>([0-9]+)<.*/\1/' \
             | sort -n \
             | tail -1 \
@@ -62,7 +62,7 @@ if [[ -f "$appcast_path" ]]; then
     fi
 
     if [[ -n "$highest_existing_build" && "$build_number" -eq "$highest_existing_build" ]] \
-        && ! rg -q "<sparkle:shortVersionString>$version</sparkle:shortVersionString>" "$appcast_path"; then
+        && ! grep -Fq "<sparkle:shortVersionString>$version</sparkle:shortVersionString>" "$appcast_path"; then
         echo "Build $build_number is already used by a different published version" >&2
         exit 1
     fi
@@ -115,7 +115,7 @@ if [[ ! "$current_length" =~ ^[0-9]+$ || "$current_length" != "$archive_length" 
     exit 1
 fi
 
-if ! rg -q 'sparkle-signatures:' "$appcast_path"; then
+if ! grep -Fq 'sparkle-signatures:' "$appcast_path"; then
     echo "Generated appcast is not signed" >&2
     exit 1
 fi

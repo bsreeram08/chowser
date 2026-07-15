@@ -34,7 +34,7 @@ if [[ "${ALLOW_DIRTY:-0}" != "1" && -n "$(git status --short)" ]]; then
     exit 1
 fi
 
-if ! rg -q "^## \[$version\]" CHANGELOG.md; then
+if ! grep -Eq "^## \[$version\]" CHANGELOG.md; then
     echo "Add a reviewed CHANGELOG.md section for $version before preparing the release" >&2
     exit 1
 fi

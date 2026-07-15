@@ -146,8 +146,9 @@ else
         reject_plist_key "$key"
     done
 
-    if strings "$executable" | rg -q \
-        'SUFeedURL|SPUUpdater|Sparkle|DIRECT_DISTRIBUTION|updates\.includeBetaReleases|sparkle-project|raw\.githubusercontent\.com|github\.com/.*/releases|Check for Updates'; then
+    if strings "$executable" | grep -E \
+        'SUFeedURL|SPUUpdater|Sparkle|DIRECT_DISTRIBUTION|updates\.includeBetaReleases|sparkle-project|raw\.githubusercontent\.com|github\.com/.*/releases|Check for Updates' \
+        >/dev/null; then
         echo "App Store executable contains direct-update implementation markers" >&2
         exit 1
     fi

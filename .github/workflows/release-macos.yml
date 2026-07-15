@@ -65,7 +65,7 @@ jobs:
             echo "CURRENT_PROJECT_VERSION must be numeric: $BUILD"
             exit 1
           fi
-          if ! rg -q "^## \[$VERSION\]" CHANGELOG.md; then
+          if ! grep -Eq "^## \[$VERSION\]" CHANGELOG.md; then
             echo "CHANGELOG.md has no reviewed section for $VERSION"
             exit 1
           fi

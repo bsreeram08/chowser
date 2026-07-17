@@ -19,6 +19,29 @@ struct HostedCatalogKey: Equatable {
     let publicKey: Data
 }
 
+struct HostedCatalogKeyring: Codable, Equatable {
+    struct Entry: Codable, Equatable {
+        let keyID: String
+        let publicKey: String
+    }
+
+    let schemaVersion: Int
+    let keys: [Entry]
+
+    func trustedKeys() throws -> [HostedCatalogKey] {
+        guard schemaVersion == 1 else {
+            throw HostedCatalogTrustError.invalidKeyring
+        }
+        return try keys.map { entry in
+            guard !entry.keyID.isEmpty,
+                  let rawKey = Data(base64Encoded: entry.publicKey) else {
+                throw HostedCatalogTrustError.invalidKeyring
+            }
+            return HostedCatalogKey(keyID: entry.keyID, publicKey: rawKey)
+        }
+    }
+}
+
 struct HostedCatalogLimits: Equatable {
     static let standard = HostedCatalogLimits(
         maxDocumentBytes: 512 * 1_024,
@@ -84,6 +107,19 @@ enum HostedCatalogTrustError: Error, Equatable {
     case versionReuse(Int)
     case cacheCorrupt
     case cacheIO
+    case invalidKeyring
+}
+
+enum HostedCatalogTrustConfiguration {
+    static let production: HostedCatalogTrust = {
+        guard let url = Bundle.main.url(forResource: "HostedCatalogKeys", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let keyring = try? JSONDecoder().decode(HostedCatalogKeyring.self, from: data),
+              let keys = try? keyring.trustedKeys() else {
+            return HostedCatalogTrust(keys: [])
+        }
+        return HostedCatalogTrust(keys: keys)
+    }()
 }
 
 /// Pure verifier for detached Ed25519 signatures over the exact catalog bytes.

@@ -94,6 +94,30 @@ struct HostedCatalogTrustTests {
         #expect(verified.provenance.sha256.count == 64)
     }
 
+    @Test("Bundled keyring shape decodes only Base64 public keys")
+    func keyringDecoding() throws {
+        let signer = FixtureSigner()
+        let keyring = HostedCatalogKeyring(
+            schemaVersion: 1,
+            keys: [
+                .init(
+                    keyID: signer.keyID,
+                    publicKey: signer.privateKey.publicKey.rawRepresentation.base64EncodedString()
+                )
+            ]
+        )
+
+        #expect(try keyring.trustedKeys() == [signer.trustedKey])
+
+        let invalid = HostedCatalogKeyring(
+            schemaVersion: 1,
+            keys: [.init(keyID: signer.keyID, publicKey: "not-base64")]
+        )
+        expectFailure(.invalidKeyring) {
+            try invalid.trustedKeys()
+        }
+    }
+
     @Test("Changing a signed catalog byte is rejected")
     func tamperedDocument() throws {
         let signer = FixtureSigner()

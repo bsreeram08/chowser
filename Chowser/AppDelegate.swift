@@ -279,6 +279,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         case picker
     }
 
+    struct IncomingURLIntent: Equatable {
+        let forceShowPicker: Bool
+        let privateModeRequested: Bool
+    }
+
+    static func captureIncomingURLIntent(
+        privateModeRequested: Bool,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> IncomingURLIntent {
+        IncomingURLIntent(
+            forceShowPicker: modifierFlags.contains(.shift),
+            privateModeRequested: privateModeRequested
+        )
+    }
+
     /// One precedence boundary for incoming links: Shift, explicit Chowser routes
     /// (including focus mode), approved native apps, browser fallback, then picker.
     /// Private-mode requests intentionally bypass native apps because Chowser cannot
@@ -376,6 +391,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
 
+        // Modifier state belongs to the click event. Capture it before the Task's
+        // optional shortlink await so releasing Shift cannot change this link's intent.
+        let incomingIntent = Self.captureIncomingURLIntent(
+            privateModeRequested: clipboardPrivateModeRequested,
+            modifierFlags: NSEvent.modifierFlags
+        )
+
         Task {
             // 0. Apply URL rewrite rules — local, synchronous, before any network call
             // (PRD Architecture Notes pipeline order: rewrites → shortlink → cleanup).
@@ -409,8 +431,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 manager.addRecentURL(cleanedURL)
                 manager.currentURL = cleanedURL
 
-                // Hold Shift (⇧) while clicking a link to bypass auto-rules and force the picker.
-                let forceShowPicker = NSEvent.modifierFlags.contains(.shift)
                 // Pass the source app captured at the top of this Task explicitly — reading
                 // `manager.currentSourceAppBundleId` here (after the `await unshortenURL` gap
                 // above) would race a second incoming link overwriting that ambient property
@@ -418,9 +438,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 let destination = Self.resolveIncomingURLDestination(
                     for: cleanedURL,
                     using: manager,
-                    forceShowPicker: forceShowPicker,
+                    forceShowPicker: incomingIntent.forceShowPicker,
                     sourceApp: sourceAppBundleId,
-                    privateModeRequested: clipboardPrivateModeRequested,
+                    privateModeRequested: incomingIntent.privateModeRequested,
                     nativeResolution: {
                         NativeAppDirectoryService.shared.resolve(
                             webURL: cleanedURL,
@@ -436,7 +456,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     manager.currentURL = nil
                     let usePrivateMode = Self.requestedPrivateModeForIncomingURL(
                         rule: rule,
-                        forcedPrivateMode: clipboardPrivateModeRequested
+                        forcedPrivateMode: incomingIntent.privateModeRequested
                     )
                     manager.currentURLPrivateModeRequested = false
                     manager.open(
@@ -466,7 +486,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 case .picker:
                     AppLogger.log("Route", "Received link → picker")
                     manager.currentURLPrivateModeRequested = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
-                        && clipboardPrivateModeRequested
+                        && incomingIntent.privateModeRequested
                     showPicker()
                 }
             }

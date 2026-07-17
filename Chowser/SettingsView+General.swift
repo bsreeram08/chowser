@@ -483,9 +483,9 @@ private struct NativeAppConsentRow: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Label("Web hosts: \(sourceHosts.joined(separator: ", "))", systemImage: "globe")
-                Label("Native schemes: \(entry.nativeSchemes.map { $0 + "://" }.joined(separator: ", "))", systemImage: "app.badge.checkmark")
+                Label("Native schemes: \(entry.nativeSchemes.map { $0 + ":" }.joined(separator: ", "))", systemImage: "app.badge.checkmark")
                 ForEach(entry.rules) { rule in
-                    Text("• \(ruleReview(rule))")
+                    Text("• \(rule.reviewDescription)")
                         .textSelection(.enabled)
                 }
             }
@@ -510,31 +510,6 @@ private struct NativeAppConsentRow: View {
         return hosts
     }
 
-    private func ruleReview(_ rule: NativeDeepLinkRule) -> String {
-        let sourcePath = rule.source.path.map { segment -> String in
-            switch segment {
-            case .literal(let value): return value
-            case .capture(let capture): return "{\(capture.name):\(capture.characterSet.rawValue),max=\(capture.maxLength)}"
-            }
-        }.joined(separator: "/")
-        let targetPath = rule.target.path.map { value -> String in
-            switch value {
-            case .literal(let literal): return literal
-            case .capture(let name): return "{\(name)}"
-            }
-        }.joined(separator: "/")
-        let sourceQuery = rule.source.query.map { "\($0.queryName)={\($0.capture.name)}" }
-            .joined(separator: "&")
-        let targetQuery = rule.target.query.map { item -> String in
-            switch item.value {
-            case .literal(let value): return "\(item.name)=\(value)"
-            case .capture(let name): return "\(item.name)={\(name)}"
-            }
-        }.joined(separator: "&")
-        let sourceSuffix = sourceQuery.isEmpty ? "" : "?\(sourceQuery)"
-        let targetSuffix = targetQuery.isEmpty ? "" : "?\(targetQuery)"
-        return "https://\(rule.source.hosts.joined(separator: "|"))/\(sourcePath)\(sourceSuffix) → \(rule.target.scheme)://\(rule.target.host)/\(targetPath)\(targetSuffix)"
-    }
 }
 
 private struct SettingsHiddenAppRow: View {

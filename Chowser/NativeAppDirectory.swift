@@ -135,17 +135,92 @@ struct NativeDeepLinkSource: Codable, Equatable {
     let query: [NativeSourceQueryCapture]
 }
 
+enum NativeDeepLinkTargetFormat: String, Codable, Equatable {
+    /// `scheme://host/path?query`, used by apps such as Slack and Zoom.
+    case hierarchical
+    /// `scheme:head:path`, used by apps such as Spotify. Every component remains
+    /// a separately validated literal or typed capture; this is not a raw template.
+    case opaqueColonPath
+}
+
 struct NativeDeepLinkTarget: Codable, Equatable {
     var scheme: String
+    var format: NativeDeepLinkTargetFormat = .hierarchical
     let host: String
     let path: [NativeTemplateValue]
     let query: [NativeTargetQueryItem]
+}
+
+extension NativeDeepLinkTarget {
+    private enum CodingKeys: String, CodingKey {
+        case scheme, format, host, path, query
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        scheme = try container.decode(String.self, forKey: .scheme)
+        format = try container.decodeIfPresent(NativeDeepLinkTargetFormat.self, forKey: .format)
+            ?? .hierarchical
+        host = try container.decode(String.self, forKey: .host)
+        path = try container.decode([NativeTemplateValue].self, forKey: .path)
+        query = try container.decode([NativeTargetQueryItem].self, forKey: .query)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(scheme, forKey: .scheme)
+        try container.encode(format, forKey: .format)
+        try container.encode(host, forKey: .host)
+        try container.encode(path, forKey: .path)
+        try container.encode(query, forKey: .query)
+    }
 }
 
 struct NativeDeepLinkRule: Codable, Equatable, Identifiable {
     let id: String
     let source: NativeDeepLinkSource
     var target: NativeDeepLinkTarget
+}
+
+extension NativeDeepLinkRule {
+    /// Exact declarative source and target shown before consent. Keeping this beside
+    /// the transform model prevents the review UI from drifting from runtime syntax.
+    var reviewDescription: String {
+        let sourcePath = source.path.map { segment -> String in
+            switch segment {
+            case .literal(let value): return value
+            case .capture(let capture):
+                return "{\(capture.name):\(capture.characterSet.rawValue),max=\(capture.maxLength)}"
+            }
+        }.joined(separator: "/")
+        let targetPath = target.path.map { value -> String in
+            switch value {
+            case .literal(let literal): return literal
+            case .capture(let name): return "{\(name)}"
+            }
+        }
+        let sourceQuery = source.query.map { "\($0.queryName)={\($0.capture.name)}" }
+            .joined(separator: "&")
+        let targetQuery = target.query.map { item -> String in
+            switch item.value {
+            case .literal(let value): return "\(item.name)=\(value)"
+            case .capture(let name): return "\(item.name)={\(name)}"
+            }
+        }.joined(separator: "&")
+        let sourceSuffix = sourceQuery.isEmpty ? "" : "?\(sourceQuery)"
+        let sourceDescription = "https://\(source.hosts.joined(separator: "|"))/\(sourcePath)\(sourceSuffix)"
+
+        let targetDescription: String
+        switch target.format {
+        case .hierarchical:
+            let path = targetPath.isEmpty ? "" : "/" + targetPath.joined(separator: "/")
+            let query = targetQuery.isEmpty ? "" : "?\(targetQuery)"
+            targetDescription = "\(target.scheme)://\(target.host)\(path)\(query)"
+        case .opaqueColonPath:
+            targetDescription = ([target.scheme, target.host] + targetPath).joined(separator: ":")
+        }
+        return "\(sourceDescription) → \(targetDescription)"
+    }
 }
 
 struct NativeAppDirectoryEntry: Codable, Equatable, Identifiable {
@@ -258,7 +333,7 @@ struct NativeAppDirectory: Codable, Identifiable, HostedCatalogDocument {
     ) -> Bool {
         guard nativeSchemes.contains(target.scheme),
               NativeDeepLinkResolver.isAllowedTargetScheme(target.scheme),
-              NativeDeepLinkResolver.isSafeTargetHost(target.host),
+              NativeDeepLinkResolver.isSafeTargetRoot(target),
               target.path.count <= 16,
               target.query.count <= 16,
               Set(target.query.map(\.name)).count == target.query.count else {
@@ -386,7 +461,7 @@ enum NativeDeepLinkResolver {
                   $0.caseInsensitiveCompare(rule.target.scheme) == .orderedSame
               }),
               isAllowedTargetScheme(rule.target.scheme),
-              isSafeTargetHost(rule.target.host) else {
+              isSafeTargetRoot(rule.target) else {
             return nil
         }
 
@@ -432,13 +507,6 @@ enum NativeDeepLinkResolver {
             return nil
         }
 
-        var target = URLComponents()
-        target.scheme = rule.target.scheme.lowercased()
-        target.host = rule.target.host
-        if !targetSegments.isEmpty {
-            target.path = "/" + targetSegments.joined(separator: "/")
-        }
-
         var queryItems: [URLQueryItem] = []
         for item in rule.target.query {
             guard isSafeQueryName(item.name),
@@ -448,17 +516,39 @@ enum NativeDeepLinkResolver {
             }
             queryItems.append(URLQueryItem(name: item.name, value: value))
         }
-        target.queryItems = queryItems.isEmpty ? nil : queryItems
 
-        guard let url = target.url,
-              url.scheme?.lowercased() == rule.target.scheme.lowercased(),
-              url.host == rule.target.host,
-              url.user == nil,
-              url.password == nil,
-              url.port == nil else {
-            return nil
+        switch rule.target.format {
+        case .hierarchical:
+            var target = URLComponents()
+            target.scheme = rule.target.scheme.lowercased()
+            target.host = rule.target.host
+            if !targetSegments.isEmpty {
+                target.path = "/" + targetSegments.joined(separator: "/")
+            }
+            target.queryItems = queryItems.isEmpty ? nil : queryItems
+
+            guard let url = target.url,
+                  url.scheme?.lowercased() == rule.target.scheme.lowercased(),
+                  url.host == rule.target.host,
+                  url.user == nil,
+                  url.password == nil,
+                  url.port == nil else {
+                return nil
+            }
+            return url
+
+        case .opaqueColonPath:
+            guard queryItems.isEmpty else { return nil }
+            let components = [rule.target.host] + targetSegments
+            let absoluteString = rule.target.scheme.lowercased() + ":" + components.joined(separator: ":")
+            guard let url = URL(string: absoluteString),
+                  url.absoluteString == absoluteString,
+                  url.scheme == rule.target.scheme.lowercased(),
+                  url.host == nil else {
+                return nil
+            }
+            return url
         }
-        return url
     }
 
     private static func decodedPathSegments(_ url: URL) -> [String]? {
@@ -528,6 +618,15 @@ enum NativeDeepLinkResolver {
 
     fileprivate static func isSafeSourceHost(_ host: String) -> Bool {
         host == host.lowercased() && isSafeTargetHost(host) && host.contains(".")
+    }
+
+    fileprivate static func isSafeTargetRoot(_ target: NativeDeepLinkTarget) -> Bool {
+        switch target.format {
+        case .hierarchical:
+            return isSafeTargetHost(target.host)
+        case .opaqueColonPath:
+            return target.query.isEmpty && isSafeTargetSegment(target.host)
+        }
     }
 
     fileprivate static func isSafeTargetHost(_ host: String) -> Bool {

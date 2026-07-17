@@ -53,6 +53,7 @@ struct NativeDeepLinkDirectoryTests {
                     ),
                     target: NativeDeepLinkTarget(
                         scheme: "spotify",
+                        format: .opaqueColonPath,
                         host: "album",
                         path: [.capture("id")],
                         query: []
@@ -67,6 +68,7 @@ struct NativeDeepLinkDirectoryTests {
                     ),
                     target: NativeDeepLinkTarget(
                         scheme: "spotify",
+                        format: .opaqueColonPath,
                         host: "track",
                         path: [.capture("id")],
                         query: []
@@ -137,7 +139,7 @@ struct NativeDeepLinkDirectoryTests {
         )
 
         #expect(verified.document.apps.map(\.id) == ["spotify", "slack", "zoom"])
-        #expect(resolution?.nativeURL.absoluteString == "spotify://track/0hwPOwj3rojFt33NhaxNUy")
+        #expect(resolution?.nativeURL.absoluteString == "spotify:track:0hwPOwj3rojFt33NhaxNUy")
     }
 
     @Test("Signed native directories with unsafe or ambiguous behavior fail validation")
@@ -199,9 +201,10 @@ struct NativeDeepLinkDirectoryTests {
             handlerBundleIdentifier: { _ in "com.spotify.client" }
         )
 
-        #expect(album?.nativeURL.absoluteString == "spotify://album/2Ki8BsWPpqo2g7bUj6AGyV")
-        #expect(track?.nativeURL.absoluteString == "spotify://track/0hwPOwj3rojFt33NhaxNUy")
+        #expect(album?.nativeURL.absoluteString == "spotify:album:2Ki8BsWPpqo2g7bUj6AGyV")
+        #expect(track?.nativeURL.absoluteString == "spotify:track:0hwPOwj3rojFt33NhaxNUy")
         #expect(album?.matchedRuleID == "album")
+        #expect(spotify.rules[0].reviewDescription.contains("→ spotify:album:{id}"))
     }
 
     @Test("The same resolver supports an unrelated query-driven app without Swift mappings")
@@ -467,5 +470,16 @@ struct NativeDeepLinkDirectoryTests {
         }
         #expect(rule == nil)
         #expect(browser.id == safari.id)
+    }
+
+    @Test("Incoming modifier intent is captured before asynchronous URL processing")
+    func incomingIntentSnapshot() {
+        let intent = AppDelegate.captureIncomingURLIntent(
+            privateModeRequested: false,
+            modifierFlags: [.shift]
+        )
+
+        #expect(intent.forceShowPicker)
+        #expect(!intent.privateModeRequested)
     }
 }

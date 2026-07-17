@@ -1,0 +1,8 @@
+{
+  "algorithm" : "ed25519",
+  "catalogKind" : "native-apps",
+  "keyID" : "chowser-catalog-2026-01",
+  "schemaVersion" : 1,
+  "sha256" : "7c1f45fa041dfbdb453ca761d3883165269abd26b2b55fc31a518fa29a9ca691",
+  "signature" : "PTRJVpq+jG1bMsrZuCrveakojEugp8PuH7GII8zMynMHGx+L7F2YJK10JCSeFON/Qyr4g5iEAXMg7+7wRg86Bw=="
+}

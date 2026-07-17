@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "catalogKind": "native-apps",
+  "catalogVersion": 1,
+  "publishedAt": "2026-07-17T00:00:00Z",
+  "apps": [
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "summary": "Open Spotify music, podcast, playlist, and profile links in Spotify.",
+      "bundleIdentifiers": ["com.spotify.client"],
+      "nativeSchemes": ["spotify"],
+      "rules": [
+        {
+          "id": "album",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "album" },
+              { "type": "capture", "name": "id", "characterSet": "asciiAlphanumeric", "maxLength": 64 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "album",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        },
+        {
+          "id": "track",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "track" },
+              { "type": "capture", "name": "id", "characterSet": "asciiAlphanumeric", "maxLength": 64 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "track",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        },
+        {
+          "id": "artist",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "artist" },
+              { "type": "capture", "name": "id", "characterSet": "asciiAlphanumeric", "maxLength": 64 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "artist",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        },
+        {
+          "id": "playlist",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "playlist" },
+              { "type": "capture", "name": "id", "characterSet": "asciiAlphanumeric", "maxLength": 64 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "playlist",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        },
+        {
+          "id": "show",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "show" },
+              { "type": "capture", "name": "id", "characterSet": "asciiAlphanumeric", "maxLength": 64 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "show",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        },
+        {
+          "id": "episode",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "episode" },
+              { "type": "capture", "name": "id", "characterSet": "asciiAlphanumeric", "maxLength": 64 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "episode",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        },
+        {
+          "id": "user",
+          "source": {
+            "hosts": ["open.spotify.com"],
+            "path": [
+              { "type": "literal", "value": "user" },
+              { "type": "capture", "name": "id", "characterSet": "urlUnreserved", "maxLength": 128 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "spotify",
+            "host": "user",
+            "path": [{ "type": "capture", "name": "id" }],
+            "query": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "summary": "Open Slack workspace channel links in the installed Slack app.",
+      "bundleIdentifiers": ["com.tinyspeck.slackmacgap"],
+      "nativeSchemes": ["slack"],
+      "rules": [
+        {
+          "id": "channel",
+          "source": {
+            "hosts": ["app.slack.com"],
+            "path": [
+              { "type": "literal", "value": "client" },
+              { "type": "capture", "name": "team", "characterSet": "asciiAlphanumeric", "maxLength": 32 },
+              { "type": "capture", "name": "channel", "characterSet": "asciiAlphanumeric", "maxLength": 32 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "slack",
+            "host": "channel",
+            "path": [],
+            "query": [
+              { "name": "team", "value": { "type": "capture", "name": "team" } },
+              { "name": "id", "value": { "type": "capture", "name": "channel" } }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "summary": "Open Zoom meeting links in the installed Zoom Workplace app.",
+      "bundleIdentifiers": ["us.zoom.xos"],
+      "nativeSchemes": ["zoommtg"],
+      "rules": [
+        {
+          "id": "join-with-password",
+          "source": {
+            "hosts": ["zoom.us", "us02web.zoom.us", "us04web.zoom.us", "us05web.zoom.us", "us06web.zoom.us", "us.web.zoom.us"],
+            "path": [
+              { "type": "literal", "value": "j" },
+              { "type": "capture", "name": "meeting", "characterSet": "digits", "maxLength": 16 }
+            ],
+            "query": [
+              {
+                "queryName": "pwd",
+                "capture": { "name": "password", "characterSet": "urlUnreserved", "maxLength": 128 },
+                "required": true
+              }
+            ]
+          },
+          "target": {
+            "scheme": "zoommtg",
+            "host": "zoom.us",
+            "path": [{ "type": "literal", "value": "join" }],
+            "query": [
+              { "name": "confno", "value": { "type": "capture", "name": "meeting" } },
+              { "name": "pwd", "value": { "type": "capture", "name": "password" } }
+            ]
+          }
+        },
+        {
+          "id": "join",
+          "source": {
+            "hosts": ["zoom.us", "us02web.zoom.us", "us04web.zoom.us", "us05web.zoom.us", "us06web.zoom.us", "us.web.zoom.us"],
+            "path": [
+              { "type": "literal", "value": "j" },
+              { "type": "capture", "name": "meeting", "characterSet": "digits", "maxLength": 16 }
+            ],
+            "query": []
+          },
+          "target": {
+            "scheme": "zoommtg",
+            "host": "zoom.us",
+            "path": [{ "type": "literal", "value": "join" }],
+            "query": [
+              { "name": "confno", "value": { "type": "capture", "name": "meeting" } }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -223,6 +223,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         static let mcpAutoStartEnabledKey = "mcpAutoStartEnabled"
         static let lastSeenRewriteCatalogVersionKey = "lastSeenRewriteCatalogVersion"
         static let catalogAppliedRuleNamesKey = "catalogAppliedRuleNames"
+        static let nativeAppApprovalsKey = "nativeAppApprovals"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -399,6 +400,27 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         didSet {
             defaults.set(Array(catalogAppliedRuleNames), forKey: Constants.catalogAppliedRuleNamesKey)
         }
+    }
+
+    /// Entry ID -> exact signed behavior digest approved by the user. A directory update
+    /// that changes hosts, bundle IDs, schemes, or transform rules no longer matches and
+    /// therefore disables native routing until it is reviewed again.
+    var nativeAppApprovals: [String: String] = [:] {
+        didSet {
+            defaults.set(nativeAppApprovals, forKey: Constants.nativeAppApprovalsKey)
+        }
+    }
+
+    func isNativeAppApproved(_ entry: NativeAppDirectoryEntry) -> Bool {
+        nativeAppApprovals[entry.id] == entry.behaviorSHA256
+    }
+
+    func approveNativeApp(_ entry: NativeAppDirectoryEntry) {
+        nativeAppApprovals[entry.id] = entry.behaviorSHA256
+    }
+
+    func revokeNativeApp(entryID: String) {
+        nativeAppApprovals.removeValue(forKey: entryID)
     }
 
     /// Whether the one-time rule-merge-assist review has been shown (accepted/rejected/
@@ -594,6 +616,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         mcpAutoStartEnabled = defaults.bool(forKey: Constants.mcpAutoStartEnabledKey)
         lastSeenRewriteCatalogVersion = defaults.integer(forKey: Constants.lastSeenRewriteCatalogVersionKey)
         catalogAppliedRuleNames = Set(defaults.array(forKey: Constants.catalogAppliedRuleNamesKey) as? [String] ?? [])
+        nativeAppApprovals = defaults.dictionary(forKey: Constants.nativeAppApprovalsKey) as? [String: String] ?? [:]
         hasSeenRuleMergeReview = defaults.bool(forKey: Constants.hasSeenRuleMergeReviewKey)
         if !hasSeenRuleMergeReview {
             pendingRuleMergeSuggestions = Self.computeMergeSuggestions(for: routingRules)
@@ -855,6 +878,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         clearPersistedRecentURLs()
         recentURLs = []
         currentURL = nil
+        nativeAppApprovals = [:]
         hasCompletedOnboarding = false
 
         if launchAtLogin {

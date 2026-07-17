@@ -28,6 +28,8 @@ struct SettingsView: View {
     @State var operationAlert: SettingsOperationAlert?
     @State var rewriteCatalogSheet: VerifiedRewriteCatalog?
     @State var isCheckingRewriteCatalog = false
+    @State var nativeAppDirectory: VerifiedNativeAppDirectory?
+    @State var isRefreshingNativeAppDirectory = false
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -67,7 +69,7 @@ struct SettingsView: View {
             case .rewrites: return "URL transformations"
             case .behavior: return "Fallback & privacy"
             case .appearance: return "Picker look"
-            case .apps: return "Hidden handlers"
+            case .apps: return "Native links & hidden handlers"
             case .general: return "Startup & maintenance"
             }
         }
@@ -319,7 +321,7 @@ struct SettingsView: View {
         case .rewrites:
             return browserManager.rewriteRules.filter(\.isEnabled).count
         case .apps:
-            return browserManager.hiddenBundleIDs.count
+            return browserManager.nativeAppApprovals.count + browserManager.hiddenBundleIDs.count
         case .behavior, .appearance, .general:
             return 0
         }

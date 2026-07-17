@@ -139,6 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func setupApplicationState() {
         let manager = BrowserManager.shared
+        NativeAppDirectoryService.shared.loadLastKnownGood()
         #if DIRECT_DISTRIBUTION
         AppUpdateController.shared.start()
         #endif
@@ -272,6 +273,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return manager.fallbackRoute()
     }
 
+    enum IncomingURLDestination {
+        case browser(rule: BrowserRoutingRule?, browser: BrowserConfig)
+        case native(NativeDeepLinkResolution)
+        case picker
+    }
+
+    /// One precedence boundary for incoming links: Shift, explicit Chowser routes
+    /// (including focus mode), approved native apps, browser fallback, then picker.
+    /// Private-mode requests intentionally bypass native apps because Chowser cannot
+    /// promise another app's privacy semantics.
+    @MainActor
+    static func resolveIncomingURLDestination(
+        for url: URL,
+        using manager: BrowserManager,
+        forceShowPicker: Bool,
+        sourceApp: String? = nil,
+        privateModeRequested: Bool,
+        nativeResolution: () -> NativeDeepLinkResolution?
+    ) -> IncomingURLDestination {
+        defer {
+            manager.currentSourceAppBundleId = nil
+        }
+
+        guard !forceShowPicker else { return .picker }
+        if let route = manager.resolvedRoute(for: url, sourceApp: sourceApp) {
+            return .browser(rule: route.rule, browser: route.browser)
+        }
+        if !privateModeRequested, let native = nativeResolution() {
+            return .native(native)
+        }
+        if let fallback = manager.fallbackRoute() {
+            return .browser(rule: fallback.rule, browser: fallback.browser)
+        }
+        return .picker
+    }
+
     private static func senderPID(from data: Data?) -> pid_t? {
         guard let data,
               data.count >= MemoryLayout<pid_t>.size else {
@@ -378,23 +415,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 // `manager.currentSourceAppBundleId` here (after the `await unshortenURL` gap
                 // above) would race a second incoming link overwriting that ambient property
                 // before this one's routing decision runs (TOCTOU, found in review).
-                let route = Self.resolveIncomingURLRoute(for: cleanedURL, using: manager, forceShowPicker: forceShowPicker, sourceApp: sourceAppBundleId)
+                let destination = Self.resolveIncomingURLDestination(
+                    for: cleanedURL,
+                    using: manager,
+                    forceShowPicker: forceShowPicker,
+                    sourceApp: sourceAppBundleId,
+                    privateModeRequested: clipboardPrivateModeRequested,
+                    nativeResolution: {
+                        NativeAppDirectoryService.shared.resolve(
+                            webURL: cleanedURL,
+                            approvals: manager.nativeAppApprovals
+                        )
+                    }
+                )
 
-                // No hostname/URL in the log — routing decisions are diagnosable from the
-                // rule name and destination browser alone, without recording what was visited.
-                AppLogger.log("Route", "Received link → \(route.map { "rule '\($0.rule?.name ?? "auto")' → \($0.browser.bundleId)" } ?? "picker")")
-
-                if let route {
+                switch destination {
+                case .browser(let rule, let browser):
+                    // No hostname/URL in the log — only the local routing decision.
+                    AppLogger.log("Route", "Received link → rule '\(rule?.name ?? "auto")' → \(browser.bundleId)")
                     manager.currentURL = nil
-                    let usePrivateMode = Self.requestedPrivateModeForIncomingURL(rule: route.rule, forcedPrivateMode: clipboardPrivateModeRequested)
+                    let usePrivateMode = Self.requestedPrivateModeForIncomingURL(
+                        rule: rule,
+                        forcedPrivateMode: clipboardPrivateModeRequested
+                    )
                     manager.currentURLPrivateModeRequested = false
-                    manager.open(url: cleanedURL, withBrowserBundleID: route.browser.bundleId, profile: route.browser.profile, usePrivateMode: usePrivateMode)
+                    manager.open(
+                        url: cleanedURL,
+                        withBrowserBundleID: browser.bundleId,
+                        profile: browser.profile,
+                        usePrivateMode: usePrivateMode
+                    )
                     if willAwaitShortlink { self.closePicker() }
                     return
-                }
 
-                manager.currentURLPrivateModeRequested = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild && clipboardPrivateModeRequested
-                showPicker()
+                case .native(let resolution):
+                    AppLogger.log(
+                        "Route",
+                        "Received link → native '\(resolution.entryID)' → \(resolution.handlerBundleIdentifier)"
+                    )
+                    manager.currentURLPrivateModeRequested = false
+                    if NativeAppDirectoryService.shared.open(resolution) {
+                        manager.currentURL = nil
+                        if willAwaitShortlink { self.closePicker() }
+                        return
+                    }
+                    // The handler changed between resolution and open. Keep the original
+                    // HTTPS URL in the picker instead of trusting the new handler.
+                    showPicker()
+
+                case .picker:
+                    AppLogger.log("Route", "Received link → picker")
+                    manager.currentURLPrivateModeRequested = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+                        && clipboardPrivateModeRequested
+                    showPicker()
+                }
             }
         }
     }

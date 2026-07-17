@@ -67,7 +67,7 @@ open Chowser.xcodeproj
 ```
 
 Then in Xcode:
-1. Select the **Chowser** scheme and **My Mac** as the destination
+1. Select the **Chowser-osp** scheme and **My Mac** as the destination
 2. Press **Cmd+R** to build and run
 3. The app will appear in your menu bar
 
@@ -75,7 +75,7 @@ Or build from the command line:
 
 ```bash
 xcodebuild -project Chowser.xcodeproj \
-  -scheme Chowser \
+  -scheme Chowser-osp \
   -configuration Release \
   -derivedDataPath build \
   CODE_SIGNING_ALLOWED=NO
@@ -91,7 +91,7 @@ open build/Build/Products/Release/Chowser.app
 
 ```bash
 # Unit tests
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 
 # UI end-to-end tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'

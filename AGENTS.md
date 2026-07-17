@@ -6,17 +6,17 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ```bash
 # Direct-download build (unsandboxed, includes Sparkle)
-xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-osp -configuration Release build
 
 # Unit tests
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
 # App Store build (sandboxed, excludes Sparkle)
-xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-AppStore -configuration Release \
-  -archivePath release/Chowser-AppStore.xcarchive
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-appstore -configuration Release \
+  -archivePath release/Chowser-appstore.xcarchive
 ```
 
 ### CI/CD Pipelines

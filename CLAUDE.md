@@ -6,18 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build
-xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-osp -configuration Release build
 
 # Unit tests
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
-# App Store build (uses APP_STORE compilation condition + sandbox entitlements)
-xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
-  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE'
+# App Store build (uses the sandboxed ChowserAppStore target)
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-appstore -configuration Release \
+  -archivePath release/Chowser-appstore.xcarchive
 ```
 
 ### CI/CD Pipelines

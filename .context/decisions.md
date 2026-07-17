@@ -196,7 +196,7 @@ Decisions that would surprise a new contributor. Each entry explains the "why" t
 - Two repositories or source trees — strongest isolation, but guarantees code drift
 - Two application targets sharing one synchronized source group — explicit binary boundary without source duplication
 
-**Decision**: Keep `Chowser` as the unsandboxed direct target with `DIRECT_DISTRIBUTION` and Sparkle. Build `ChowserAppStore` through the `Chowser-AppStore` scheme with `APP_STORE`, sandbox entitlements, and no Sparkle dependency. Verify both finished artifacts in CI.
+**Decision**: Keep `Chowser` as the unsandboxed direct target with `DIRECT_DISTRIBUTION` and Sparkle. Build it through the `Chowser-osp` scheme. Build `ChowserAppStore` through the `Chowser-appstore` scheme with `APP_STORE`, sandbox entitlements, and no Sparkle dependency. Verify both finished artifacts in CI.
 
 **Trade-offs**:
 - Gained: App Store compliance is inspectable; direct-only dependencies and metadata cannot be embedded accidentally

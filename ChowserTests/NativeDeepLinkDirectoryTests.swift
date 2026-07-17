@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import Chowser
@@ -85,6 +86,34 @@ struct NativeDeepLinkDirectoryTests {
         )
     }
 
+    private func verifySigned(
+        _ directory: NativeAppDirectory
+    ) throws -> VerifiedHostedCatalog<NativeAppDirectory> {
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let keyID = "native-fixture"
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let document = try encoder.encode(directory)
+        let digest = HostedCatalogTrust.sha256Hex(document)
+        let signature = HostedCatalogSignatureMetadata(
+            schemaVersion: 1,
+            catalogKind: NativeAppDirectory.expectedCatalogKind,
+            keyID: keyID,
+            algorithm: "ed25519",
+            sha256: digest,
+            signature: try privateKey.signature(for: document).base64EncodedString()
+        )
+        return try HostedCatalogTrust(keys: [
+            HostedCatalogKey(keyID: keyID, publicKey: privateKey.publicKey.rawRepresentation)
+        ]).verify(
+            HostedCatalogArtifact(
+                documentData: document,
+                signatureData: try encoder.encode(signature)
+            ),
+            as: NativeAppDirectory.self
+        )
+    }
+
     @Test("Committed multi-app directory verifies with the public key bundled in Chowser")
     func committedDirectoryVerifies() throws {
         let repository = URL(fileURLWithPath: #filePath)
@@ -109,6 +138,47 @@ struct NativeDeepLinkDirectoryTests {
 
         #expect(verified.document.apps.map(\.id) == ["spotify", "slack", "zoom"])
         #expect(resolution?.nativeURL.absoluteString == "spotify://track/0hwPOwj3rojFt33NhaxNUy")
+    }
+
+    @Test("Signed native directories with unsafe or ambiguous behavior fail validation")
+    func invalidSignedDirectoryRejected() throws {
+        var reservedTarget = spotifyEntry()
+        reservedTarget.nativeSchemes = ["file"]
+        reservedTarget.rules[0].target.scheme = "file"
+
+        do {
+            _ = try verifySigned(directory([reservedTarget]))
+            Issue.record("Expected a reserved native target scheme to be rejected")
+        } catch let error as HostedCatalogTrustError {
+            #expect(error == .invalidCatalogContents)
+        }
+
+        var unknownCapture = spotifyEntry()
+        var unknownRule = unknownCapture.rules[0]
+        var unknownTarget = unknownRule.target
+        unknownTarget = NativeDeepLinkTarget(
+            scheme: unknownTarget.scheme,
+            host: unknownTarget.host,
+            path: [.capture("not-in-source")],
+            query: unknownTarget.query
+        )
+        unknownRule.target = unknownTarget
+        unknownCapture.rules[0] = unknownRule
+
+        do {
+            _ = try verifySigned(directory([unknownCapture]))
+            Issue.record("Expected an undefined target capture to be rejected")
+        } catch let error as HostedCatalogTrustError {
+            #expect(error == .invalidCatalogContents)
+        }
+
+        let duplicate = spotifyEntry()
+        do {
+            _ = try verifySigned(directory([duplicate, duplicate]))
+            Issue.record("Expected duplicate native app identifiers to be rejected")
+        } catch let error as HostedCatalogTrustError {
+            #expect(error == .invalidCatalogContents)
+        }
     }
 
     @Test("Spotify album and track links resolve through declarative catalog rules")

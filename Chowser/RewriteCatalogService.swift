@@ -96,6 +96,73 @@ struct RewriteCatalog: Codable, Identifiable, HostedCatalogDocument {
 
     var id: Int { catalogVersion }
     var itemCount: Int { rules.count }
+
+    func validateCatalog() throws {
+        guard !publishedAt.isEmpty, publishedAt.count <= 64,
+              Set(rules.map(\.id)).count == rules.count else {
+            throw HostedCatalogTrustError.invalidCatalogContents
+        }
+
+        for rule in rules {
+            let host = rule.hostPattern.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard Self.isSafeIdentifier(rule.id),
+                  !rule.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  rule.name.count <= 128,
+                  rule.summary.count <= 512,
+                  !host.isEmpty,
+                  host.count <= 500,
+                  rule.schemes.count <= 2,
+                  Set(rule.schemes).count == rule.schemes.count,
+                  rule.schemes.allSatisfy({ $0 == "http" || $0 == "https" }),
+                  rule.excludeHostPatterns.count <= 64,
+                  rule.excludeHostPatterns.allSatisfy({ !$0.isEmpty && $0.count <= 500 }),
+                  !rule.actions.isEmpty,
+                  rule.actions.count <= 16 else {
+                throw HostedCatalogTrustError.invalidCatalogContents
+            }
+
+            if rule.useRegex {
+                guard (try? NSRegularExpression(pattern: host)) != nil,
+                      !BrowserManager.isDangerouslyComplexRegex(host) else {
+                    throw HostedCatalogTrustError.invalidCatalogContents
+                }
+            }
+
+            guard rule.actions.allSatisfy({ Self.isSafeAction($0) }) else {
+                throw HostedCatalogTrustError.invalidCatalogContents
+            }
+        }
+    }
+
+    private static func isSafeIdentifier(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 64 && value.unicodeScalars.allSatisfy { scalar in
+            (scalar.value >= 48 && scalar.value <= 57)
+                || (scalar.value >= 65 && scalar.value <= 90)
+                || (scalar.value >= 97 && scalar.value <= 122)
+                || scalar == "-" || scalar == "_"
+        }
+    }
+
+    private static func isSafeAction(_ action: URLRewriteAction) -> Bool {
+        switch action {
+        case .forceScheme(let scheme):
+            return scheme == "http" || scheme == "https"
+        case .replaceHost(let host):
+            return !host.isEmpty && host.count <= 253 && host.unicodeScalars.allSatisfy { scalar in
+                (scalar.value >= 48 && scalar.value <= 57)
+                    || (scalar.value >= 65 && scalar.value <= 90)
+                    || (scalar.value >= 97 && scalar.value <= 122)
+                    || scalar == "-" || scalar == "."
+            }
+        case .stripQueryParameters(let names), .stripQueryParameterPrefixes(let names):
+            return !names.isEmpty && names.count <= 64
+                && names.allSatisfy({ !$0.isEmpty && $0.count <= 128 })
+        case .setQueryParameter(let name, let value):
+            return !name.isEmpty && name.count <= 128 && value.count <= 1_024
+        case .removeFragment:
+            return true
+        }
+    }
 }
 
 enum RewriteCatalogRiskLevel: String, Codable, Equatable {

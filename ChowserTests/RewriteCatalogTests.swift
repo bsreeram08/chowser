@@ -88,6 +88,29 @@ struct RewriteCatalogTests {
         #expect(verified.document.rules.count == 6)
     }
 
+    @Test("Signed rewrite catalogs with invalid behavior fail semantic validation")
+    func invalidSignedCatalogRejected() throws {
+        let duplicateID = entry(id: "duplicate", name: "First")
+        let duplicate = entry(id: "duplicate", name: "Second")
+
+        do {
+            _ = try SignedFixture().verified(version: 1, rules: [duplicateID, duplicate])
+            Issue.record("Expected duplicate signed rewrite identifiers to be rejected")
+        } catch let error as HostedCatalogTrustError {
+            #expect(error == .invalidCatalogContents)
+        }
+
+        do {
+            _ = try SignedFixture().verified(
+                version: 1,
+                rules: [entry(actions: [.forceScheme("file")])]
+            )
+            Issue.record("Expected a signed rewrite with an unsafe scheme to be rejected")
+        } catch let error as HostedCatalogTrustError {
+            #expect(error == .invalidCatalogContents)
+        }
+    }
+
     @Test("Review model starts with no catalog rules selected")
     func explicitSelectionDefault() throws {
         let review = try SignedFixture().verified(version: 1, rules: [entry()])

@@ -12,6 +12,14 @@ protocol HostedCatalogDocument: Codable {
     var catalogVersion: Int { get }
     var publishedAt: String { get }
     var itemCount: Int { get }
+
+    /// Rejects a correctly signed document whose feature-specific contents fall
+    /// outside Chowser's non-executable, bounded catalog languages.
+    func validateCatalog() throws
+}
+
+extension HostedCatalogDocument {
+    func validateCatalog() throws {}
 }
 
 struct HostedCatalogKey: Equatable {
@@ -103,6 +111,7 @@ enum HostedCatalogTrustError: Error, Equatable {
     case unsupportedCatalogSchema(Int)
     case invalidCatalogVersion(Int)
     case tooManyItems(maxItems: Int)
+    case invalidCatalogContents
     case rollback(highestAcceptedVersion: Int, receivedVersion: Int)
     case versionReuse(Int)
     case cacheCorrupt
@@ -212,6 +221,11 @@ struct HostedCatalogTrust {
         }
         guard document.itemCount <= limits.maxItems else {
             throw HostedCatalogTrustError.tooManyItems(maxItems: limits.maxItems)
+        }
+        do {
+            try document.validateCatalog()
+        } catch {
+            throw HostedCatalogTrustError.invalidCatalogContents
         }
 
         return VerifiedHostedCatalog(

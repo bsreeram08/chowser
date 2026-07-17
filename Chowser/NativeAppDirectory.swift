@@ -186,6 +186,144 @@ struct NativeAppDirectory: Codable, Identifiable, HostedCatalogDocument {
 
     var id: Int { catalogVersion }
     var itemCount: Int { apps.count }
+
+    func validateCatalog() throws {
+        guard !publishedAt.isEmpty, publishedAt.count <= 64,
+              Set(apps.map(\.id)).count == apps.count else {
+            throw HostedCatalogTrustError.invalidCatalogContents
+        }
+
+        for app in apps {
+            guard Self.isSafeIdentifier(app.id),
+                  !app.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  app.name.count <= 128,
+                  app.summary.count <= 512,
+                  !app.bundleIdentifiers.isEmpty,
+                  app.bundleIdentifiers.count <= 16,
+                  Set(app.bundleIdentifiers).count == app.bundleIdentifiers.count,
+                  app.bundleIdentifiers.allSatisfy({ Self.isSafeBundleIdentifier($0) }),
+                  !app.nativeSchemes.isEmpty,
+                  app.nativeSchemes.count <= 16,
+                  Set(app.nativeSchemes).count == app.nativeSchemes.count,
+                  app.nativeSchemes.allSatisfy({ NativeDeepLinkResolver.isAllowedTargetScheme($0) }),
+                  !app.rules.isEmpty,
+                  app.rules.count <= 128,
+                  Set(app.rules.map(\.id)).count == app.rules.count else {
+                throw HostedCatalogTrustError.invalidCatalogContents
+            }
+
+            for rule in app.rules {
+                guard Self.isSafeIdentifier(rule.id),
+                      Self.isSafe(rule.source),
+                      Self.isSafe(rule.target, nativeSchemes: app.nativeSchemes, source: rule.source) else {
+                    throw HostedCatalogTrustError.invalidCatalogContents
+                }
+            }
+        }
+    }
+
+    private static func isSafe(_ source: NativeDeepLinkSource) -> Bool {
+        guard !source.hosts.isEmpty,
+              source.hosts.count <= 64,
+              Set(source.hosts).count == source.hosts.count,
+              source.hosts.allSatisfy({ NativeDeepLinkResolver.isSafeSourceHost($0) }),
+              source.path.count <= 16,
+              source.query.count <= 16,
+              Set(source.query.map(\.queryName)).count == source.query.count else {
+            return false
+        }
+
+        var captures: [String: NativeCapture] = [:]
+        for segment in source.path {
+            switch segment {
+            case .literal(let value):
+                guard NativeDeepLinkResolver.isSafeTargetSegment(value) else { return false }
+            case .capture(let capture):
+                guard store(capture, in: &captures) else { return false }
+            }
+        }
+        for query in source.query {
+            guard NativeDeepLinkResolver.isSafeQueryName(query.queryName),
+                  store(query.capture, in: &captures) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func isSafe(
+        _ target: NativeDeepLinkTarget,
+        nativeSchemes: [String],
+        source: NativeDeepLinkSource
+    ) -> Bool {
+        guard nativeSchemes.contains(target.scheme),
+              NativeDeepLinkResolver.isAllowedTargetScheme(target.scheme),
+              NativeDeepLinkResolver.isSafeTargetHost(target.host),
+              target.path.count <= 16,
+              target.query.count <= 16,
+              Set(target.query.map(\.name)).count == target.query.count else {
+            return false
+        }
+
+        let captures = Set(
+            source.path.compactMap { segment -> String? in
+                guard case .capture(let capture) = segment else { return nil }
+                return capture.name
+            } + source.query.map(\.capture.name)
+        )
+        for value in target.path {
+            switch value {
+            case .literal(let literal):
+                guard NativeDeepLinkResolver.isSafeTargetSegment(literal) else { return false }
+            case .capture(let name):
+                guard captures.contains(name) else { return false }
+            }
+        }
+        for item in target.query {
+            guard NativeDeepLinkResolver.isSafeQueryName(item.name) else { return false }
+            switch item.value {
+            case .literal(let literal):
+                guard NativeDeepLinkResolver.isSafeTargetQueryValue(literal) else { return false }
+            case .capture(let name):
+                guard captures.contains(name) else { return false }
+            }
+        }
+        return true
+    }
+
+    private static func store(
+        _ capture: NativeCapture,
+        in captures: inout [String: NativeCapture]
+    ) -> Bool {
+        guard NativeDeepLinkResolver.isSafeQueryName(capture.name),
+              (1...512).contains(capture.maxLength) else {
+            return false
+        }
+        if let existing = captures[capture.name] {
+            return existing == capture
+        }
+        captures[capture.name] = capture
+        return true
+    }
+
+    private static func isSafeIdentifier(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 64 && value.unicodeScalars.allSatisfy { scalar in
+            (scalar.value >= 48 && scalar.value <= 57)
+                || (scalar.value >= 65 && scalar.value <= 90)
+                || (scalar.value >= 97 && scalar.value <= 122)
+                || scalar == "-" || scalar == "_"
+        }
+    }
+
+    private static func isSafeBundleIdentifier(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 255 && value.contains(".")
+            && value.unicodeScalars.allSatisfy { scalar in
+                (scalar.value >= 48 && scalar.value <= 57)
+                    || (scalar.value >= 65 && scalar.value <= 90)
+                    || (scalar.value >= 97 && scalar.value <= 122)
+                    || scalar == "-" || scalar == "."
+            }
+    }
 }
 
 struct NativeDeepLinkResolution: Equatable {
@@ -372,7 +510,7 @@ enum NativeDeepLinkResolver {
         }
     }
 
-    private static func isAllowedTargetScheme(_ scheme: String) -> Bool {
+    fileprivate static func isAllowedTargetScheme(_ scheme: String) -> Bool {
         let lowered = scheme.lowercased()
         guard scheme == lowered,
               !reservedSchemes.contains(lowered),
@@ -388,7 +526,11 @@ enum NativeDeepLinkResolver {
         }
     }
 
-    private static func isSafeTargetHost(_ host: String) -> Bool {
+    fileprivate static func isSafeSourceHost(_ host: String) -> Bool {
+        host == host.lowercased() && isSafeTargetHost(host) && host.contains(".")
+    }
+
+    fileprivate static func isSafeTargetHost(_ host: String) -> Bool {
         guard !host.isEmpty, host.count <= 128 else { return false }
         return host.unicodeScalars.allSatisfy { scalar in
             isASCIILetter(scalar)
@@ -402,16 +544,16 @@ enum NativeDeepLinkResolver {
             .accepts(value)
     }
 
-    private static func isSafeTargetSegment(_ value: String) -> Bool {
+    fileprivate static func isSafeTargetSegment(_ value: String) -> Bool {
         value != "." && value != ".." && isSafeLiteral(value)
     }
 
-    private static func isSafeQueryName(_ value: String) -> Bool {
+    fileprivate static func isSafeQueryName(_ value: String) -> Bool {
         NativeCapture(name: "query", characterSet: .urlUnreserved, maxLength: 64)
             .accepts(value)
     }
 
-    private static func isSafeTargetQueryValue(_ value: String) -> Bool {
+    fileprivate static func isSafeTargetQueryValue(_ value: String) -> Bool {
         !value.isEmpty
             && value.count <= 512
             && value.unicodeScalars.allSatisfy { $0.value >= 0x20 && $0.value != 0x7F }

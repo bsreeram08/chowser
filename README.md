@@ -29,6 +29,7 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Advanced Routing Rules** — Auto-open matching domains/paths (wildcard support) in a specific browser, bypassing the picker
 - **URL Rewrites** — Clean or transform links before routing, with host, path, scheme, and source-app matching
 - **Hosted Rewrite Catalog** — Review and selectively add maintained HTTPS and tracking-cleanup rules; catalog checks are explicit, never automatic
+- **Native App Deep Links** — Optionally open supported web links in installed native apps using a signed, app-agnostic directory; each app is disabled until you approve its exact behavior
 - **Focus Mode (Temporary Default)** — Route all links to a specific browser for 1 Hour or Until Tomorrow from the menu bar
 - **URL Unshortening** — Automatically strips tracking parameters and resolves shortlinks before routing. Press `H` to manually resolve unknown shortlinks
 - **Private / Incognito Mode** — Open any link in private mode via keyboard shortcut (`P`) or per-rule toggle
@@ -45,6 +46,8 @@ Chowser lives in your menu bar and uses zero resources when idle.
 - **Menu Bar App** — Runs silently in the background, no Dock icon
 - **Launch at Login** — Start automatically when you log in
 - **Secure Direct Updates** — Signed GitHub releases update through Sparkle, with automatic checks and an opt-in beta channel
+
+Hosted rewrite and native-app catalogs use detached Ed25519 signatures, a public key pinned in the app, bounded typed schemas, rollback-resistant last-known-good caching, and explicit consent. Chowser fetches only the catalog artifacts; clicked URLs are never sent to the catalog host. See [Signed hosted catalog security](docs/adr/0005-signed-hosted-catalogs.md).
 
 ## Installation
 

@@ -22,7 +22,9 @@ type RewriteAction = {
 };
 
 type CatalogRule = {
+  id: string;
   name: string;
+  summary: string;
   hostPattern: string;
   schemes?: string[];
   excludeHostPatterns?: string[];
@@ -30,8 +32,10 @@ type CatalogRule = {
 };
 
 type Catalog = {
-  version: number;
-  updatedAt: string;
+  schemaVersion: number;
+  catalogKind: string;
+  catalogVersion: number;
+  publishedAt: string;
   rules: CatalogRule[];
 };
 
@@ -84,7 +88,7 @@ export const RewriteCatalog: React.FC = () => {
 
           <div className="grid sm:grid-cols-3 gap-3 mt-10">
             {[
-              [ShieldCheck, "Review first", "Every rule is shown before it is added."],
+              [ShieldCheck, "Signed catalog", "Chowser verifies every catalog before showing it."],
               [LockKeyhole, "Local execution", "Rewrites run on your Mac before launch."],
               [RefreshCw, "Explicit updates", "Chowser only checks when you ask it to."],
             ].map(([Icon, title, body]) => {
@@ -110,7 +114,7 @@ export const RewriteCatalog: React.FC = () => {
             </div>
             {catalog && (
               <span className="font-mono text-xs text-muted-foreground">
-                v{catalog.version} · updated {catalog.updatedAt}
+                v{catalog.catalogVersion} · published {catalog.publishedAt.slice(0, 10)}
               </span>
             )}
           </div>
@@ -130,7 +134,7 @@ export const RewriteCatalog: React.FC = () => {
 
           <div className="divide-y divide-black/[0.08]">
             {catalog?.rules.map((rule) => (
-              <article key={rule.name} className="grid md:grid-cols-[220px_1fr] gap-3 md:gap-10 py-7">
+              <article key={rule.id} className="grid md:grid-cols-[220px_1fr] gap-3 md:gap-10 py-7">
                 <div>
                   <h3 className="font-display font-semibold text-lg">{rule.name}</h3>
                   <code className="inline-block mt-2 rounded-md bg-black/[0.04] px-2 py-1 text-[11px] text-muted-foreground">
@@ -138,6 +142,9 @@ export const RewriteCatalog: React.FC = () => {
                   </code>
                 </div>
                 <div>
+                  <p className="text-[15px] text-foreground leading-relaxed mb-2">
+                    {rule.summary}
+                  </p>
                   <p className="text-[15px] text-muted-foreground leading-relaxed">
                     {rule.actions.map(describeAction).join(" ")}
                   </p>
@@ -168,6 +175,9 @@ export const RewriteCatalog: React.FC = () => {
               </Link>
               <a href="/rewrite-catalog.json" className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
                 <Braces className="w-4 h-4" /> Raw JSON <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href="/rewrite-catalog.sig.json" className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                <ShieldCheck className="w-4 h-4" /> Signature <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </div>

@@ -498,23 +498,23 @@ private struct SettingsRewriteTester: View {
     }
 }
 
-/// Per-rule selection sheet for the predefined rewrite catalog. Each catalog rule shows a
-/// status (New / Added / Removed) and a checkbox, so the user can pick exactly which rules
-/// to add. Re-fetched without a version gate (see `RewriteCatalogService.fetchCatalog`),
-/// so deleted catalog rules reappear as "Removed" and are re-addable.
+/// Explicit review surface for the signed rewrite catalog. Nothing starts selected; each
+/// rule exposes its match scope, exact typed actions, and elevated-risk reasons before it
+/// can be installed or updated.
 struct RewriteCatalogSelectionSheet: View {
-    let catalog: RewriteCatalog
+    let catalog: VerifiedRewriteCatalog
     let manager: BrowserManager
     @Binding var isPresented: Bool
 
     enum RuleStatus {
-        case new, added, removed
+        case new, added, changed, conflict
 
         var label: String {
             switch self {
             case .new: return "New"
             case .added: return "Added"
-            case .removed: return "Removed"
+            case .changed: return "Changed"
+            case .conflict: return "Name conflict"
             }
         }
 
@@ -522,7 +522,8 @@ struct RewriteCatalogSelectionSheet: View {
             switch self {
             case .new: return Color.accentColor
             case .added: return .secondary
-            case .removed: return .orange
+            case .changed: return .orange
+            case .conflict: return .red
             }
         }
 
@@ -530,7 +531,8 @@ struct RewriteCatalogSelectionSheet: View {
             switch self {
             case .new: return "plus.circle"
             case .added: return "checkmark.circle.fill"
-            case .removed: return "arrow.counterclockwise"
+            case .changed: return "exclamationmark.arrow.triangle.2.circlepath"
+            case .conflict: return "exclamationmark.triangle"
             }
         }
     }
@@ -542,15 +544,12 @@ struct RewriteCatalogSelectionSheet: View {
     }
 
     private var items: [Item] {
-        let currentNames = Set(manager.rewriteRules.map { $0.name })
-        return catalog.rules.map { entry in
-            let status: RuleStatus
-            if currentNames.contains(entry.name) {
-                status = .added
-            } else if manager.catalogAppliedRuleNames.contains(entry.name) {
-                status = .removed
-            } else {
-                status = .new
+        catalog.catalog.rules.map { entry in
+            let status: RuleStatus = switch catalog.status(for: entry, manager: manager) {
+            case .new: .new
+            case .added: .added
+            case .changed: .changed
+            case .conflict: .conflict
             }
             return Item(entry: entry, status: status)
         }
@@ -558,16 +557,11 @@ struct RewriteCatalogSelectionSheet: View {
 
     @State private var selected: Set<String> = []
 
-    init(catalog: RewriteCatalog, manager: BrowserManager, isPresented: Binding<Bool>) {
+    init(catalog: VerifiedRewriteCatalog, manager: BrowserManager, isPresented: Binding<Bool>) {
         self.catalog = catalog
         self.manager = manager
         self._isPresented = isPresented
-        // Default selection: New and Removed checked, Added unchecked.
-        let currentNames = Set(manager.rewriteRules.map { $0.name })
-        let preselected = catalog.rules
-            .filter { entry in !currentNames.contains(entry.name) || manager.catalogAppliedRuleNames.contains(entry.name) }
-            .map { $0.name }
-        self._selected = State(initialValue: Set(preselected))
+        self._selected = State(initialValue: catalog.defaultSelectedEntryIDs)
     }
 
     var body: some View {
@@ -581,11 +575,38 @@ struct RewriteCatalogSelectionSheet: View {
                             .foregroundStyle(item.status.color)
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(item.entry.name)
-                                .font(.system(size: 13, weight: .medium))
-                            Text("Matches \(item.entry.hostPattern) · \(item.entry.actions.count) action\(item.entry.actions.count == 1 ? "" : "s")")
+                            HStack(spacing: 7) {
+                                Text(item.entry.name)
+                                    .font(.system(size: 13, weight: .medium))
+                                if item.entry.review.riskLevel == .elevated {
+                                    Text("ELEVATED")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.16), in: Capsule())
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                            if !item.entry.summary.isEmpty {
+                                Text(item.entry.summary)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("Match host: \(item.entry.hostPattern)\(item.entry.useRegex ? " (regular expression)" : "")")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                            ForEach(item.entry.review.actionDescriptions, id: \.self) { action in
+                                Text("• \(action)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                            ForEach(item.entry.review.riskReasons, id: \.self) { reason in
+                                Label(reason, systemImage: "exclamationmark.shield")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.orange)
+                            }
                         }
                         Spacer()
                         Text(item.status.label)
@@ -595,22 +616,23 @@ struct RewriteCatalogSelectionSheet: View {
                             .background(item.status.color.opacity(0.15), in: Capsule())
                             .foregroundStyle(item.status.color)
                         Toggle("", isOn: Binding(
-                            get: { selected.contains(item.entry.name) },
+                            get: { selected.contains(item.entry.id) },
                             set: { on in
-                                if on { selected.insert(item.entry.name) } else { selected.remove(item.entry.name) }
+                                if on { selected.insert(item.entry.id) } else { selected.remove(item.entry.id) }
                             }
                         ))
                         .labelsHidden()
-                        .disabled(item.status == .added)
-                        .accessibilityIdentifier("catalog.rule.\(item.entry.name)")
+                        .disabled(item.status == .added || item.status == .conflict)
+                        .accessibilityIdentifier("catalog.rule.\(item.entry.id)")
                     }
-                    .accessibilityIdentifier("catalog.row.\(item.entry.name)")
+                    .padding(.vertical, 5)
+                    .accessibilityIdentifier("catalog.row.\(item.entry.id)")
                 }
             }
             .listStyle(.plain)
             footer
         }
-        .frame(width: 540, height: 500)
+        .frame(width: 660, height: 600)
         .accessibilityIdentifier("catalog.selectionSheet")
     }
 
@@ -622,21 +644,16 @@ struct RewriteCatalogSelectionSheet: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Predefined Rewrites")
                     .font(.system(size: 16, weight: .semibold))
-                Text("Catalog v\(catalog.version) · \(catalog.rules.count) rules · choose which to add")
+                Text("Signed catalog v\(catalog.catalog.catalogVersion) · \(catalog.catalog.rules.count) rules · nothing selected automatically")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                Text("Verified with key \(catalog.provenance.keyID) · \(catalog.provenance.source == .cache ? "last-known-good cache" : "fresh download")")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
             }
             Spacer()
-            Menu {
-                Button("Select All") { selected = Set(catalog.rules.map { $0.name }) }
-                Button("Select New & Removed") {
-                    selected = Set(items.filter { $0.status != .added }.map { $0.entry.name })
-                }
-                Button("Select None") { selected.removeAll() }
-            } label: {
-                Label("Select", systemImage: "checkmark.circle")
-            }
-            .menuStyle(.borderlessButton)
+            Button("Clear Selection") { selected.removeAll() }
+                .disabled(selected.isEmpty)
         }
         .padding(16)
     }
@@ -650,9 +667,16 @@ struct RewriteCatalogSelectionSheet: View {
             Button("Cancel", role: .cancel) { isPresented = false }
                 .keyboardShortcut(.cancelAction)
             Button("Add Selected") {
-                let added = RewriteCatalogService.shared.applySelected(catalog, manager: manager, selectedNames: selected)
+                let result = RewriteCatalogService.shared.applySelected(
+                    catalog,
+                    manager: manager,
+                    selectedEntryIDs: selected
+                )
                 isPresented = false
-                NotificationCenter.default.post(name: NSNotification.Name("RewriteCatalogApplied"), object: added)
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("RewriteCatalogApplied"),
+                    object: result
+                )
             }
             .buttonStyle(.borderedProminent)
             .disabled(selected.isEmpty)

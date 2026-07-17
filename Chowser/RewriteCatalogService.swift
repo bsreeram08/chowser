@@ -1,11 +1,11 @@
+import CryptoKit
 import Foundation
 import UserNotifications
 
-/// A single predefined rewrite rule as published in the hosted catalog. Shape mirrors
-/// the POST /rewrites MCP body so the same JSON can be handed to an AI agent or decoded
-/// here directly.
-struct RewriteCatalogEntry: Codable {
+struct RewriteCatalogEntry: Codable, Equatable, Identifiable {
+    let id: String
     var name: String
+    var summary: String = ""
     var hostPattern: String
     var useRegex: Bool = false
     var schemes: [String] = []
@@ -14,90 +14,253 @@ struct RewriteCatalogEntry: Codable {
 }
 
 extension RewriteCatalogEntry {
-    /// Tolerant decode: only `name`/`hostPattern` are required — synthesized Decodable
-    /// does NOT apply a property's `= default` for a missing key, it throws
-    /// `keyNotFound`, so any catalog entry omitting an optional field (e.g. `schemes`)
-    /// would fail the whole array decode. Matches the tolerant-Codable pattern already
-    /// established for `URLRewriteMatch`/`BrowserRoutingRule`.
     private enum CodingKeys: String, CodingKey {
-        case name, hostPattern, useRegex, schemes, excludeHostPatterns, actions
+        case id, name, summary, hostPattern, useRegex, schemes, excludeHostPatterns, actions
     }
 
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        name = try c.decode(String.self, forKey: .name)
-        hostPattern = try c.decode(String.self, forKey: .hostPattern)
-        useRegex = (try c.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
-        schemes = (try c.decodeIfPresent([String].self, forKey: .schemes)) ?? []
-        excludeHostPatterns = (try c.decodeIfPresent([String].self, forKey: .excludeHostPatterns)) ?? []
-        actions = (try c.decodeIfPresent([URLRewriteAction].self, forKey: .actions)) ?? []
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        summary = (try container.decodeIfPresent(String.self, forKey: .summary)) ?? ""
+        hostPattern = try container.decode(String.self, forKey: .hostPattern)
+        useRegex = (try container.decodeIfPresent(Bool.self, forKey: .useRegex)) ?? false
+        schemes = (try container.decodeIfPresent([String].self, forKey: .schemes)) ?? []
+        excludeHostPatterns = (try container.decodeIfPresent([String].self, forKey: .excludeHostPatterns)) ?? []
+        actions = (try container.decodeIfPresent([URLRewriteAction].self, forKey: .actions)) ?? []
+    }
+
+    var review: RewriteCatalogEntryReview {
+        var riskReasons: [String] = []
+        if hostPattern.trimmingCharacters(in: .whitespacesAndNewlines) == "*" {
+            riskReasons.append("Matches every host")
+        }
+        if useRegex {
+            riskReasons.append("Uses a regular-expression host match")
+        }
+        if actions.contains(where: { action in
+            if case .replaceHost = action { return true }
+            return false
+        }) {
+            riskReasons.append("Changes the destination host")
+        }
+
+        return RewriteCatalogEntryReview(
+            riskLevel: riskReasons.isEmpty ? .standard : .elevated,
+            riskReasons: riskReasons,
+            actionDescriptions: actions.map(\.reviewDescription)
+        )
+    }
+
+    var behaviorSHA256: String {
+        RewriteCatalogBehavior.sha256(
+            match: URLRewriteMatch(
+                schemes: schemes,
+                hostPattern: hostPattern,
+                useRegex: useRegex,
+                excludeHostPatterns: excludeHostPatterns
+            ),
+            actions: actions
+        )
+    }
+
+    func makeRule(
+        id ruleID: UUID = UUID(),
+        isEnabled: Bool = true,
+        provenance: RewriteCatalogRuleProvenance? = nil
+    ) -> URLRewriteRule {
+        URLRewriteRule(
+            id: ruleID,
+            name: name,
+            isEnabled: isEnabled,
+            match: URLRewriteMatch(
+                schemes: schemes,
+                hostPattern: hostPattern,
+                useRegex: useRegex,
+                excludeHostPatterns: excludeHostPatterns
+            ),
+            actions: actions,
+            catalogProvenance: provenance
+        )
     }
 }
 
-struct RewriteCatalog: Codable, Identifiable {
-    var version: Int
-    var updatedAt: String
-    var rules: [RewriteCatalogEntry]
+struct RewriteCatalog: Codable, Identifiable, HostedCatalogDocument {
+    static let expectedCatalogKind = "rewrite-rules"
 
-    var id: Int { version }
+    let schemaVersion: Int
+    let catalogKind: String
+    let catalogVersion: Int
+    let publishedAt: String
+    let rules: [RewriteCatalogEntry]
+
+    var id: Int { catalogVersion }
+    var itemCount: Int { rules.count }
 }
 
-/// Fetches the predefined rewrite-rule catalog hosted on GitHub Pages alongside
-/// agentic-setup.md. Explicit/user-triggered only (Settings button, AI Setup step,
-/// or a menu bar item once available) — never runs automatically in the background,
-/// consistent with network calls being opt-in by default (docs/adr/0003).
+enum RewriteCatalogRiskLevel: String, Codable, Equatable {
+    case standard
+    case elevated
+}
+
+struct RewriteCatalogEntryReview: Equatable {
+    let riskLevel: RewriteCatalogRiskLevel
+    let riskReasons: [String]
+    let actionDescriptions: [String]
+}
+
+enum RewriteCatalogEntryStatus: Equatable {
+    case new
+    case added
+    case changed
+    case conflict
+}
+
+struct VerifiedRewriteCatalog: Identifiable {
+    let verified: VerifiedHostedCatalog<RewriteCatalog>
+
+    init(_ verified: VerifiedHostedCatalog<RewriteCatalog>) {
+        self.verified = verified
+    }
+
+    var id: String { "\(catalog.catalogVersion):\(provenance.sha256)" }
+    var catalog: RewriteCatalog { verified.document }
+    var provenance: HostedCatalogProvenance { verified.provenance }
+
+    /// Catalog changes never arrive pre-approved. Every install or behavior update starts
+    /// with an empty selection and requires a direct user choice.
+    var defaultSelectedEntryIDs: Set<String> { [] }
+
+    func status(for entry: RewriteCatalogEntry, manager: BrowserManager) -> RewriteCatalogEntryStatus {
+        if let existing = manager.rewriteRules.first(where: {
+            $0.catalogProvenance?.entryID == entry.id
+        }) {
+            return existing.catalogProvenance?.behaviorSHA256 == entry.behaviorSHA256
+                ? .added
+                : .changed
+        }
+        if manager.rewriteRules.contains(where: { $0.name == entry.name }) {
+            return .conflict
+        }
+        return .new
+    }
+}
+
+struct RewriteCatalogApplyResult: Equatable {
+    var added = 0
+    var updated = 0
+    var skipped = 0
+
+    var changedCount: Int { added + updated }
+}
+
+enum RewriteCatalogBehavior {
+    private struct Value: Codable {
+        let match: URLRewriteMatch
+        let actions: [URLRewriteAction]
+    }
+
+    static func sha256(for rule: URLRewriteRule) -> String {
+        sha256(match: rule.match, actions: rule.actions)
+    }
+
+    static func sha256(match: URLRewriteMatch, actions: [URLRewriteAction]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(Value(match: match, actions: actions)) else {
+            return ""
+        }
+        return HostedCatalogTrust.sha256Hex(data)
+    }
+}
+
+extension URLRewriteAction {
+    var reviewDescription: String {
+        switch self {
+        case .forceScheme(let scheme):
+            return "Force scheme to \(scheme)"
+        case .replaceHost(let host):
+            return "Replace host with \(host)"
+        case .stripQueryParameters(let names):
+            return "Remove query parameters: \(names.joined(separator: ", "))"
+        case .stripQueryParameterPrefixes(let prefixes):
+            return "Remove query parameters beginning with: \(prefixes.joined(separator: ", "))"
+        case .setQueryParameter(let name, let value):
+            return "Set query parameter \(name) to \(value)"
+        case .removeFragment:
+            return "Remove URL fragment"
+        }
+    }
+}
+
 @MainActor
 final class RewriteCatalogService {
     static let shared = RewriteCatalogService()
 
     static let catalogURL = URL(string: "https://chowser.sreerams.in/rewrite-catalog.json")!
+    static let signatureURL = URL(string: "https://chowser.sreerams.in/rewrite-catalog.sig.json")!
     static let catalogPageURL = URL(string: "https://chowser.sreerams.in/rewrites")!
 
-    private init() {}
+    private let client: HostedCatalogClient
 
-    /// Returns the catalog only if it's newer than what the user has already seen/applied.
-    func checkForUpdates(manager: BrowserManager) async -> RewriteCatalog? {
-        guard let (data, response) = try? await URLSession.shared.data(from: Self.catalogURL),
-              let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            AppLogger.error("RewriteCatalog", "Fetch failed for \(Self.catalogURL.absoluteString)")
-            return nil
-        }
-        guard let catalog = try? JSONDecoder().decode(RewriteCatalog.self, from: data) else {
-            AppLogger.error("RewriteCatalog", "Failed to decode catalog response")
-            return nil
-        }
-        guard catalog.version > manager.lastSeenRewriteCatalogVersion else { return nil }
-        return catalog
+    init(client: HostedCatalogClient? = nil) {
+        self.client = client ?? Self.makeProductionClient()
     }
 
-    /// Fetches the catalog **without** the version gate. Used for explicit user actions
-    /// ("Check for Updates" / "Browse Predefined Rewrites") so rules can be re-reviewed —
-    /// and re-added — even after the version has already been seen/applied.
-    func fetchCatalog() async -> RewriteCatalog? {
-        guard let (data, response) = try? await URLSession.shared.data(from: Self.catalogURL),
-              let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            AppLogger.error("RewriteCatalog", "Fetch failed for \(Self.catalogURL.absoluteString)")
-            return nil
-        }
-        guard let catalog = try? JSONDecoder().decode(RewriteCatalog.self, from: data) else {
-            AppLogger.error("RewriteCatalog", "Failed to decode catalog response")
+    private static func makeProductionClient() -> HostedCatalogClient {
+        HostedCatalogClient(
+            repository: HostedCatalogRepository(
+                trust: HostedCatalogTrustConfiguration.production,
+                cache: HostedCatalogCache()
+            ),
+            transport: URLSessionHostedCatalogTransport.shared
+        )
+    }
+
+    func checkForUpdates(manager: BrowserManager) async -> VerifiedRewriteCatalog? {
+        guard let catalog = await fetchCatalog(),
+              catalog.catalog.catalogVersion > manager.lastSeenRewriteCatalogVersion else {
             return nil
         }
         return catalog
     }
 
-    /// Best-effort local notification. Requests authorization on first use — if the user
-    /// has already denied notifications system-wide for Chowser, this silently no-ops;
-    /// the in-app alert (SettingsView's pendingRewriteCatalog) is the guaranteed path.
-    func notifyUpdateAvailable(_ catalog: RewriteCatalog) {
+    func fetchCatalog() async -> VerifiedRewriteCatalog? {
+        do {
+            let result = try await client.load(
+                endpoint: HostedCatalogEndpoint(
+                    documentURL: Self.catalogURL,
+                    signatureURL: Self.signatureURL
+                ),
+                as: RewriteCatalog.self
+            )
+            if result.usedCachedFallback {
+                AppLogger.log("RewriteCatalog", "Using the verified last-known-good rewrite catalog")
+            }
+            return VerifiedRewriteCatalog(result.verified)
+        } catch {
+            AppLogger.error(
+                "RewriteCatalog",
+                "Catalog fetch or verification failed (\(String(describing: type(of: error))))"
+            )
+            return nil
+        }
+    }
+
+    func notifyUpdateAvailable(_ verifiedCatalog: VerifiedRewriteCatalog) {
+        let catalog = verifiedCatalog.catalog
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             guard granted, error == nil else { return }
             let content = UNMutableNotificationContent()
             content.title = "New Chowser rewrite rules available"
-            content.body = "\(catalog.rules.count) predefined rewrite rules ready to add — tracking-parameter cleanup, HTTPS upgrade, and more. Open Settings > Rewrites to review."
+            content.body = "\(catalog.rules.count) signed rewrite rules are ready to review. Nothing is selected automatically."
             content.sound = .default
-            let request = UNNotificationRequest(identifier: "in.sreerams.Chowser.rewriteCatalogUpdate", content: content, trigger: nil)
+            let request = UNNotificationRequest(
+                identifier: "in.sreerams.Chowser.rewriteCatalogUpdate",
+                content: content,
+                trigger: nil
+            )
             center.add(request) { error in
                 if let error {
                     AppLogger.error("RewriteCatalog", "Notification failed: \(error.localizedDescription)")
@@ -106,58 +269,58 @@ final class RewriteCatalogService {
         }
     }
 
-    /// Adds every catalog rule not already present (matched by name), skipping the rest.
-    /// Returns the number actually added. Marks the catalog version seen regardless, so
-    /// a user who declines isn't asked about the same version again. Records each added
-    /// rule's name in `manager.catalogAppliedRuleNames` for later deletion detection.
     @discardableResult
-    func apply(_ catalog: RewriteCatalog, manager: BrowserManager) -> Int {
-        var added = 0
-        for entry in catalog.rules {
-            guard !manager.rewriteRules.contains(where: { $0.name == entry.name }) else { continue }
-            let rule = URLRewriteRule(
-                name: entry.name,
-                match: URLRewriteMatch(
-                    schemes: entry.schemes,
-                    hostPattern: entry.hostPattern,
-                    useRegex: entry.useRegex,
-                    excludeHostPatterns: entry.excludeHostPatterns
-                ),
-                actions: entry.actions
-            )
-            if case .success = manager.addRewriteRule(rule) {
-                added += 1
-                manager.catalogAppliedRuleNames.insert(entry.name)
-            }
-        }
-        manager.lastSeenRewriteCatalogVersion = catalog.version
-        return added
-    }
+    func applySelected(
+        _ verifiedCatalog: VerifiedRewriteCatalog,
+        manager: BrowserManager,
+        selectedEntryIDs: Set<String>
+    ) -> RewriteCatalogApplyResult {
+        var result = RewriteCatalogApplyResult()
+        let catalog = verifiedCatalog.catalog
 
-    /// Adds only the checked catalog rules (matched by name), skipping collisions. Returns
-    /// the number actually added. Marks the catalog version seen. Records each added rule's
-    /// name in `manager.catalogAppliedRuleNames` for later deletion detection.
-    @discardableResult
-    func applySelected(_ catalog: RewriteCatalog, manager: BrowserManager, selectedNames: Set<String>) -> Int {
-        var added = 0
-        for entry in catalog.rules where selectedNames.contains(entry.name) {
-            guard !manager.rewriteRules.contains(where: { $0.name == entry.name }) else { continue }
-            let rule = URLRewriteRule(
-                name: entry.name,
-                match: URLRewriteMatch(
-                    schemes: entry.schemes,
-                    hostPattern: entry.hostPattern,
-                    useRegex: entry.useRegex,
-                    excludeHostPatterns: entry.excludeHostPatterns
-                ),
-                actions: entry.actions
+        for entry in catalog.rules where selectedEntryIDs.contains(entry.id) {
+            let provenance = RewriteCatalogRuleProvenance(
+                entryID: entry.id,
+                catalogVersion: catalog.catalogVersion,
+                catalogSHA256: verifiedCatalog.provenance.sha256,
+                behaviorSHA256: entry.behaviorSHA256,
+                keyID: verifiedCatalog.provenance.keyID
             )
-            if case .success = manager.addRewriteRule(rule) {
-                added += 1
+
+            if let existing = manager.rewriteRules.first(where: {
+                $0.catalogProvenance?.entryID == entry.id
+            }) {
+                guard existing.catalogProvenance?.behaviorSHA256 != entry.behaviorSHA256 else {
+                    result.skipped += 1
+                    continue
+                }
+                let replacement = entry.makeRule(
+                    id: existing.id,
+                    isEnabled: existing.isEnabled,
+                    provenance: provenance
+                )
+                if case .success = manager.updateRewriteRule(replacement) {
+                    result.updated += 1
+                    manager.catalogAppliedRuleNames.insert(entry.name)
+                } else {
+                    result.skipped += 1
+                }
+                continue
+            }
+
+            guard !manager.rewriteRules.contains(where: { $0.name == entry.name }) else {
+                result.skipped += 1
+                continue
+            }
+            if case .success = manager.addRewriteRule(entry.makeRule(provenance: provenance)) {
+                result.added += 1
                 manager.catalogAppliedRuleNames.insert(entry.name)
+            } else {
+                result.skipped += 1
             }
         }
-        manager.lastSeenRewriteCatalogVersion = catalog.version
-        return added
+
+        manager.lastSeenRewriteCatalogVersion = catalog.catalogVersion
+        return result
     }
 }

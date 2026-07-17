@@ -26,7 +26,7 @@ struct SettingsView: View {
     @State var showingAddRewriteSheet = false
     @State var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     @State var operationAlert: SettingsOperationAlert?
-    @State var rewriteCatalogSheet: RewriteCatalog?
+    @State var rewriteCatalogSheet: VerifiedRewriteCatalog?
     @State var isCheckingRewriteCatalog = false
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
@@ -142,10 +142,20 @@ struct SettingsView: View {
             showingAddRuleSheet = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RewriteCatalogApplied"))) { notification in
-            guard let added = notification.object as? Int else { return }
+            guard let result = notification.object as? RewriteCatalogApplyResult else { return }
+            let details: String
+            if result.changedCount == 0 {
+                details = "No rewrite rules changed. Selected entries may already be installed or conflict with a user rule."
+            } else {
+                var parts: [String] = []
+                if result.added > 0 { parts.append("\(result.added) added") }
+                if result.updated > 0 { parts.append("\(result.updated) updated") }
+                if result.skipped > 0 { parts.append("\(result.skipped) skipped") }
+                details = parts.joined(separator: ", ").capitalized + "."
+            }
             operationAlert = SettingsOperationAlert(
-                title: "Rewrites Added",
-                message: added == 0 ? "No new rewrite rules were added (the selected rules are already present)." : "Added \(added) new rewrite rule\(added == 1 ? "" : "s")."
+                title: "Signed Rewrites Reviewed",
+                message: details
             )
         }
         .alert("Reset Chowser setup?", isPresented: $showingResetConfirmation) {

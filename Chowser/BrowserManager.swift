@@ -1345,15 +1345,21 @@ struct BrowserFallbackPolicy: Codable, Equatable {
             return .failure(.ruleNotFound)
         }
         let result = validatedRewriteRule(rule)
-        if case .success(let normalizedRule) = result {
+        if case .success(var normalizedRule) = result {
+            if let provenance = normalizedRule.catalogProvenance,
+               RewriteCatalogBehavior.sha256(for: normalizedRule) != provenance.behaviorSHA256 {
+                normalizedRule.catalogProvenance = nil
+                catalogAppliedRuleNames.remove(rewriteRules[index].name)
+            }
             rewriteRules[index] = normalizedRule
+            return .success(normalizedRule)
         }
         return result
     }
 
     func removeRewriteRule(id: UUID) {
         if let removed = rewriteRules.first(where: { $0.id == id }),
-           catalogAppliedRuleNames.contains(removed.name) {
+           removed.catalogProvenance != nil || catalogAppliedRuleNames.contains(removed.name) {
             catalogAppliedRuleNames.remove(removed.name)
             // Re-offer the catalog: with the version gate reset, "Check for Updates"
             // re-fires even if the same or newer catalog is still current.
@@ -1408,10 +1414,14 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         for rawItem in rawItems {
             guard let rawObject = rawItem as? [String: Any],
                   let itemData = try? JSONSerialization.data(withJSONObject: rawObject),
-                  let rule = try? decoder.decode(URLRewriteRule.self, from: itemData) else {
+                  var rule = try? decoder.decode(URLRewriteRule.self, from: itemData) else {
                 summary.invalid += 1
                 continue
             }
+
+            // Import files are user-owned. Never let an imported JSON object claim the
+            // signed-catalog trust badge or participate in catalog update matching.
+            rule.catalogProvenance = nil
 
             guard case .success(let normalizedRule) = validatedRewriteRule(rule) else {
                 summary.invalid += 1

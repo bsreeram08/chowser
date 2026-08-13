@@ -132,7 +132,7 @@ struct BrowserLaunchTests {
         }
     }
 
-    @Test("Direct launch plan delivers URL once before args through /usr/bin/open")
+    @Test("Direct launch plan delivers URL once inside --args through /usr/bin/open")
     func directLaunchPlanLowersToOpenToolArguments() {
         let plan = BrowserManager.launchPlan(
             forBundleID: "com.google.Chrome",
@@ -148,7 +148,7 @@ struct BrowserLaunchTests {
         #expect(plan.documentURLs == [url])
         #expect(plan.requestedApplicationArguments == ["--profile-directory=Profile 1"])
         #expect(plan.deliveredApplicationArguments == ["--profile-directory=Profile 1"])
-        #expect(plan.directOpenArguments == ["-n", "-a", appURL.path, url.absoluteString, "--args", "--profile-directory=Profile 1"])
+        #expect(plan.directOpenArguments == ["-n", "-a", appURL.path, "--args", "--profile-directory=Profile 1", url.absoluteString])
     }
 
     @Test("Direct launch plan filters custom URL app arguments to avoid duplicate URL delivery")
@@ -164,7 +164,7 @@ struct BrowserLaunchTests {
 
         #expect(plan.requestedApplicationArguments == [url.absoluteString, "--profile-directory=Profile 1"])
         #expect(plan.deliveredApplicationArguments == ["--profile-directory=Profile 1"])
-        #expect(plan.directOpenArguments == ["-n", "-a", appURL.path, url.absoluteString, "--args", "--profile-directory=Profile 1"])
+        #expect(plan.directOpenArguments == ["-n", "-a", appURL.path, "--args", "--profile-directory=Profile 1", url.absoluteString])
     }
 
     @Test("App Store launch plan attempts arguments via NSWorkspace (macOS may drop them)")
@@ -219,6 +219,10 @@ struct BrowserLaunchTests {
         #expect(plan.documentURLs == [url])
         #expect(plan.requestedApplicationArguments.isEmpty)
         #expect(plan.deliveredApplicationArguments.isEmpty)
+        // No arguments to deliver, so a new instance would only spawn a redundant
+        // window rather than reuse the running browser.
+        #expect(!plan.createsNewApplicationInstance)
+        #expect(plan.directOpenArguments == ["-a", appURL.path, url.absoluteString])
     }
 
     @Test("Single-instance browsers do not request a new application instance")

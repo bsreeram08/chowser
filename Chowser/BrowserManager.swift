@@ -2026,10 +2026,16 @@ struct BrowserFallbackPolicy: Codable, Equatable {
                 arguments.append("-n")
             }
             arguments += ["-a", appURL.path]
-            arguments += documentURLs.map(\.absoluteString)
-            if !deliveredApplicationArguments.isEmpty {
+            if deliveredApplicationArguments.isEmpty {
+                arguments += documentURLs.map(\.absoluteString)
+            } else {
+                // Pass the URL inside --args so it reaches Chromium's command line
+                // alongside --profile-directory. Handing it to `open` as a document
+                // instead routes it through LaunchServices, which delivers it as an
+                // Apple Event to the already-running instance and drops the profile.
                 arguments.append("--args")
                 arguments += deliveredApplicationArguments
+                arguments += documentURLs.map(\.absoluteString)
             }
             return arguments
         }
@@ -2150,7 +2156,12 @@ struct BrowserFallbackPolicy: Codable, Equatable {
             deliveredApplicationArguments: deliveredArguments,
             argumentType: launchInfo?.type,
             applicationArgumentsSupported: appArgumentsSupported,
+            // Only force a new instance when there are arguments to deliver on a fresh
+            // command line (profile / private-mode flags). With no arguments a new
+            // instance just spawns an extra window instead of reusing the running
+            // browser — which made Safari open a new window for every link.
             createsNewApplicationInstance: !singleInstanceBrowsers.contains(bundleId.lowercased())
+                && !deliveredArguments.isEmpty
         )
     }
 

@@ -7,7 +7,7 @@ DESTINATION="platform=macOS"
 echo "Running unit tests..."
 xcodebuild test \
   -project "$PROJECT" \
-  -scheme Chowser \
+  -scheme Chowser-osp \
   -destination "$DESTINATION" \
   -only-testing:ChowserTests
 

@@ -26,8 +26,10 @@ struct SettingsView: View {
     @State var showingAddRewriteSheet = false
     @State var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
     @State var operationAlert: SettingsOperationAlert?
-    @State var rewriteCatalogSheet: RewriteCatalog?
+    @State var rewriteCatalogSheet: VerifiedRewriteCatalog?
     @State var isCheckingRewriteCatalog = false
+    @State var nativeAppDirectory: VerifiedNativeAppDirectory?
+    @State var isRefreshingNativeAppDirectory = false
 
     let shortcutOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -67,7 +69,7 @@ struct SettingsView: View {
             case .rewrites: return "URL transformations"
             case .behavior: return "Fallback & privacy"
             case .appearance: return "Picker look"
-            case .apps: return "Hidden handlers"
+            case .apps: return "Native links & hidden handlers"
             case .general: return "Startup & maintenance"
             }
         }
@@ -142,10 +144,20 @@ struct SettingsView: View {
             showingAddRuleSheet = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RewriteCatalogApplied"))) { notification in
-            guard let added = notification.object as? Int else { return }
+            guard let result = notification.object as? RewriteCatalogApplyResult else { return }
+            let details: String
+            if result.changedCount == 0 {
+                details = "No rewrite rules changed. Selected entries may already be installed or conflict with a user rule."
+            } else {
+                var parts: [String] = []
+                if result.added > 0 { parts.append("\(result.added) added") }
+                if result.updated > 0 { parts.append("\(result.updated) updated") }
+                if result.skipped > 0 { parts.append("\(result.skipped) skipped") }
+                details = parts.joined(separator: ", ").capitalized + "."
+            }
             operationAlert = SettingsOperationAlert(
-                title: "Rewrites Added",
-                message: added == 0 ? "No new rewrite rules were added (the selected rules are already present)." : "Added \(added) new rewrite rule\(added == 1 ? "" : "s")."
+                title: "Signed Rewrites Reviewed",
+                message: details
             )
         }
         .alert("Reset Chowser setup?", isPresented: $showingResetConfirmation) {
@@ -309,7 +321,7 @@ struct SettingsView: View {
         case .rewrites:
             return browserManager.rewriteRules.filter(\.isEnabled).count
         case .apps:
-            return browserManager.hiddenBundleIDs.count
+            return browserManager.nativeAppApprovals.count + browserManager.hiddenBundleIDs.count
         case .behavior, .appearance, .general:
             return 0
         }

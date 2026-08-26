@@ -3,12 +3,82 @@ import AppKit
 
 extension SettingsView {
     var appsSection: some View {
-        SettingsDetailScaffold(
+        @Bindable var manager = browserManager
+
+        return SettingsDetailScaffold(
             title: "Apps",
-            subtitle: "Hide URL handlers that should not appear as browser choices.",
+            subtitle: "Review native deep links and hide non-browser URL handlers.",
             systemImage: "app.badge",
+            actions: {
+                Button("Refresh Signed Directory", systemImage: "arrow.clockwise") {
+                    refreshNativeAppDirectory()
+                }
+                .controlSize(.small)
+                .disabled(isRefreshingNativeAppDirectory)
+                .accessibilityIdentifier("settings.nativeApps.refreshButton")
+            },
             content: {
                 VStack(alignment: .leading, spacing: 16) {
+                    SettingsGroup(
+                        "Native Link Apps",
+                        subtitle: "Disabled by default. Chowser opens a native URL only after you approve its exact signed hosts and transforms."
+                    ) {
+                        if let directory = nativeAppDirectory {
+                            let installed = installedNativeApps(in: directory)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Signed directory v\(directory.directory.catalogVersion) · key \(directory.provenance.keyID)")
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                Text(directory.provenance.source == .cache
+                                    ? "Using the verified last-known-good cache. Refresh to check for additions."
+                                    : "Freshly verified from the hosted directory.")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(14)
+
+                            SettingsDivider()
+
+                            if installed.isEmpty {
+                                SettingsRow(
+                                    title: "No supported native apps installed",
+                                    subtitle: "Refresh after installing an app, or wait for it to be added to the signed directory."
+                                ) {
+                                    EmptyView()
+                                }
+                            } else {
+                                ForEach(installed) { installedApp in
+                                    NativeAppConsentRow(
+                                        entry: installedApp.entry,
+                                        bundleIdentifier: installedApp.bundleIdentifier,
+                                        isApproved: manager.isNativeAppApproved(installedApp.entry),
+                                        needsReview: manager.nativeAppApprovals[installedApp.entry.id] != nil
+                                            && !manager.isNativeAppApproved(installedApp.entry)
+                                    ) { enabled in
+                                        if enabled {
+                                            manager.approveNativeApp(installedApp.entry)
+                                        } else {
+                                            manager.revokeNativeApp(entryID: installedApp.entry.id)
+                                        }
+                                    }
+                                    if installedApp.id != installed.last?.id {
+                                        SettingsDivider()
+                                    }
+                                }
+                            }
+                        } else {
+                            SettingsRow(
+                                title: "No signed directory cached",
+                                subtitle: "Refresh to download the fixed catalog endpoints. Chowser never sends the link you are opening."
+                            ) {
+                                Button("Refresh") { refreshNativeAppDirectory() }
+                                    .controlSize(.small)
+                                    .disabled(isRefreshingNativeAppDirectory)
+                            }
+                        }
+                    }
+
                     SettingsGroup("Hidden Apps", subtitle: "Bundle IDs in this list are excluded from browser discovery.") {
                         if browserManager.hiddenBundleIDs.isEmpty {
                             SettingsRow(title: "No hidden apps", subtitle: "All discovered URL handlers are currently eligible.") {
@@ -49,6 +119,40 @@ extension SettingsView {
                 }
             }
         )
+        .onAppear {
+            guard nativeAppDirectory == nil else { return }
+            nativeAppDirectory = NativeAppDirectoryService.shared.currentDirectory
+                ?? NativeAppDirectoryService.shared.loadLastKnownGood()
+        }
+    }
+
+    private func installedNativeApps(
+        in directory: VerifiedNativeAppDirectory
+    ) -> [InstalledNativeApp] {
+        directory.directory.apps.compactMap { entry in
+            guard let bundleIdentifier = NativeAppDirectoryService.shared
+                .installedBundleIdentifier(for: entry) else {
+                return nil
+            }
+            return InstalledNativeApp(entry: entry, bundleIdentifier: bundleIdentifier)
+        }
+    }
+
+    private func refreshNativeAppDirectory() {
+        guard !isRefreshingNativeAppDirectory else { return }
+        isRefreshingNativeAppDirectory = true
+        Task {
+            let directory = await NativeAppDirectoryService.shared.refresh()
+            isRefreshingNativeAppDirectory = false
+            guard let directory else {
+                presentSettingsMessage(
+                    "Couldn't Verify Native App Directory",
+                    "The download, signature, or catalog version was rejected. A previously verified directory remains in use if available."
+                )
+                return
+            }
+            nativeAppDirectory = directory
+        }
     }
 
     var generalSection: some View {
@@ -316,6 +420,96 @@ extension SettingsView {
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
+}
+
+private struct InstalledNativeApp: Identifiable {
+    let entry: NativeAppDirectoryEntry
+    let bundleIdentifier: String
+
+    var id: String { entry.id }
+}
+
+private struct NativeAppConsentRow: View {
+    let entry: NativeAppDirectoryEntry
+    let bundleIdentifier: String
+    let isApproved: Bool
+    let needsReview: Bool
+    let onToggle: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                if let icon = BrowserManager.icon(forBrowserBundleID: bundleIdentifier) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 32, height: 32)
+                } else {
+                    Image(systemName: "app.fill")
+                        .font(.system(size: 24))
+                        .frame(width: 32, height: 32)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 7) {
+                        Text(entry.name)
+                            .font(.system(size: 13, weight: .semibold))
+                        if needsReview {
+                            Text("CHANGED — REVIEW AGAIN")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    Text(entry.summary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(bundleIdentifier)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+
+                Spacer()
+
+                Toggle("Open links in \(entry.name)", isOn: Binding(
+                    get: { isApproved },
+                    set: onToggle
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityIdentifier("settings.nativeApps.\(entry.id).toggle")
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Label("Web hosts: \(sourceHosts.joined(separator: ", "))", systemImage: "globe")
+                Label("Native schemes: \(entry.nativeSchemes.map { $0 + ":" }.joined(separator: ", "))", systemImage: "app.badge.checkmark")
+                ForEach(entry.rules) { rule in
+                    Text("• \(rule.reviewDescription)")
+                        .textSelection(.enabled)
+                }
+            }
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.secondary)
+
+            Label(
+                "Approval is revoked automatically if hosts, bundle IDs, schemes, or transforms change.",
+                systemImage: "checkmark.shield"
+            )
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+        }
+        .padding(14)
+    }
+
+    private var sourceHosts: [String] {
+        var hosts: [String] = []
+        for host in entry.rules.flatMap(\.source.hosts) where !hosts.contains(host) {
+            hosts.append(host)
+        }
+        return hosts
+    }
+
 }
 
 private struct SettingsHiddenAppRow: View {

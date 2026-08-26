@@ -58,7 +58,7 @@ trap 'rm -rf "$derived_root"' EXIT
 
 xcodebuild test \
     -project "$project" \
-    -scheme Chowser \
+    -scheme Chowser-osp \
     -destination 'platform=macOS' \
     -derivedDataPath "$derived_root/tests" \
     -only-testing:ChowserTests \
@@ -67,7 +67,7 @@ xcodebuild test \
 
 xcodebuild build \
     -project "$project" \
-    -scheme Chowser \
+    -scheme Chowser-osp \
     -configuration Release \
     -derivedDataPath "$derived_root/direct" \
     ARCHS="arm64 x86_64" \
@@ -77,7 +77,7 @@ xcodebuild build \
 
 xcodebuild build \
     -project "$project" \
-    -scheme Chowser-AppStore \
+    -scheme Chowser-appstore \
     -configuration Release \
     -derivedDataPath "$derived_root/app-store" \
     ARCHS="arm64 x86_64" \

@@ -1,9 +1,13 @@
 {
-  "version": 2,
-  "updatedAt": "2026-07-08",
+  "schemaVersion": 1,
+  "catalogKind": "rewrite-rules",
+  "catalogVersion": 3,
+  "publishedAt": "2026-07-17T00:00:00Z",
   "rules": [
     {
+      "id": "force-https",
       "name": "Force HTTPS",
+      "summary": "Upgrades HTTP links to HTTPS while excluding local development hosts.",
       "hostPattern": "*",
       "useRegex": false,
       "schemes": ["http"],
@@ -11,31 +15,41 @@
       "actions": [{ "type": "forceScheme", "scheme": "https" }]
     },
     {
+      "id": "strip-utm-tracking",
       "name": "Strip UTM Tracking Parameters",
+      "summary": "Removes query parameters whose names begin with utm_.",
       "hostPattern": "*",
       "useRegex": false,
       "actions": [{ "type": "stripQueryParameterPrefixes", "prefixes": ["utm_"] }]
     },
     {
+      "id": "strip-facebook-click-id",
       "name": "Strip Facebook Click ID",
+      "summary": "Removes the fbclid query parameter.",
       "hostPattern": "*",
       "useRegex": false,
       "actions": [{ "type": "stripQueryParameters", "names": ["fbclid"] }]
     },
     {
-      "name": "Strip Google Click ID",
+      "id": "strip-google-click-ids",
+      "name": "Strip Google Click IDs",
+      "summary": "Removes Google advertising click identifiers.",
       "hostPattern": "*",
       "useRegex": false,
       "actions": [{ "type": "stripQueryParameters", "names": ["gclid", "gclsrc", "dclid"] }]
     },
     {
+      "id": "strip-microsoft-click-id",
       "name": "Strip Microsoft Click ID",
+      "summary": "Removes the msclkid query parameter.",
       "hostPattern": "*",
       "useRegex": false,
       "actions": [{ "type": "stripQueryParameters", "names": ["msclkid"] }]
     },
     {
+      "id": "strip-tiktok-click-id",
       "name": "Strip TikTok Click ID",
+      "summary": "Removes the ttclid query parameter.",
       "hostPattern": "*",
       "useRegex": false,
       "actions": [{ "type": "stripQueryParameters", "names": ["ttclid"] }]

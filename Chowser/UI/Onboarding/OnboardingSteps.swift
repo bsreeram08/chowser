@@ -394,7 +394,7 @@ Your goal is to configure my browsers and routing rules.
 2. **Discover API Schema**: Call `GET /status` — its `endpoints` field lists every available endpoint and required JSON fields for this running version.
 3. **Discover Browsers**: Scan my Mac for browsers and profiles (Chrome, Brave, Edge, Vivaldi, Arc, Dia, Opera, Firefox, Zen, Safari), or ask me if you can't scan the filesystem.
 4. **Configure**: Use `POST /browsers` to add profiles and `POST /rules` to set routing. Use the credentials below.
-5. **Rewrites (optional)**: Chowser publishes predefined URL rewrite rules at https://chowser.sreerams.in/rewrite-catalog.json — offer these if relevant, apply via `POST /rewrites`, only with my confirmation.
+5. **Rewrites (optional)**: Offer to open `chowser://settings` so I can review and install signed predefined rewrites in Chowser. Do not copy raw catalog JSON into `POST /rewrites`; that bypasses signature verification and signed provenance.
 6. **Confirm**: Show a summary and ask for confirmation before making any changes.
 
 **Note**: Direct profile switching is unsupported for Arc and Dia browsers; do not attempt to configure specific profiles for these apps.

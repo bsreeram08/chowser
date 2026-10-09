@@ -76,15 +76,11 @@ Profiles and private windows are driven by per-browser launch arguments. For eac
 - **App Store build**: macOS sandboxing may strip launch arguments, so profiles/args are stored but may not apply at launch (`launchArgumentsSupported:false` in responses). They apply reliably in the direct-download build.
 - **Arc & Dia**: single-instance browsers that often ignore profile flags on an already-running instance — verify via `POST /browsers/preview` and a real test before relying on them.
 
-## Step 5: Offer predefined rewrite rules
+## Step 5: Offer the signed rewrite catalog
 
-Chowser publishes a small catalog of predefined URL rewrite rules (tracking-parameter cleanup, HTTPS upgrade, etc.) at:
+Chowser publishes a signed catalog of predefined URL rewrite rules (tracking-parameter cleanup, HTTPS upgrade, etc.). Catalog installation is intentionally handled by Chowser's Settings UI so the app can verify the detached signature, show exact actions and risk warnings, and retain signed provenance.
 
-```
-https://chowser.sreerams.in/rewrite-catalog.json
-```
-
-Fetch it, compare its `rules` against my existing `GET /rewrites`, and tell me what's new (matched by `name`). If I want any of them, `POST` each one to `/rewrites` — the catalog entries already match that endpoint's body shape (`hostPattern`, `useRegex`, `schemes`, `actions`). Don't apply anything without asking first.
+Do not fetch the raw JSON and copy entries into `POST /rewrites`; that bypasses Chowser's catalog verification and provenance boundary. Offer to open Settings with `open "chowser://settings"`, then ask me to use **Rewrites → Browse Predefined Rewrites** and select the rules I want. You may inspect `GET /rewrites` to explain my current configuration, but treat the public JSON as untrusted unless it has been verified against its detached signature and Chowser's pinned keyring.
 
 ## Step 6: Confirmation
 

@@ -207,10 +207,14 @@ struct BrowserManagerRewriteTests {
     func hostedCatalogPreservesExclusions() throws {
         let data = Data("""
         {
-          "version": 2,
-          "updatedAt": "2026-07-08",
+          "schemaVersion": 1,
+          "catalogKind": "rewrite-rules",
+          "catalogVersion": 2,
+          "publishedAt": "2026-07-08T00:00:00Z",
           "rules": [{
+            "id": "force-https",
             "name": "Force HTTPS",
+            "summary": "Upgrade HTTP links.",
             "hostPattern": "*",
             "schemes": ["http"],
             "excludeHostPatterns": ["localhost", "127.0.0.1", "*.local"],
@@ -220,8 +224,23 @@ struct BrowserManagerRewriteTests {
         """.utf8)
         let catalog = try JSONDecoder().decode(RewriteCatalog.self, from: data)
         let manager = BrowserManager(defaults: makeTestDefaults())
+        let verified = VerifiedRewriteCatalog(VerifiedHostedCatalog(
+            document: catalog,
+            artifact: HostedCatalogArtifact(documentData: data, signatureData: Data()),
+            provenance: HostedCatalogProvenance(
+                catalogKind: RewriteCatalog.expectedCatalogKind,
+                catalogVersion: 2,
+                keyID: "fixture",
+                sha256: HostedCatalogTrust.sha256Hex(data),
+                source: .remote
+            )
+        ))
 
-        #expect(RewriteCatalogService.shared.apply(catalog, manager: manager) == 1)
+        #expect(RewriteCatalogService.shared.applySelected(
+            verified,
+            manager: manager,
+            selectedEntryIDs: ["force-https"]
+        ).added == 1)
         #expect(manager.rewriteRules.first?.match.excludeHostPatterns == ["localhost", "127.0.0.1", "*.local"])
         #expect(manager.applyRewritePipeline(
             to: URL(string: "http://app.local:8080/")!,

@@ -1,5 +1,13 @@
 import Foundation
 
+struct RewriteCatalogRuleProvenance: Codable, Equatable {
+    let entryID: String
+    let catalogVersion: Int
+    let catalogSHA256: String
+    let behaviorSHA256: String
+    let keyID: String
+}
+
 /// A persisted, ordered, typed transformation applied to a URL before routing rules are
 /// evaluated. See CONTEXT.md: "Rewrite Rule". Cannot execute arbitrary code (FR-023).
 struct URLRewriteRule: Identifiable, Codable, Equatable {
@@ -8,6 +16,7 @@ struct URLRewriteRule: Identifiable, Codable, Equatable {
     var isEnabled: Bool = true
     var match: URLRewriteMatch
     var actions: [URLRewriteAction] = []
+    var catalogProvenance: RewriteCatalogRuleProvenance? = nil
 }
 
 extension URLRewriteRule {
@@ -16,7 +25,7 @@ extension URLRewriteRule {
     /// needing per-item import resilience decode elements individually, not the whole
     /// array at once (see `BrowserManager.importRewrites`).
     private enum CodingKeys: String, CodingKey {
-        case id, name, isEnabled, match, actions
+        case id, name, isEnabled, match, actions, catalogProvenance
     }
 
     init(from decoder: Decoder) throws {
@@ -26,6 +35,7 @@ extension URLRewriteRule {
         isEnabled = (try c.decodeIfPresent(Bool.self, forKey: .isEnabled)) ?? true
         match = try c.decode(URLRewriteMatch.self, forKey: .match)
         actions = (try c.decodeIfPresent([URLRewriteAction].self, forKey: .actions)) ?? []
+        catalogProvenance = try c.decodeIfPresent(RewriteCatalogRuleProvenance.self, forKey: .catalogProvenance)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -35,6 +45,7 @@ extension URLRewriteRule {
         try c.encode(isEnabled, forKey: .isEnabled)
         try c.encode(match, forKey: .match)
         try c.encode(actions, forKey: .actions)
+        try c.encodeIfPresent(catalogProvenance, forKey: .catalogProvenance)
     }
 }
 

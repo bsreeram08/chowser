@@ -223,6 +223,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         static let mcpAutoStartEnabledKey = "mcpAutoStartEnabled"
         static let lastSeenRewriteCatalogVersionKey = "lastSeenRewriteCatalogVersion"
         static let catalogAppliedRuleNamesKey = "catalogAppliedRuleNames"
+        static let nativeAppApprovalsKey = "nativeAppApprovals"
         static let supportedShortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         /// Apps that register as HTTP handlers but are not browsers.
@@ -399,6 +400,27 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         didSet {
             defaults.set(Array(catalogAppliedRuleNames), forKey: Constants.catalogAppliedRuleNamesKey)
         }
+    }
+
+    /// Entry ID -> exact signed behavior digest approved by the user. A directory update
+    /// that changes hosts, bundle IDs, schemes, or transform rules no longer matches and
+    /// therefore disables native routing until it is reviewed again.
+    var nativeAppApprovals: [String: String] = [:] {
+        didSet {
+            defaults.set(nativeAppApprovals, forKey: Constants.nativeAppApprovalsKey)
+        }
+    }
+
+    func isNativeAppApproved(_ entry: NativeAppDirectoryEntry) -> Bool {
+        nativeAppApprovals[entry.id] == entry.behaviorSHA256
+    }
+
+    func approveNativeApp(_ entry: NativeAppDirectoryEntry) {
+        nativeAppApprovals[entry.id] = entry.behaviorSHA256
+    }
+
+    func revokeNativeApp(entryID: String) {
+        nativeAppApprovals.removeValue(forKey: entryID)
     }
 
     /// Whether the one-time rule-merge-assist review has been shown (accepted/rejected/
@@ -594,6 +616,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         mcpAutoStartEnabled = defaults.bool(forKey: Constants.mcpAutoStartEnabledKey)
         lastSeenRewriteCatalogVersion = defaults.integer(forKey: Constants.lastSeenRewriteCatalogVersionKey)
         catalogAppliedRuleNames = Set(defaults.array(forKey: Constants.catalogAppliedRuleNamesKey) as? [String] ?? [])
+        nativeAppApprovals = defaults.dictionary(forKey: Constants.nativeAppApprovalsKey) as? [String: String] ?? [:]
         hasSeenRuleMergeReview = defaults.bool(forKey: Constants.hasSeenRuleMergeReviewKey)
         if !hasSeenRuleMergeReview {
             pendingRuleMergeSuggestions = Self.computeMergeSuggestions(for: routingRules)
@@ -855,6 +878,7 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         clearPersistedRecentURLs()
         recentURLs = []
         currentURL = nil
+        nativeAppApprovals = [:]
         hasCompletedOnboarding = false
 
         if launchAtLogin {
@@ -1345,15 +1369,21 @@ struct BrowserFallbackPolicy: Codable, Equatable {
             return .failure(.ruleNotFound)
         }
         let result = validatedRewriteRule(rule)
-        if case .success(let normalizedRule) = result {
+        if case .success(var normalizedRule) = result {
+            if let provenance = normalizedRule.catalogProvenance,
+               RewriteCatalogBehavior.sha256(for: normalizedRule) != provenance.behaviorSHA256 {
+                normalizedRule.catalogProvenance = nil
+                catalogAppliedRuleNames.remove(rewriteRules[index].name)
+            }
             rewriteRules[index] = normalizedRule
+            return .success(normalizedRule)
         }
         return result
     }
 
     func removeRewriteRule(id: UUID) {
         if let removed = rewriteRules.first(where: { $0.id == id }),
-           catalogAppliedRuleNames.contains(removed.name) {
+           removed.catalogProvenance != nil || catalogAppliedRuleNames.contains(removed.name) {
             catalogAppliedRuleNames.remove(removed.name)
             // Re-offer the catalog: with the version gate reset, "Check for Updates"
             // re-fires even if the same or newer catalog is still current.
@@ -1408,10 +1438,14 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         for rawItem in rawItems {
             guard let rawObject = rawItem as? [String: Any],
                   let itemData = try? JSONSerialization.data(withJSONObject: rawObject),
-                  let rule = try? decoder.decode(URLRewriteRule.self, from: itemData) else {
+                  var rule = try? decoder.decode(URLRewriteRule.self, from: itemData) else {
                 summary.invalid += 1
                 continue
             }
+
+            // Import files are user-owned. Never let an imported JSON object claim the
+            // signed-catalog trust badge or participate in catalog update matching.
+            rule.catalogProvenance = nil
 
             guard case .success(let normalizedRule) = validatedRewriteRule(rule) else {
                 summary.invalid += 1

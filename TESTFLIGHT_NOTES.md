@@ -42,29 +42,27 @@ Do not use CI upload automation, Fastlane, altool, notarytool, or App Store Conn
 Release build:
 
 ```bash
-xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-osp -configuration Release build
 ```
 
 Unit tests:
 
 ```bash
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 ```
 
 App Store/TestFlight archive:
 
 ```bash
-xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
-  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE' \
-  -archivePath release/Chowser.xcarchive
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-appstore -configuration Release \
+  -archivePath release/Chowser-appstore.xcarchive
 ```
 
 ### 3. Upload manually from Xcode
 
 1. Open Xcode.
 2. Choose Window > Organizer.
-3. Select the Chowser archive.
+3. Select the Chowser-appstore archive.
 4. Choose Distribute App > App Store Connect > Upload.
 5. Wait for App Store Connect processing.
 6. Add internal testers or beta groups in App Store Connect > TestFlight after processing completes.

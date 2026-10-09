@@ -1,0 +1,8 @@
+{
+  "algorithm" : "ed25519",
+  "catalogKind" : "rewrite-rules",
+  "keyID" : "chowser-catalog-2026-01",
+  "schemaVersion" : 1,
+  "sha256" : "5ff8dc8a042300841ccf65acd125821d64aefef35b2e6bfcbecd9b804a53c6d0",
+  "signature" : "b/LmFRwcUVGQsba4SkYtgzZo8XjzmFK3oEgSaH7PuHucgGZLOYU/nDoL62zoEcCE9ihvIwbcn+/zqaIbBNfPDw=="
+}

@@ -8,13 +8,13 @@ Developer cheat sheet for building, testing, and navigating Chowser.
 
 ```bash
 # Build direct-download product (Release)
-xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-osp -configuration Release build
 
 # Build App Store product (Release)
-xcodebuild -project Chowser.xcodeproj -scheme Chowser-AppStore -configuration Release build
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-appstore -configuration Release build
 
 # Unit tests
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'

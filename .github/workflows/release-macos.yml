@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SCHEME: Chowser
-  APP_STORE_SCHEME: Chowser-AppStore
+  SCHEME: Chowser-osp
+  APP_STORE_SCHEME: Chowser-appstore
   PROJECT: Chowser.xcodeproj
   APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

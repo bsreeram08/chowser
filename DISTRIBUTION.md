@@ -4,8 +4,8 @@ Chowser has two products built from the same source tree. Their distribution-spe
 
 | Product | Scheme | Sandbox | Profiles | Updater |
 |---|---|---:|---|---|
-| Direct download | `Chowser` | No | Full supported-browser profile launching | Sparkle through GitHub Releases |
-| Mac App Store | `Chowser-AppStore` | Yes | `NSWorkspace` launch fallback | Mac App Store / TestFlight only |
+| Direct download | `Chowser-osp` | No | Full supported-browser profile launching | Sparkle through GitHub Releases |
+| Mac App Store | `Chowser-appstore` | Yes | `NSWorkspace` launch fallback | Mac App Store / TestFlight only |
 
 ## Direct-download product
 
@@ -118,15 +118,15 @@ Build or archive it with the dedicated scheme:
 ```bash
 xcodebuild archive \
   -project Chowser.xcodeproj \
-  -scheme Chowser-AppStore \
+  -scheme Chowser-appstore \
   -configuration Release \
-  -archivePath release/Chowser-AppStore.xcarchive
+  -archivePath release/Chowser-appstore.xcarchive
 ```
 
 Uploads remain manual through Xcode Organizer:
 
 1. Open Xcode -> Window -> Organizer.
-2. Select the `Chowser-AppStore` archive.
+2. Select the `Chowser-appstore` archive.
 3. Choose Distribute App -> App Store Connect -> Upload.
 4. Use TestFlight for beta distribution.
 

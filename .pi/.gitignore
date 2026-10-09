@@ -1,0 +1,6 @@
+# Ephemeral background-task artifacts
+/tasks/
+
+# Local filesystem noise
+.DS_Store
+*.tmp

@@ -156,9 +156,9 @@ export const Guide: React.FC = () => {
               <span className="eyebrow">Safe defaults</span>
               <h2 className="font-display text-xl font-semibold mt-3">Network work stays opt-in</h2>
               <p className="text-sm text-muted-foreground leading-relaxed mt-3">
-                Shortlink resolution and hosted catalog checks can contact the network. Chowser does
-                not silently import hosted rewrites: open Settings → Rewrites, browse the catalog, and
-                choose each rule yourself.
+                Shortlink resolution and catalog refreshes can contact the network. Hosted catalogs are
+                signed, fetched only from fixed Chowser endpoints, and never receive the link you clicked.
+                Rewrites and native-app deep links remain disabled until you approve them in Settings.
               </p>
               <a href="/rewrites" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-4 hover:underline">
                 Browse predefined rewrites <ArrowRight className="w-3.5 h-3.5" />

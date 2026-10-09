@@ -73,8 +73,8 @@ The same synchronized `Chowser/` source group is compiled into two application t
 
 | Target / Scheme | Compilation condition | Entitlements | Update implementation |
 |---|---|---|---|
-| `Chowser` | `DIRECT_DISTRIBUTION` | `Chowser.entitlements` (unsandboxed) | Links Sparkle; GitHub stable/beta appcast |
-| `ChowserAppStore` / `Chowser-AppStore` | `APP_STORE` | `ChowserAppStore.entitlements` (sandboxed) | No Sparkle binary, metadata, or updater commands |
+| `Chowser` / `Chowser-osp` | `DIRECT_DISTRIBUTION` | `Chowser.entitlements` (unsandboxed) | Links Sparkle; GitHub stable/beta appcast |
+| `ChowserAppStore` / `Chowser-appstore` | `APP_STORE` | `ChowserAppStore.entitlements` (sandboxed) | No Sparkle binary, metadata, or updater commands |
 
 The direct-only `AppUpdateController` owns Sparkle and the opt-in beta preference behind `AppUpdateProviding`. The separately compiled `AppStoreUpdateProvider` contains only the action that opens Chowser's App Store listing. `AppDelegate` starts and exposes the updater only under `DIRECT_DISTRIBUTION`.
 

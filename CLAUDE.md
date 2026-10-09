@@ -5,24 +5,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Build
-xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+# Direct-download build (unsandboxed, includes Sparkle)
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-osp -configuration Release build
 
 # Unit tests
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
-# App Store build (uses APP_STORE compilation condition + sandbox entitlements)
-xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Release \
-  ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Chowser/ChowserAppStore.entitlements \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) APP_STORE'
+# App Store build (uses the sandboxed ChowserAppStore target)
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-appstore -configuration Release \
+  -archivePath release/Chowser-appstore.xcarchive
 ```
 
 ### CI/CD Pipelines
 
-- **`.github/workflows/deploy-docs.yml`** — Docs site deployment to GitHub Pages (triggers on push to `main` with changes under `docs/`, uses Bun + Vite).
+- **`.github/workflows/deploy-docs.yml`** — Verifies signed hosted catalogs, builds the docs site, and deploys to GitHub Pages on eligible `main` pushes.
+- **`.github/workflows/release-macos.yml`** — Tag-driven direct-download release. Requires all signing, notarization, and Sparkle secrets; publishes a verified DMG and signed appcast.
 
 ## Architecture
 
@@ -33,10 +33,11 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 1. On first launch, `AppDelegate` checks `OnboardingManager.hasCompletedOnboarding` — if false, shows the onboarding wizard before setting up the status bar
 2. Apple Event handler (`handleGetURLEvent`) is registered in `applicationWillFinishLaunching` (before Cocoa's default handler) — extracts source app via `keyAddressAttr` → PID → bundle ID
 3. macOS calls `application(_:open:)` in `AppDelegate` when a link is clicked anywhere
-4. `BrowserManager.resolvedRoute(for:)` checks routing rules top-to-bottom (host pattern + path prefix + source app matching)
-5. If a rule matches → opens directly via `BrowserManager.open()` (with optional private mode); otherwise → shows the picker panel
-6. Picker (`ContentView`) lets user choose; keyboard shortcuts `1`-`9`, initials, `P` for private mode, `R` for quick rule creation, or arrow keys work
-7. User can also open clipboard URLs or create routing rules directly from the picker
+4. Chowser applies enabled URL rewrites, optional shortlink resolution, and tracking cleanup before deciding where to open the link
+5. Destination precedence is Shift-forced picker → explicit/focus browser route → approved native app → configured browser fallback → picker; private-mode requests skip native apps
+6. Native-app routing uses the verified signed directory, exact per-app behavior approval, and a handler bundle-ID check immediately before launch
+7. Picker (`ContentView`) lets user choose; keyboard shortcuts `1`-`9`, initials, `P` for private mode, `R` for quick rule creation, or arrow keys work
+8. User can also open clipboard URLs or create routing rules directly from the picker
 
 ### Key files
 
@@ -51,7 +52,9 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 - **`DomainFrequencyTracker.swift`** — Records domain→browser click frequency; suggests auto-routing rules when a domain reaches 30 clicks.
 - **`PickerViewModifiers.swift`** — Three-tier picker background: macOS 26+ glass effect → `ultraThinMaterial` fallback → solid for reduced-transparency.
 - **`ConfigureRuleView.swift`** — Compact in-picker rule creation sheet; auto-prefills host from intercepted URL.
-- **`UpdateManager.swift`** — App Store update checker (`#if APP_STORE`). Checks the App Store for newer versions and surfaces an "Open App Store" prompt in Settings.
+- **`AppUpdateProviding.swift` / `AppUpdateController.swift`** — Direct-only app-owned update interface, Sparkle controller, and stable/beta policy. **`AppStoreUpdateProvider.swift`** is compiled only for the App Store handoff and contains no Sparkle behavior.
+- **`HostedCatalogTrust.swift`** — Common pinned-key Ed25519 verification, bounded transport, rollback protection, and reverified last-known-good cache for hosted catalogs.
+- **`NativeAppDirectory.swift` / `NativeAppDirectoryService.swift`** — Generic declarative native deep-link schema, semantic validation, per-app approval resolution, and macOS handler verification.
 - **`UI/Onboarding/OnboardingManager.swift`** — Manages onboarding state and activation policy switching (`.accessory` ↔ `.regular`) for the onboarding window.
 - **`UI/Onboarding/OnboardingView.swift`** — Multi-step onboarding wizard (Welcome → Default Browser → Browsers → Rules → Finish).
 - **`Chowser.entitlements`** — Entitlements for direct download build (hardened runtime, no sandbox).
@@ -60,7 +63,7 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 ### Patterns
 
 - Settings window is **not** a SwiftUI `Settings` scene — it's an `NSWindowController` wrapping `NSHostingController<SettingsView>`. This avoids SwiftUI auto-presenting the window on app activation.
-- `AppDelegate` intentionally does **not** implement `applicationShouldHandleReopen` (would race with URL-open events).
+- `applicationShouldHandleReopen` may only schedule the cancellable deferred reopen in `AppDelegate`; URL-open handling must cancel it before routing.
 - Browser launching with profiles uses `Process` + `/usr/bin/open -n -a` rather than `NSWorkspace.openApplication`, because Chromium hands off to existing processes and drops `--profile-directory` in the handoff path.
 - `UserDefaults` suite is overridden to `in.sreerams.Chowser.UITests` during UI tests to isolate state.
 - UserDefaults writes for browsers and rules are **debounced at 0.3s** via `DispatchWorkItem` to avoid I/O stutter during drag-to-reorder.
@@ -71,7 +74,9 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser -configuration Rel
 
 ### Distribution & Updates
 
-- **App Store only**: Sandboxed build with `APP_STORE` compilation flag + `ChowserAppStore.entitlements`. Updates delivered via App Store. Beta via TestFlight.
-- **Conditional compilation**: `#if APP_STORE` guards sandbox-incompatible code (Process-based browser launching). The App Store build uses `NSWorkspace.open()` exclusively.
+- **Direct download**: The `Chowser` target is unsandboxed, defines `DIRECT_DISTRIBUTION`, links Sparkle, and is published as a signed/notarized GitHub Release DMG.
+- **App Store**: The `ChowserAppStore` target is sandboxed, defines `APP_STORE`, excludes Sparkle entirely, and receives updates only through the App Store/TestFlight.
+- **Conditional compilation**: `#if APP_STORE` guards sandbox-incompatible browser launching. `#if DIRECT_DISTRIBUTION` guards Sparkle code and updater UI.
+- **Release trigger**: Only an explicit `v<version>` or `v<version>-beta.<n>` tag starts the GitHub binary release workflow. A normal `main` push never publishes a release.
 - **Version bumping**: Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `Chowser.xcodeproj/project.pbxproj` before archiving.
 - **Promo codes**: Generated in App Store Connect → Marketing → Promo Codes (up to 100 per version) for free distribution passes.

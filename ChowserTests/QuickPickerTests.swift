@@ -243,7 +243,9 @@ struct QuickPickerTests {
             let angles = RadialPickerGeometry.centerAngles(itemCount: itemCount, shape: .circle)
             let step = CGFloat.pi * 2 / CGFloat(itemCount)
 
-            #expect(angles.first == -.pi / 2 + step / 2)
+            // ponytail: precomputed so CI's slower type-checker doesn't time out on the macro.
+            let expectedFirst: CGFloat = -CGFloat.pi / 2 + step / 2
+            #expect(angles.first == expectedFirst)
             #expect(angles.contains(where: { abs($0 + .pi / 2) < 0.001 }) == false)
             #expect(angles.contains(where: { abs($0 - .pi / 2) < 0.001 }) == false)
         }

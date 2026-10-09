@@ -6,22 +6,22 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ```bash
 # Direct-download build (unsandboxed, includes Sparkle)
-xcodebuild -project Chowser.xcodeproj -scheme Chowser -configuration Release build
+xcodebuild -project Chowser.xcodeproj -scheme Chowser-osp -configuration Release build
 
 # Unit tests
-xcodebuild test -project Chowser.xcodeproj -scheme Chowser -destination 'platform=macOS' -only-testing:ChowserTests
+xcodebuild test -project Chowser.xcodeproj -scheme Chowser-osp -destination 'platform=macOS' -only-testing:ChowserTests
 
 # UI tests
 xcodebuild test -project Chowser.xcodeproj -scheme ChowserUITests -destination 'platform=macOS'
 
 # App Store build (sandboxed, excludes Sparkle)
-xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-AppStore -configuration Release \
-  -archivePath release/Chowser-AppStore.xcarchive
+xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-appstore -configuration Release \
+  -archivePath release/Chowser-appstore.xcarchive
 ```
 
 ### CI/CD Pipelines
 
-- **`.github/workflows/deploy-docs.yml`** — Docs site deployment to GitHub Pages (triggers on push to `main` with changes under `docs/`, uses Bun + Vite).
+- **`.github/workflows/deploy-docs.yml`** — Verifies signed hosted catalogs, builds the docs site, and deploys to GitHub Pages on eligible `main` pushes.
 - **`.github/workflows/release-macos.yml`** — Tag-driven direct-download release. Requires all signing, notarization, and Sparkle secrets; publishes a verified DMG and signed appcast.
 
 ## Architecture
@@ -33,10 +33,11 @@ xcodebuild archive -project Chowser.xcodeproj -scheme Chowser-AppStore -configur
 1. On first launch, `AppDelegate` checks `OnboardingManager.hasCompletedOnboarding` — if false, shows the onboarding wizard before setting up the status bar
 2. Apple Event handler (`handleGetURLEvent`) is registered in `applicationWillFinishLaunching` (before Cocoa's default handler) — extracts source app via `keyAddressAttr` → PID → bundle ID
 3. macOS calls `application(_:open:)` in `AppDelegate` when a link is clicked anywhere
-4. `BrowserManager.resolvedRoute(for:)` checks routing rules top-to-bottom (host pattern + path prefix + source app matching)
-5. If a rule matches → opens directly via `BrowserManager.open()` (with optional private mode); otherwise → shows the picker panel
-6. Picker (`ContentView`) lets user choose; keyboard shortcuts `1`-`9`, initials, `P` for private mode, `R` for quick rule creation, or arrow keys work
-7. User can also open clipboard URLs or create routing rules directly from the picker
+4. Chowser applies enabled URL rewrites, optional shortlink resolution, and tracking cleanup before deciding where to open the link
+5. Destination precedence is Shift-forced picker → explicit/focus browser route → approved native app → configured browser fallback → picker; private-mode requests skip native apps
+6. Native-app routing uses the verified signed directory, exact per-app behavior approval, and a handler bundle-ID check immediately before launch
+7. Picker (`ContentView`) lets user choose; keyboard shortcuts `1`-`9`, initials, `P` for private mode, `R` for quick rule creation, or arrow keys work
+8. User can also open clipboard URLs or create routing rules directly from the picker
 
 ### Key files
 

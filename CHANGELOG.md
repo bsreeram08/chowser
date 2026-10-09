@@ -2,6 +2,17 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.8] - 2026-10-09
+
+### Added
+- **Open links in native apps.** Approved links can open directly in their native app (for example Spotify) using a signed, verified app directory. Each app needs your approval, and the registered handler is checked right before opening.
+- **Signed rewrite catalogs.** Predefined URL rewrites are now delivered as signed catalogs with an explicit review-and-install flow; they never overwrite your own rules.
+- **Direct-download builds are back.** Chowser is published again as a signed, notarized DMG on GitHub Releases, with Sparkle updates.
+
+### Fixed
+- **Chromium profiles now apply when the browser is already running.** Links previously opened in whichever profile was used last.
+- **Browsers without profile or private-mode flags reuse the open window** instead of spawning a new window for every link (most visible in Safari).
+
 ## [3.9.7] - 2026-07-15
 
 ### Changed

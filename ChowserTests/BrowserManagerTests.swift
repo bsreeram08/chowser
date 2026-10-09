@@ -982,6 +982,41 @@ struct BrowserManagerTests {
         try FileManager.default.removeItem(at: tempURL)
     }
 
+    @Test("Browsers and rules are imported from an App Store install's preferences plist")
+    @MainActor
+    func importFromAppStoreInstallPreferences() throws {
+        // Build an App Store-shaped preferences file from a real manager's stored values.
+        let appStoreDefaults = makeTestDefaults()
+        let appStore = BrowserManager(defaults: appStoreDefaults)
+        appStore.configuredBrowsers = [
+            BrowserConfig(name: "Arc", bundleId: "company.thebrowser.Browser", shortcutKey: "1"),
+        ]
+        appStore.addRoutingRule(name: "GitHub", hostPattern: "github.com", pathPrefix: nil, browserBundleId: "company.thebrowser.Browser")
+        appStore.save()
+        appStore.saveRoutingRules()
+
+        let preferences: [String: Any] = [
+            "configuredBrowsers": try #require(appStoreDefaults.data(forKey: "configuredBrowsers")),
+            "routingRules": try #require(appStoreDefaults.data(forKey: "routingRules")),
+            "unrelatedSetting": true,
+        ]
+        let plistURL = FileManager.default.temporaryDirectory.appendingPathComponent("appstore_prefs_\(UUID().uuidString).plist")
+        try PropertyListSerialization.data(fromPropertyList: preferences, format: .binary, options: 0).write(to: plistURL)
+        defer { try? FileManager.default.removeItem(at: plistURL) }
+
+        let direct = BrowserManager(defaults: makeTestDefaults())
+        direct.configuredBrowsers = [BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1")]
+        direct.routingRules.removeAll()
+
+        let summary = try direct.importFromAppStoreInstall(preferencesURL: plistURL)
+
+        #expect(summary.browsers.added == 1)
+        #expect(summary.rules.added == 1)
+        #expect(direct.configuredBrowsers.map(\.bundleId) == ["com.apple.Safari", "company.thebrowser.Browser"])
+        #expect(direct.configuredBrowsers.last?.shortcutKey != "1")
+        #expect(direct.routingRules.first?.hostPattern == "github.com")
+    }
+
     @Test("Legacy singular sourceAppBundleId decodes into a one-item sourceAppBundleIDs array (FR-013)")
     @MainActor
     func legacySingleSourceDecodesToArray() throws {

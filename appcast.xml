@@ -1,0 +1,30 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Chowser</title>
+        <item>
+            <title>3.9.8</title>
+            <pubDate>Fri, 09 Oct 2026 13:20:41 +0000</pubDate>
+            <link>https://github.com/bsreeram08/chowser/releases/tag/v3.9.8</link>
+            <sparkle:phasedRolloutInterval>86400</sparkle:phasedRolloutInterval>
+            <sparkle:version>202610091804</sparkle:version>
+            <sparkle:shortVersionString>3.9.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[
+### Added
+- **Open links in native apps.** Approved links can open directly in their native app (for example Spotify) using a signed, verified app directory. Each app needs your approval, and the registered handler is checked right before opening.
+- **Signed rewrite catalogs.** Predefined URL rewrites are now delivered as signed catalogs with an explicit review-and-install flow; they never overwrite your own rules.
+- **Direct-download builds are back.** Chowser is published again as a signed, notarized DMG on GitHub Releases, with Sparkle updates.
+
+### Fixed
+- **Chromium profiles now apply when the browser is already running.** Links previously opened in whichever profile was used last.
+- **Browsers without profile or private-mode flags reuse the open window** instead of spawning a new window for every link (most visible in Safari).
+
+]]></description>
+            <enclosure url="https://github.com/bsreeram08/chowser/releases/download/v3.9.8/Chowser-3.9.8.dmg" length="4356355" type="application/octet-stream" sparkle:edSignature="/APP2JZsWC3EfBNGul6aAOibgFDz1vi4yTqhZ1K/sNVRDx9nE/xnyD/Nj3KjkAVKB69pI0O5lKDEOkW1vbInDw=="/>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: K3ZJIyDpUxHwMuoJSB7LudBV+EAxOC7I8qgmrMGhkqFAhbkj522cbQHaDG+utJxoUjdgmDsM7xSs1jL1u70EDQ==
+length: 1894
+-->

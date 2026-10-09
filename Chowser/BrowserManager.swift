@@ -1008,7 +1008,10 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     /// Notes "Correction": a single-shot `[BrowserRoutingRule].self` decode has no
     /// per-item resilience, one bad element fails the whole array).
     func importRules(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
-        let data = try Data(contentsOf: url)
+        try importRules(data: Data(contentsOf: url), skipExisting: skipExisting)
+    }
+
+    func importRules(data: Data, skipExisting: Bool = false) throws -> ImportSummary {
         let decoder = JSONDecoder()
 
         // Cast to `[Any]`, not `[[String: Any]]` — the latter returns nil for the whole
@@ -1057,6 +1060,46 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         return summary
     }
 
+    struct AppStoreInstallImportSummary: Equatable {
+        var browsers = ImportSummary()
+        var rules = ImportSummary()
+        var rewrites = ImportSummary()
+    }
+
+    /// The App Store / TestFlight build shares this bundle ID but is sandboxed, so its
+    /// settings live in its container rather than in this build's preferences.
+    nonisolated static var appStoreInstallPreferencesURL: URL {
+        let bundleID = Bundle.main.bundleIdentifier ?? "in.sreerams.Chowser"
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "Library/Containers/\(bundleID)/Data/Library/Preferences/\(bundleID).plist")
+    }
+
+    nonisolated static var hasAppStoreInstallPreferences: Bool {
+        FileManager.default.fileExists(atPath: appStoreInstallPreferencesURL.path)
+    }
+
+    /// Merges browsers, routing rules and rewrites from the App Store install's preferences.
+    /// The stored values are the same JSON the file importers read, so they go through the same
+    /// validation and merge paths. macOS may ask the user to allow access to the other app's data.
+    func importFromAppStoreInstall(preferencesURL: URL = BrowserManager.appStoreInstallPreferencesURL) throws -> AppStoreInstallImportSummary {
+        let plistData = try Data(contentsOf: preferencesURL)
+        guard let preferences = try PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+
+        var summary = AppStoreInstallImportSummary()
+        if let data = preferences[defaultsKey] as? Data {
+            summary.browsers = try importBrowsers(data: data, skipExisting: skipExistingImportedBrowsers)
+        }
+        if let data = preferences[Constants.routingRulesKey] as? Data {
+            summary.rules = try importRules(data: data, skipExisting: skipExistingImportedRules)
+        }
+        if let data = preferences[Constants.rewriteRulesKey] as? Data {
+            summary.rewrites = try importRewrites(data: data, skipExisting: skipExistingImportedRules)
+        }
+        return summary
+    }
+
     func exportBrowsers(to url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
@@ -1065,7 +1108,10 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     }
 
     func importBrowsers(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
-        let data = try Data(contentsOf: url)
+        try importBrowsers(data: Data(contentsOf: url), skipExisting: skipExisting)
+    }
+
+    func importBrowsers(data: Data, skipExisting: Bool = false) throws -> ImportSummary {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode([BrowserConfig].self, from: data)
 
@@ -1421,7 +1467,10 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     /// Notes "Correction" — a naive `[URLRewriteRule].self` decode has no per-item
     /// resilience; one malformed element must not fail the whole import).
     func importRewrites(from url: URL, skipExisting: Bool = false) throws -> ImportSummary {
-        let data = try Data(contentsOf: url)
+        try importRewrites(data: Data(contentsOf: url), skipExisting: skipExisting)
+    }
+
+    func importRewrites(data: Data, skipExisting: Bool = false) throws -> ImportSummary {
         let decoder = JSONDecoder()
 
         // See `importRules` above: `[Any]`, not `[[String: Any]]`, so a non-object

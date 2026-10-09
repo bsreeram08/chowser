@@ -2,6 +2,11 @@
 
 All notable changes to Chowser are documented here.
 
+## [3.9.9] - 2026-10-09
+
+### Added
+- **Import from the App Store version.** Moving to the direct download? Settings → General → Moving from the App Store copies your browsers, rules and rewrites from the App Store or TestFlight install on the same Mac. macOS may ask you to allow access to the other app's data.
+
 ## [3.9.8] - 2026-10-09
 
 ### Added

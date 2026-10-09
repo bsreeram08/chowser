@@ -200,6 +200,21 @@ extension SettingsView {
                         }
                     }
 
+                    #if DIRECT_DISTRIBUTION
+                    if BrowserManager.hasAppStoreInstallPreferences {
+                        SettingsGroup("Moving from the App Store") {
+                            SettingsRow(
+                                title: "Import from the App Store version",
+                                subtitle: "Copy browsers, rules and rewrites from the App Store or TestFlight install on this Mac."
+                            ) {
+                                Button("Import") { importFromAppStoreInstall() }
+                                    .controlSize(.small)
+                                    .accessibilityIdentifier("settings.importFromAppStoreInstall")
+                            }
+                        }
+                    }
+                    #endif
+
                     SettingsGroup("Import Behavior") {
                         SettingsRow(title: "Skip existing rules", subtitle: "Ignore imported rules that already exist.") {
                             Toggle("", isOn: $manager.skipExistingImportedRules)
@@ -401,6 +416,22 @@ extension SettingsView {
         }
         #endif
     }
+
+    #if DIRECT_DISTRIBUTION
+    private func importFromAppStoreInstall() {
+        do {
+            let summary = try browserManager.importFromAppStoreInstall()
+            let lines = [("Browsers", summary.browsers), ("Rules", summary.rules), ("Rewrites", summary.rewrites)]
+                .map { name, part in "\(name): \(part.added) added, \(part.updated) updated, \(part.skipped + part.invalid) skipped" }
+            presentSettingsMessage("Imported from the App Store version", lines.joined(separator: "\n"))
+        } catch {
+            presentSettingsMessage(
+                "Import failed",
+                "Chowser couldn't read the App Store version's settings. If macOS asked to allow access to another app's data, choose Allow and try again. You can also export from the App Store version and import the files here.\n\n\(error.localizedDescription)"
+            )
+        }
+    }
+    #endif
 
     private func addHiddenBundleIDFromField() {
         let trimmed = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)

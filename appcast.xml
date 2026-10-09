@@ -3,6 +3,21 @@
     <channel>
         <title>Chowser</title>
         <item>
+            <title>3.9.9</title>
+            <pubDate>Fri, 09 Oct 2026 14:08:48 +0000</pubDate>
+            <link>https://github.com/bsreeram08/chowser/releases/tag/v3.9.9</link>
+            <sparkle:phasedRolloutInterval>86400</sparkle:phasedRolloutInterval>
+            <sparkle:version>202610091929</sparkle:version>
+            <sparkle:shortVersionString>3.9.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[
+### Added
+- **Import from the App Store version.** Moving to the direct download? Settings → General → Moving from the App Store copies your browsers, rules and rewrites from the App Store or TestFlight install on the same Mac. macOS may ask you to allow access to the other app's data.
+
+]]></description>
+            <enclosure url="https://github.com/bsreeram08/chowser/releases/download/v3.9.9/Chowser-3.9.9.dmg" length="4360119" type="application/octet-stream" sparkle:edSignature="E6R9/XaLnPP1Z2p2mad+tdB+OUjhsO6SGz0mSe0Q1bOO15BnoX/EGnwZz+QNHoDZYGaV+tIn4jVgDzyrEE64BA=="/>
+        </item>
+        <item>
             <title>3.9.8</title>
             <pubDate>Fri, 09 Oct 2026 13:20:41 +0000</pubDate>
             <link>https://github.com/bsreeram08/chowser/releases/tag/v3.9.8</link>
@@ -24,7 +39,8 @@
             <enclosure url="https://github.com/bsreeram08/chowser/releases/download/v3.9.8/Chowser-3.9.8.dmg" length="4356355" type="application/octet-stream" sparkle:edSignature="/APP2JZsWC3EfBNGul6aAOibgFDz1vi4yTqhZ1K/sNVRDx9nE/xnyD/Nj3KjkAVKB69pI0O5lKDEOkW1vbInDw=="/>
         </item>
     </channel>
-</rss><!-- sparkle-signatures:
-edSignature: K3ZJIyDpUxHwMuoJSB7LudBV+EAxOC7I8qgmrMGhkqFAhbkj522cbQHaDG+utJxoUjdgmDsM7xSs1jL1u70EDQ==
-length: 1894
+</rss>
+<!-- sparkle-signatures:
+edSignature: D+zRYOhAXilWuJtp0m3AZQ2lIUwza+Qlz8HQKyFXx2LE3IZbx2MbUoI6dshqy8FgRVHWfJRsdrqtrP4o6PHLCg==
+length: 3042
 -->

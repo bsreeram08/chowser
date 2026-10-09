@@ -1,1175 +1,323 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import {
-  Link as LinkIcon,
-  Plus,
-  Copy,
-  Zap,
-  Shield,
-  Search,
-  Terminal,
-  Bot,
-  Sparkles,
-  Wand2,
-  Smartphone,
-  MousePointer2,
-  Briefcase,
-  UserRound,
-} from "lucide-react";
+import { BrowserTileArt, type DemoBrowserKind } from "@/components/BrowserTileArt";
+import { PickerDemo, useReducedMotion } from "@/components/PickerDemo";
+import { APP_STORE_URL, useLatestRelease } from "@/hooks/use-latest-release";
+import { Copy, Download, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const APP_STORE_URL = "https://apps.apple.com/in/app/chowser/id6760034779";
 
-/* Demo browser tiles — CSS-drawn app icons so they read as real browsers,
-   not placeholder glyphs. Work/Personal are profile tiles (briefcase/user). */
-const DEMO_BROWSERS = [
-  { name: "Chrome", key: "1", kind: "chrome" },
-  { name: "Safari", key: "2", kind: "safari" },
-  { name: "Work", key: "3", kind: "work" },
-  { name: "Personal", key: "4", kind: "personal" },
+
+/* The hero: a routing log. Each clicked link resolves to where Chowser sent it, and why. */
+const ROUTES: {
+  link: string;
+  from: string;
+  reason: string;
+  to: string;
+  tile: DemoBrowserKind | "picker";
+}[] = [
+  { link: "github.com/acme/api/pull/482", from: "Slack", reason: "Rule: github.com", to: "Chrome, Work profile", tile: "work" },
+  { link: "figma.com/design/Onboarding", from: "Mail", reason: "Rule: figma.com", to: "Arc", tile: "arc" },
+  { link: "t.co/3x8qA9L", from: "Messages", reason: "Unshortened to youtube.com", to: "Safari", tile: "safari" },
+  { link: "open.spotify.com/track/4uLU6h", from: "Discord", reason: "Approved native app", to: "Spotify", tile: "spotify" },
+  { link: "docs.google.com/doc/d/1Bx", from: "Slack", reason: "Source app: Slack", to: "Chrome, Work profile", tile: "work" },
+  { link: "news.ycombinator.com/item?id=41", from: "Notes", reason: "No rule matched", to: "You choose", tile: "picker" },
+];
+
+const GROUPS = [
+  {
+    title: "Route",
+    lead: "Decide once. Chowser remembers.",
+    items: [
+      ["Rules", "Match a host, a path, or the app you clicked from. The first match wins."],
+      ["Profiles", "Open Chrome, Brave, Edge, Arc or Firefox straight into Work or Personal."],
+      ["Native apps", "Send Spotify and other approved links to their Mac app instead of a tab."],
+      ["Private mode", "Press P in the picker and the link opens in a private window."],
+    ],
+  },
+  {
+    title: "Clean",
+    lead: "See where a link really goes.",
+    items: [
+      ["Unshortening", "t.co, bit.ly and friends are resolved before anything opens."],
+      ["Tracking cleanup", "utm_ and other tracking parameters are stripped on the way through."],
+      ["Rewrites", "Upgrade http, or rewrite hosts and paths with a signed, reviewable catalog."],
+      ["Preview", "A link preview shows the destination before you commit to a browser."],
+    ],
+  },
+  {
+    title: "Hand off",
+    lead: "Links that belong somewhere else.",
+    items: [
+      ["Send to phone", "AirDrop the link or scan a QR code when you need to sign in on your phone."],
+      ["Clipboard", "Open whatever URL is on your clipboard from the menu bar."],
+      ["Quick rules", "Press R in the picker to save a rule without opening Settings."],
+      ["AI setup", "A local API lets your AI assistant discover browsers and write rules for you."],
+    ],
+  },
 ] as const;
 
-export type DemoBrowserKind = (typeof DEMO_BROWSERS)[number]["kind"];
+const AGENT_PROMPT =
+  "Run `curl -s https://chowser.sreerams.in/agentic-setup.md` to get the detailed Chowser configuration prompt, then follow it to help me set up my browsers.";
 
-export const BrowserTileArt: React.FC<{ kind: DemoBrowserKind; size?: number }> = ({
-  kind,
-  size = 54,
-}) => {
-  const base =
-    "rounded-[15px] grid place-items-center shadow-[0_6px_16px_rgba(0,0,0,0.18)] relative overflow-hidden";
-  const px = { width: size, height: size };
-  if (kind === "chrome")
-    return (
-      <div
-        className={base}
-        style={{
-          ...px,
-          background:
-            "conic-gradient(from -45deg, #ea4335 0 25%, #fbbc05 25% 50%, #34a853 50% 75%, #4285f4 75% 100%)",
-        }}
-      >
-        <div className="w-[42%] h-[42%] bg-white rounded-full grid place-items-center shadow-inner">
-          <div className="w-[62%] h-[62%] rounded-full bg-[#4285f4]" />
-        </div>
-      </div>
-    );
-  if (kind === "safari")
-    return (
-      <div
-        className={base}
-        style={{ ...px, background: "linear-gradient(160deg,#3edcff,#1275f8)" }}
-      >
-        <div className="w-[68%] h-[68%] rounded-full border-[2.5px] border-white/85 grid place-items-center">
-          <div
-            className="w-[52%] h-[52%] rotate-45"
-            style={{
-              background: "linear-gradient(to bottom, #ff3b30 50%, #ffffff 50%)",
-              clipPath: "polygon(50% 0%, 78% 50%, 50% 100%, 22% 50%)",
-            }}
-          />
-        </div>
-      </div>
-    );
-  if (kind === "work")
-    return (
-      <div
-        className={base}
-        style={{ ...px, background: "linear-gradient(135deg,#ff9500,#ff2d55)" }}
-      >
-        <Briefcase className="w-[46%] h-[46%] text-white drop-shadow-sm" />
-      </div>
-    );
+const DestinationTile: React.FC<{ tile: DemoBrowserKind | "picker" }> = ({ tile }) =>
+  tile === "picker" ? (
+    <div className="w-7 h-7 rounded-[27%] border border-dashed border-ink/30 grid place-items-center shrink-0">
+      <MousePointerClick className="w-3.5 h-3.5 text-ink/60" />
+    </div>
+  ) : (
+    <BrowserTileArt kind={tile} size={28} />
+  );
+
+const RoutingLog: React.FC = () => {
+  const reducedMotion = useReducedMotion();
   return (
-    <div
-      className={base}
-      style={{ ...px, background: "linear-gradient(135deg,#7b5cff,#47c7ff)" }}
-    >
-      <UserRound className="w-[48%] h-[48%] text-white drop-shadow-sm" />
+    <div className="rounded-[22px] bg-white shadow-[0_1px_0_rgba(21,22,28,0.04),0_24px_60px_-20px_rgba(36,30,120,0.28)] ring-1 ring-ink/[0.07] overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-line">
+        <span className="text-[13px] font-medium text-ink">Today's links</span>
+        <span className="text-[12px] text-ink-soft hidden sm:inline">6 clicks, 0 wrong browsers</span>
+      </div>
+      <ol>
+        {ROUTES.map((route, index) => (
+          <li
+            key={route.link}
+            className={cn(
+              "grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-4 gap-y-1 px-5 py-3 border-b border-line last:border-b-0",
+              !reducedMotion && "route-row",
+            )}
+            style={{ animationDelay: `${300 + index * 260}ms` }}
+          >
+            <div className="min-w-0">
+              <div className="font-mono text-[13px] text-ink truncate">{route.link}</div>
+              <div className="text-[12px] text-ink-soft truncate">
+                from {route.from}. {route.reason}
+              </div>
+            </div>
+            <div
+              className={cn("flex items-center gap-2.5 min-w-0 justify-self-end sm:justify-self-start", !reducedMotion && "route-dest")}
+              style={{ animationDelay: `${520 + index * 260}ms` }}
+            >
+              <DestinationTile tile={route.tile} />
+              <span
+                className={cn(
+                  "text-[13px] font-medium truncate hidden sm:inline",
+                  route.tile === "picker" ? "text-ink-soft" : "text-ink",
+                )}
+              >
+                {route.to}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 };
 
-/* Colorful QR glyph — the only saturated element on the page (pure CSS). */
-const QrGlyph = () => (
-  <div className="shrink-0 w-[84px] h-[84px] rounded-2xl bg-white shadow-[0_8px_20px_rgba(0,0,0,0.1)] grid place-items-center">
-    <div
-      className="w-[60px] h-[60px] rounded-[4px] relative"
-      style={{
-        background:
-          "repeating-linear-gradient(0deg,#4b3de8 0 4px,transparent 4px 8px), repeating-linear-gradient(90deg,#4b3de8 0 4px,#22a7f0 4px 8px)",
-      }}
-    >
-      <div className="absolute inset-[22px] bg-white rounded-full shadow-[0_0_0_3px_#fff]" />
-    </div>
-  </div>
+const DownloadButton: React.FC<{ dmgUrl: string; className?: string }> = ({ dmgUrl, className }) => (
+  <a
+    href={dmgUrl}
+    className={cn(
+      "inline-flex items-center justify-center gap-2 rounded-full bg-ink text-white px-6 py-3.5 text-[15px] font-medium transition-[background-color,transform] duration-[var(--duration-press)] ease-[var(--ease-out)] hover:bg-route active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route",
+      className,
+    )}
+  >
+    <Download className="w-4 h-4" />
+    Download for Mac
+  </a>
 );
 
-const useReducedMotion = () => {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setPrefersReducedMotion(event.matches);
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
-
-  return prefersReducedMotion;
-};
-
-const usePageVisibility = () => {
-  const [isPageVisible, setIsPageVisible] = useState(() => !document.hidden);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => setIsPageVisible(!document.hidden);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
-
-  return isPageVisible;
-};
-
-const useElementInView = <T extends Element>(threshold: number) => {
-  const elementRef = useRef<T>(null);
-  const [isInView, setIsInView] = useState(false);
-
-  useEffect(() => {
-    const element = elementRef.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsInView(entry.isIntersecting && entry.intersectionRatio >= threshold);
-      },
-      { threshold },
-    );
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return [elementRef, isInView] as const;
-};
-
 export const Home: React.FC = () => {
-  const prefersReducedMotion = useReducedMotion();
-  const isPageVisible = usePageVisibility();
-  const [pickerDemoRef, isPickerDemoInView] =
-    useElementInView<HTMLDivElement>(0.35);
-  const [aiDemoRef, isAiDemoInView] =
-    useElementInView<HTMLElement>(0.25);
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [isRuleSimulatorOpen, setIsRuleSimulatorOpen] = useState(false);
-  const [selectedBrowser, setSelectedBrowser] = useState<string | null>(null);
-  const [isRevealed, setIsRevealed] = useState(false);
-
-  // Animation Demo State
-  const [demoStep, setDemoStep] = useState(0);
-  const [userInteracted, setUserInteracted] = useState(false);
-  const [pickerDemoComplete, setPickerDemoComplete] = useState(false);
-  const shouldResetPickerPlayback = useRef(true);
-
-  // AI Setup Animation State
-  const [aiDemoStep, setAiDemoStep] = useState(0);
-  const [aiDemoComplete, setAiDemoComplete] = useState(false);
-  const shouldResetAiPlayback = useRef(true);
-  const renderedPickerDemoStep = prefersReducedMotion ? 4 : demoStep;
-  const renderedAiDemoStep = prefersReducedMotion ? 6 : aiDemoStep;
-
-  const completePickerDemo = useCallback(() => {
-    shouldResetPickerPlayback.current = false;
-    setUserInteracted(true);
-    setPickerDemoComplete(true);
-    setDemoStep(4);
-  }, []);
-
-  useEffect(() => {
-    if (
-      prefersReducedMotion ||
-      pickerDemoComplete ||
-      userInteracted
-    ) {
-      return;
-    }
-
-    if (!isPickerDemoInView || !isPageVisible) return;
-
-    shouldResetPickerPlayback.current = true;
-    const timers = [
-      setTimeout(() => setDemoStep(1), 1000),
-      setTimeout(() => setDemoStep(2), 2500),
-      setTimeout(() => setDemoStep(3), 2800),
-      setTimeout(() => {
-        shouldResetPickerPlayback.current = false;
-        setDemoStep(4);
-        setPickerDemoComplete(true);
-      }, 3100),
-    ];
-
-    return () => {
-      timers.forEach(clearTimeout);
-      if (shouldResetPickerPlayback.current) setDemoStep(0);
-    };
-  }, [
-    isPageVisible,
-    isPickerDemoInView,
-    pickerDemoComplete,
-    prefersReducedMotion,
-    userInteracted,
-  ]);
-
-  useEffect(() => {
-    if (prefersReducedMotion || aiDemoComplete) return;
-
-    if (!isAiDemoInView || !isPageVisible) return;
-
-    shouldResetAiPlayback.current = true;
-    const timers = [
-      ...Array.from({ length: 6 }, (_, index) =>
-        setTimeout(() => {
-          const nextStep = index + 1;
-          setAiDemoStep(nextStep);
-          if (nextStep === 6) {
-            shouldResetAiPlayback.current = false;
-            setAiDemoComplete(true);
-          }
-        }, 2500 * (index + 1)),
-      ),
-    ];
-
-    return () => {
-      timers.forEach(clearTimeout);
-      if (shouldResetAiPlayback.current) setAiDemoStep(0);
-    };
-  }, [aiDemoComplete, isAiDemoInView, isPageVisible, prefersReducedMotion]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "p") {
-        completePickerDemo();
-        setIsPrivate((previous) => {
-          const next = !previous;
-          toast.info(`Private Mode ${next ? "Enabled" : "Disabled"}`, {
-            duration: 1500,
-            icon: <Shield className="w-4 h-4" />,
-          });
-          return next;
-        });
-      }
-      if (e.key.toLowerCase() === "r") {
-        completePickerDemo();
-        setIsRuleSimulatorOpen((prev) => !prev);
-        setSelectedBrowser(null);
-      }
-      if (e.key.toLowerCase() === "h") {
-        completePickerDemo();
-        setIsRevealed((previous) => {
-          const next = !previous;
-          toast.success(
-            next ? "URL unshortened successfully!" : "Preview reset",
-            {
-              duration: 1500,
-              icon: <Search className="w-4 h-4" />,
-            },
-          );
-          return next;
-        });
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [completePickerDemo]);
-
-  const handleBrowserSelect = (name: string) => {
-    if (isRuleSimulatorOpen) {
-      setSelectedBrowser(name);
-      toast.success(`Rule set: Always open with ${name}`, {
-        duration: 2000,
-        icon: <Zap className="w-4 h-4" />,
-      });
-      setTimeout(() => setIsRuleSimulatorOpen(false), 1500);
-    }
-  };
-
-  const handleCopy = () => {
-    let url = "";
-    if (selectedBrowser) {
-      url = `rule:always_${selectedBrowser.toLowerCase()}`;
-    } else if (isPrivate) {
-      url = "private.browsing.enabled";
-    } else if (isRevealed) {
-      url = "https://github.com/bsreeram08/chowser";
-    } else {
-      url = "https://t.co/3x8qA9L";
-    }
-
-    navigator.clipboard.writeText(url);
-    toast.success("URL/Rule copied to clipboard", {
-      duration: 2000,
-      icon: <Copy className="w-4 h-4" />,
-    });
-  };
+  const { version, dmgUrl } = useLatestRelease();
 
   return (
-    <div className="bg-background min-h-screen text-foreground font-sans antialiased overflow-x-hidden">
+    <div className="bg-canvas min-h-screen text-ink font-sans antialiased overflow-x-hidden">
       <Navbar />
 
-      <main className="relative">
-        {/* ── Hero ── */}
-        <section className="text-center pt-36 sm:pt-44 pb-14 px-6">
-          <h1 className="font-display font-bold tracking-tight leading-[1.02] text-5xl sm:text-7xl text-foreground animate-in fade-in slide-in-from-bottom-4 duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:animate-none">
-            The right browser.
-            <br />
-            Every link.
-          </h1>
-          <p className="mt-6 mx-auto max-w-xl text-lg sm:text-2xl text-muted-foreground leading-snug animate-in fade-in slide-in-from-bottom-4 duration-[var(--duration-marketing)] ease-[var(--ease-out)] delay-[50ms] motion-reduce:animate-none">
-            Chowser lives in your menu bar and routes every link you click to
-            the browser it belongs in.
-          </p>
-          <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-[var(--duration-marketing)] ease-[var(--ease-out)] delay-[100ms] motion-reduce:animate-none">
-            <a
-              href={APP_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground px-7 py-3.5 text-base font-medium transition-[filter,transform] duration-[var(--duration-press)] ease-[var(--ease-out)] hover:brightness-110 hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-[filter] motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100 shadow-sm"
-            >
-              Get Chowser
-            </a>
-            <a
-              href="#demo"
-              className="inline-flex items-center justify-center rounded-full px-5 py-3.5 text-base font-medium text-primary transition-colors hover:brightness-110"
-            >
-              Watch the demo ›
-            </a>
-          </div>
-        </section>
-
-        {/* ── Problem / solution strip ── */}
-        <section className="max-w-3xl mx-auto px-6 pb-16 sm:pb-20 text-center">
-          <p className="font-display text-xl sm:text-2xl font-medium tracking-tight text-foreground">
-            Tired of links opening in the{" "}
-            <span className="line-through decoration-muted-foreground/50 decoration-2 text-muted-foreground">
-              wrong
-            </span>{" "}
-            browser?
-          </p>
-          <div className="mt-7 flex flex-col sm:flex-row items-stretch justify-center gap-3 text-left">
-            <div className="flex-1 rounded-2xl border border-dashed border-black/[0.18] px-5 py-4">
-              <div className="eyebrow !text-muted-foreground mb-2">Without</div>
-              <p className="text-[15px] text-muted-foreground leading-relaxed">
-                click → wrong browser → copy → paste → right browser
-              </p>
-            </div>
-            <div className="hidden sm:flex items-center text-muted-foreground/40 text-xl shrink-0">
-              →
-            </div>
-            <div className="flex-1 rounded-2xl border border-primary/20 bg-primary/[0.04] px-5 py-4">
-              <div className="eyebrow mb-2">With Chowser</div>
-              <p className="text-[15px] text-foreground leading-relaxed font-medium">
-                click → right browser.{" "}
-                <span className="text-primary">done.</span>
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Product mockup on a soft gradient desktop ── */}
-        <section id="demo" className="max-w-5xl mx-auto px-6">
-          <div
-            className="rounded-[20px] px-6 sm:px-10 py-14 sm:py-16 flex justify-center shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] relative overflow-hidden"
-            style={{
-              background:
-                "radial-gradient(1200px 500px at 30% 0%, #cfe3ff 0%, transparent 60%), radial-gradient(900px 500px at 80% 100%, #ffd9c8 0%, transparent 55%), linear-gradient(160deg, #e8ecf4 0%, #dde5f0 100%)",
-            }}
-          >
-            <div
-              ref={pickerDemoRef}
-              className="relative flex justify-center w-full h-[290px]"
-              onMouseEnter={completePickerDemo}
-              onClick={completePickerDemo}
-            >
-              {/* Mock chat message with the link being clicked */}
-              <div
-                className={cn(
-                  "absolute top-2 left-1/2 -translate-x-1/2 w-full max-w-[320px] bg-white/70 border border-black/5 rounded-2xl p-4 flex flex-col gap-3 shadow-sm transition-[transform,opacity,filter] ease-[var(--ease-out)] origin-bottom motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:blur-none motion-reduce:transition-opacity",
-                  userInteracted
-                    ? "duration-[var(--duration-ui)]"
-                    : "duration-[var(--duration-marketing)]",
-                  renderedPickerDemoStep >= 4
-                    ? "opacity-30 scale-95 blur-sm translate-y-[-20px]"
-                    : "opacity-100 scale-100 blur-none translate-y-0",
-                )}
+      <main>
+        {/* Hero */}
+        <section className="max-w-6xl mx-auto px-5 sm:px-8 pt-32 sm:pt-40 pb-20 sm:pb-28 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] gap-14 lg:gap-16 items-center">
+          <div className="min-w-0">
+            <h1 className="font-display font-semibold text-[40px] leading-[1.04] sm:text-[68px] sm:leading-[1.02] tracking-[-0.035em] text-ink">
+              Every link opens in the right browser.
+            </h1>
+            <p className="mt-6 max-w-[34ch] text-[19px] sm:text-[21px] leading-[1.45] text-ink-soft">
+              Chowser sits in your menu bar as your default browser and sends each link where it belongs: the right
+              browser, the right profile, or the app itself.
+            </p>
+            <div className="mt-9 flex flex-col sm:flex-row sm:items-center gap-4">
+              <DownloadButton dmgUrl={dmgUrl} />
+              <a
+                href={APP_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[15px] font-medium text-ink underline decoration-ink/25 underline-offset-4 hover:decoration-ink"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-foreground">
-                      Teammate{" "}
-                      <span className="text-[10px] text-muted-foreground font-normal ml-1">
-                        Today at 2:00 PM
-                      </span>
-                    </div>
-                    <div className="text-sm text-foreground/90">
-                      Hey, can you review this PR?
-                    </div>
-                  </div>
-                </div>
-                <div className="pl-11">
-                  <span
-                    className={cn(
-                      "text-primary text-sm cursor-pointer transition-colors duration-[var(--duration-ui)] ease-[var(--ease-out)]",
-                      renderedPickerDemoStep === 2 || renderedPickerDemoStep === 3
-                        ? "underline bg-primary/10 rounded px-1"
-                        : "hover:underline",
-                    )}
-                  >
-                    https://t.co/3x8qA9L
-                  </span>
-                </div>
+                Get it on the Mac App Store
+              </a>
+            </div>
+            <p className="mt-4 text-[13px] text-ink-soft">
+              {version ? `Version ${version}. ` : ""}Free, for macOS 14 Sonoma or later. Signed and notarized by Apple.
+            </p>
+          </div>
+          <RoutingLog />
+        </section>
 
-                {/* Animated mouse cursor */}
-                {!userInteracted && !prefersReducedMotion && (
-                  <div
-                    className="absolute inset-0 pointer-events-none z-50 origin-top-left"
-                    style={{
-                      transform:
-                        renderedPickerDemoStep === 0
-                          ? "translate3d(80%, 150%, 0)"
-                          : "translate3d(40%, 70%, 0)",
-                      transitionDuration:
-                        renderedPickerDemoStep === 1
-                          ? "1500ms"
-                          : "var(--duration-press)",
-                      transitionProperty: "transform",
-                      transitionTimingFunction:
-                        renderedPickerDemoStep === 1
-                          ? "var(--ease-in-out)"
-                          : "var(--ease-out)",
-                    }}
-                  >
-                    <MousePointer2
-                      className={cn(
-                        "w-6 h-6 fill-white text-foreground drop-shadow-[0_4px_4px_rgba(0,0,0,0.35)] transition-transform duration-[var(--duration-press)] ease-[var(--ease-out)]",
-                        renderedPickerDemoStep === 3
-                          ? "scale-[0.97]"
-                          : "scale-100",
-                      )}
-                    />
+        {/* Picker */}
+        <section id="demo" className="bg-ink text-white">
+          <div className="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-28 grid lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-12 lg:gap-16 items-center">
+            <div>
+              <h2 className="font-display font-semibold text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.03em]">
+                When no rule fits, you pick in a keystroke.
+              </h2>
+              <p className="mt-5 text-[17px] leading-relaxed text-white/65 max-w-[40ch]">
+                The picker appears right where you clicked. Press a number to open a browser, P for private, or R to
+                remember the choice as a rule. Try it here.
+              </p>
+              <dl className="mt-8 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-[15px]">
+                {[
+                  ["1–9", "Open in that browser"],
+                  ["P", "Open privately"],
+                  ["R", "Save as a rule"],
+                  ["H", "Reveal a shortened link"],
+                  ["Shift", "Always show the picker"],
+                ].map(([key, action]) => (
+                  <div key={key} className="contents">
+                    <dt>
+                      <kbd className="keycap text-[12px] px-2 py-1 min-w-[2rem]">{key}</kbd>
+                    </dt>
+                    <dd className="text-white/80 self-center">{action}</dd>
                   </div>
-                )}
+                ))}
+              </dl>
+            </div>
+            <div className="text-ink">
+              <PickerDemo />
+            </div>
+          </div>
+        </section>
+
+        {/* Features */}
+        <section className="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-28">
+          <h2 className="font-display font-semibold text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.03em] max-w-[18ch]">
+            Small decisions, made before the page loads.
+          </h2>
+          <div className="mt-14 grid md:grid-cols-3 gap-12 md:gap-10">
+            {GROUPS.map((group) => (
+              <div key={group.title} className="border-t-2 border-ink pt-5">
+                <h3 className="font-display text-[22px] font-semibold tracking-[-0.02em]">{group.title}</h3>
+                <p className="mt-1 text-[15px] text-ink-soft">{group.lead}</p>
+                <dl className="mt-7 space-y-5">
+                  {group.items.map(([name, description]) => (
+                    <div key={name}>
+                      <dt className="text-[15px] font-semibold text-ink">{name}</dt>
+                      <dd className="mt-1 text-[15px] leading-relaxed text-ink-soft">{description}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
+            ))}
+          </div>
+          <p className="mt-12 text-[15px] text-ink-soft">
+            Rewrites come from a signed catalog you review before installing.{" "}
+            <a href="/rewrites" className="text-ink font-medium underline decoration-ink/25 underline-offset-4 hover:decoration-ink">
+              Browse the rewrite catalog
+            </a>
+          </p>
+        </section>
 
-              {/* Soft glow behind panel */}
-              <div
-                className={cn(
-                  "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[20%] w-full max-w-[420px] h-[200px] bg-primary/20 blur-[90px] -z-0 transition-[transform,opacity] ease-[var(--ease-out)] motion-reduce:transition-opacity",
-                  userInteracted
-                    ? "duration-[var(--duration-ui)]"
-                    : "duration-[var(--duration-marketing)]",
-                  renderedPickerDemoStep >= 4
-                    ? "opacity-100 scale-100"
-                    : "opacity-0 scale-50",
-                )}
-              />
-
-              {/* The Chowser picker panel — frosted white */}
-              <div
-                className={cn(
-                  "flex flex-col w-full max-w-[380px] sm:max-w-[480px] mx-auto rounded-[18px] absolute origin-center overflow-hidden transition-[transform,opacity] ease-[var(--ease-out)] motion-reduce:transition-opacity backdrop-blur-[30px] shadow-[0_30px_70px_rgba(20,30,60,0.25),inset_0_0_0_1px_rgba(255,255,255,0.6)]",
-                  userInteracted
-                    ? "duration-[var(--duration-ui)]"
-                    : "duration-[var(--duration-marketing)]",
-                  isPrivate
-                    ? "bg-[#eef1ff]/85 ring-1 ring-primary/15"
-                    : "bg-white/72",
-                  renderedPickerDemoStep >= 4
-                    ? "opacity-100 scale-100 top-1/2 -translate-y-1/2"
-                    : "opacity-0 scale-90 top-1/2 -translate-y-[42%] pointer-events-none",
-                )}
-              >
-                {/* Header: URL bar + mini actions */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-black/[0.06]">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                  <span className="text-[13px] font-medium text-foreground flex-1 truncate">
-                    {isRuleSimulatorOpen
-                      ? selectedBrowser
-                        ? `rule:always_${selectedBrowser.toLowerCase()}`
-                        : "Create Rule for github.com"
-                      : isPrivate
-                        ? "private.browsing.enabled"
-                        : isRevealed
-                          ? "github.com/bsreeram08/chowser"
-                          : "t.co/3x8qA9L"}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      {
-                        key: "plus",
-                        node: (
-                          <Plus
-                            className={cn(
-                              "w-3.5 h-3.5",
-                              isRuleSimulatorOpen
-                                ? "text-primary"
-                                : "text-muted-foreground",
-                            )}
-                          />
-                        ),
-                        onClick: () => setIsRuleSimulatorOpen(!isRuleSimulatorOpen),
-                        title: "Create rule",
-                      },
-                      {
-                        key: "copy",
-                        node: <Copy className="w-3.5 h-3.5 text-muted-foreground" />,
-                        onClick: handleCopy,
-                        title: "Copy link",
-                      },
-                      {
-                        key: "phone",
-                        node: (
-                          <Smartphone className="w-3.5 h-3.5 text-muted-foreground" />
-                        ),
-                        onClick: () =>
-                          toast.success("Sent to Phone", {
-                            duration: 2000,
-                            description: "AirDrop · QR code · or copy",
-                            icon: <Smartphone className="w-4 h-4" />,
-                          }),
-                        title: "Send to Phone",
-                      },
-                    ].map((a) => (
-                      <button
-                        key={a.key}
-                        title={a.title}
-                        onClick={a.onClick}
-                        className="w-[26px] h-[26px] rounded-[7px] bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center transition-colors"
-                      >
-                        {a.node}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Body: browser bar and rule simulator share one interruptible layer */}
-                <div className="relative min-h-[140px] grid items-center justify-items-center">
-                  <div
-                    aria-hidden={!isRuleSimulatorOpen}
-                    inert={!isRuleSimulatorOpen}
-                    className={cn(
-                      "col-start-1 row-start-1 flex flex-col items-center gap-4 px-6 text-center transition-[opacity,filter] duration-[var(--duration-ui)] ease-[var(--ease-in-out)] motion-reduce:blur-none",
-                      isRuleSimulatorOpen
-                        ? "opacity-100 blur-none pointer-events-auto"
-                        : "opacity-0 blur-[2px] pointer-events-none",
-                    )}
-                  >
-                      <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
-                        <Zap className="w-6 h-6 text-primary animate-pulse motion-reduce:animate-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-foreground">
-                          {selectedBrowser
-                            ? "Rule Created!"
-                            : "Select Default Browser"}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {selectedBrowser
-                            ? "Saved to Chowser settings"
-                            : "For all links on github.com"}
-                        </p>
-                      </div>
-                      <div className="flex gap-4">
-                        {DEMO_BROWSERS.map((browser) => (
-                          <button
-                            key={browser.name}
-                            onClick={() => handleBrowserSelect(browser.name)}
-                            className="transition-transform duration-[var(--duration-press)] ease-[var(--ease-out)] hover:scale-105 active:scale-[0.97] motion-reduce:transform-none"
-                            title={browser.name}
-                          >
-                            <BrowserTileArt kind={browser.kind} size={40} />
-                          </button>
-                        ))}
-                      </div>
-                  </div>
-
-                  <div
-                    aria-hidden={isRuleSimulatorOpen}
-                    inert={isRuleSimulatorOpen}
-                    className={cn(
-                      "col-start-1 row-start-1 flex items-start justify-center gap-6 sm:gap-7 px-5 py-7 w-full transition-[opacity,filter] duration-[var(--duration-ui)] ease-[var(--ease-in-out)] motion-reduce:blur-none",
-                      isRuleSimulatorOpen
-                        ? "opacity-0 blur-[2px] pointer-events-none"
-                        : "opacity-100 blur-none pointer-events-auto",
-                    )}
-                  >
-                      {DEMO_BROWSERS.map((browser, i) => (
-                        <div
-                          key={browser.name}
-                          className="flex flex-col items-center gap-2"
-                        >
-                          <div
-                            className={cn(
-                              "p-[5px] rounded-[19px] relative transition-[transform,background-color,box-shadow] duration-[var(--duration-ui)] ease-[var(--ease-out)]",
-                              selectedBrowser === browser.name ||
-                                (!selectedBrowser && i === 0)
-                                ? "bg-black/[0.06] ring-1 ring-black/10 scale-105"
-                                : "bg-transparent",
-                            )}
-                          >
-                            <BrowserTileArt kind={browser.kind} />
-                            <span className="absolute -bottom-1 -right-1 z-20 text-[10px] font-bold font-mono text-white bg-[#1d1d1f] rounded-md px-1.5 py-0.5 leading-none shadow-md">
-                              {browser.key}
-                            </span>
-                          </div>
-                          <span
-                            className={cn(
-                              "text-[11px] font-medium transition-colors",
-                              selectedBrowser === browser.name ||
-                                (!selectedBrowser && i === 0)
-                                ? "text-foreground"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {browser.name}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Footer: keyboard hints */}
-                <div className="flex items-center gap-2.5 w-full px-4 py-2.5 border-t border-black/[0.06] bg-white/40 overflow-x-auto">
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 shrink-0 transition-opacity",
-                      isPrivate ? "opacity-100" : "opacity-45",
-                    )}
-                  >
-                    <kbd
-                      className={cn(
-                        "keycap text-[10px] px-1.5 py-0.5",
-                        isPrivate && "keycap-active",
-                      )}
-                    >
-                      P
-                    </kbd>
-                    <span className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">
-                      Private
-                    </span>
-                  </div>
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 shrink-0 transition-opacity",
-                      isRuleSimulatorOpen || selectedBrowser
-                        ? "opacity-100"
-                        : "opacity-45",
-                    )}
-                  >
-                    <kbd
-                      className={cn(
-                        "keycap text-[10px] px-1.5 py-0.5",
-                        (isRuleSimulatorOpen || selectedBrowser) &&
-                          "keycap-active",
-                      )}
-                    >
-                      R
-                    </kbd>
-                    <span className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">
-                      {isRuleSimulatorOpen ? "Active" : "Rule"}
-                    </span>
-                  </div>
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 shrink-0 transition-opacity",
-                      isRevealed ? "opacity-100" : "opacity-45",
-                    )}
-                  >
-                    <kbd
-                      className={cn(
-                        "keycap text-[10px] px-1.5 py-0.5",
-                        isRevealed && "keycap-active",
-                      )}
-                    >
-                      H
-                    </kbd>
-                    <span className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-1">
-                      <Search className="w-2.5 h-2.5" />{" "}
-                      {isRevealed ? "Revealed" : "Reveal"}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-[20px]" />
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <kbd className="keycap keycap-active text-[10px] px-1.5 py-0.5">
-                      ↵
-                    </kbd>
-                    <span className="text-[9px] font-bold text-primary tracking-widest uppercase">
-                      Launch
-                    </span>
-                  </div>
-                </div>
+        {/* AI setup */}
+        <section id="agentic-setup" className="max-w-6xl mx-auto px-5 sm:px-8 pb-20 sm:pb-28 scroll-mt-24">
+          <div className="rounded-[28px] bg-white ring-1 ring-ink/[0.07] p-6 sm:p-12 grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+            <div>
+              <h2 className="font-display font-semibold text-[30px] sm:text-[38px] leading-[1.08] tracking-[-0.03em]">
+                Describe how you work. Your AI assistant writes the rules.
+              </h2>
+              <p className="mt-5 text-[16px] leading-relaxed text-ink-soft max-w-[46ch]">
+                Paste this into Claude, ChatGPT, Cursor or any assistant that can run commands. It finds your browsers
+                and profiles, shows you the exact launch commands, and writes the routing rules.
+              </p>
+              <div className="mt-6 rounded-2xl bg-canvas ring-1 ring-line p-4 sm:p-5">
+                <p className="font-mono text-[13px] leading-relaxed text-ink break-words">{AGENT_PROMPT}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(AGENT_PROMPT);
+                    toast.success("Prompt copied");
+                  }}
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-ink text-white px-4 py-2 text-[13px] font-medium hover:bg-route transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy prompt
+                </button>
               </div>
             </div>
+            <div>
+              <div className="rounded-2xl bg-canvas ring-1 ring-line px-5 py-4 text-[16px] leading-relaxed text-ink">
+                “Work stuff in Chrome Work, design in Arc, everything else asks me.”
+              </div>
+              <ul className="mt-3 space-y-2">
+                {[
+                  { pattern: "*.slack.com", target: "Chrome, Work" },
+                  { pattern: "github.com/*", target: "Chrome, Work" },
+                  { pattern: "figma.com/*", target: "Arc" },
+                  { pattern: "everything else", target: "Show the picker" },
+                ].map((rule) => (
+                  <li
+                    key={rule.pattern}
+                    className="flex items-center justify-between gap-4 rounded-xl bg-white ring-1 ring-line px-4 py-2.5"
+                  >
+                    <span className="font-mono text-[13px] text-ink">{rule.pattern}</span>
+                    <span className="text-[13px] font-medium text-route">{rule.target}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <p className="text-center text-[13px] text-muted-foreground mt-4">
-            Try it: press{" "}
-            <kbd className="keycap text-[11px] px-1.5 py-0.5">P</kbd>,{" "}
-            <kbd className="keycap text-[11px] px-1.5 py-0.5">R</kbd>, or{" "}
-            <kbd className="keycap text-[11px] px-1.5 py-0.5">H</kbd>.
-          </p>
         </section>
 
-        {/* ── Features: thin-divider rows ── */}
-        <section className="max-w-4xl mx-auto px-6 my-24 sm:my-28">
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Rules that route for you
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Host, path, and source-app matching sends GitHub to your work
-              profile and YouTube to your personal one — automatically, before
-              the picker even appears.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Keyboard first
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Numbers launch browsers. P for private mode. R creates a rule.
-              Your hands never leave the keys.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <QrGlyph />
-            <h3 className="sm:flex-[0_0_136px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Send to Phone
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              AirDrop the link, scan a QR code styled in the app's own colors,
-              or copy it — perfect for links that need your phone to sign in.
-              Handoff reaches nearby Apple devices too.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Private by design
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              One keystroke opens any link in incognito. Tracking parameters are
-              shredded and shortlinks resolved before your browser ever sees
-              them.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Profiles
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Multi-profile routing across Chrome, Brave, Edge, Firefox and more
-              keeps work and personal separate. Full per-profile launch works in
-              the direct-download build; macOS sandboxing limits the App Store
-              build.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-b border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Make it yours
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Tune the picker's tint, transparency, corner radius, and accent
-              color with a live preview over any background. Icons or list
-              layout — your call.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              URL Rewrites
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Strip tracking parameters, upgrade http to https, or run custom
-              host/path/source-app transforms before a link is routed. Start
-              from a curated catalog of predefined rewrites and tweak from there.
-              <a href="/rewrites" className="ml-1 text-primary font-medium hover:underline">
-                Browse the catalog ›
+        {/* Download */}
+        <section id="download" className="border-t border-line">
+          <div className="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-28">
+            <h2 className="font-display font-semibold text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.03em]">
+              Two ways to install.
+            </h2>
+            <div className="mt-12 grid md:grid-cols-2 gap-6">
+              <div className="rounded-[22px] bg-white ring-2 ring-ink p-7 sm:p-9 flex flex-col">
+                <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">Direct download</h3>
+                <p className="mt-2 text-[15px] text-ink-soft">Recommended. Every feature, updated automatically.</p>
+                <ul className="mt-6 space-y-2.5 text-[15px] text-ink flex-1">
+                  <li>Opens browsers directly into a chosen profile</li>
+                  <li>Updates itself in the background</li>
+                  <li>Signed and notarized by Apple</li>
+                </ul>
+                <DownloadButton dmgUrl={dmgUrl} className="mt-8 self-start" />
+              </div>
+              <div className="rounded-[22px] bg-white ring-1 ring-line p-7 sm:p-9 flex flex-col">
+                <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">Mac App Store</h3>
+                <p className="mt-2 text-[15px] text-ink-soft">The same app, inside Apple's sandbox.</p>
+                <ul className="mt-6 space-y-2.5 text-[15px] text-ink flex-1">
+                  <li>Updates through the App Store</li>
+                  <li>Sandboxing limits opening specific browser profiles</li>
+                  <li>Everything else works the same</li>
+                </ul>
+                <a
+                  href={APP_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-8 self-start inline-flex items-center rounded-full ring-1 ring-ink/20 px-6 py-3.5 text-[15px] font-medium text-ink hover:ring-ink transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route"
+                >
+                  Open the App Store
+                </a>
+              </div>
+            </div>
+            <p className="mt-8 text-[15px] text-ink-soft">
+              New to Chowser?{" "}
+              <a href="/guide" className="text-ink font-medium underline decoration-ink/25 underline-offset-4 hover:decoration-ink">
+                Read the setup guide
               </a>
             </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              App or Menu Bar mode
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Keep Chowser visible in the Dock and Cmd-Tab, or run it only from
-              the menu bar. You can switch modes at any time without losing
-              access to Settings or incoming links.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Privacy-safe diagnostics
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              If startup or a mode change goes wrong, inspect recent lifecycle
-              events, export a support report, or start a prefilled bug report.
-              Reports exclude browsing data and local file paths.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Link unshortening &amp; preview
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Shortlinks are resolved and a rich preview is shown before launch,
-              so you see where a link really points. Press{" "}
-              <kbd className="keycap text-[11px] px-1.5 py-0.5">H</kbd> to reveal
-              the resolved destination behind the picker.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Clipboard &amp; quick-rule
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Open a URL straight from your clipboard, or create a routing rule
-              right from the picker — no trip to Settings required.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              Source-app aware routing
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              The same link opens different browsers depending on the app you
-              clicked from — so a link in Slack can land in your work profile
-              while one in Messages opens personal.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-7 py-8 border-t border-black/[0.08]">
-            <h3 className="sm:flex-[0_0_220px] font-display text-lg font-semibold tracking-tight text-foreground">
-              MCP / AI control
-            </h3>
-            <p className="text-muted-foreground text-[15px] leading-relaxed">
-              A local HTTP API lets an AI agent manage browsers and routing rules
-              for you, and an onboarding wizard walks through setup on first
-              launch.
-            </p>
-          </div>
-        </section>
-
-        {/* ── AI-Enhanced Setup ── */}
-        <section
-          ref={aiDemoRef}
-          id="agentic-setup"
-          className="max-w-4xl mx-auto px-6 mt-8 mb-28 scroll-mt-28"
-        >
-          <header className="text-center space-y-5 mb-12">
-            <span className="eyebrow inline-flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3" />
-              AI-Powered Setup
-            </span>
-            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-foreground">
-              Describe your workflow.
-              <br />
-              We'll write the rules.
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
-              Tell your AI agent how you work. It discovers your browsers and
-              profiles, previews the exact launch commands, and writes the
-              routing rules for you.
-            </p>
-          </header>
-
-          {/* Workflow → rules visual (the hook) */}
-          <div className="max-w-2xl mx-auto mb-16">
-            <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-4 shadow-sm flex items-start gap-3">
-              <Sparkles className="w-4 h-4 text-primary mt-1 shrink-0" />
-              <p className="text-[15px] sm:text-base text-foreground leading-relaxed italic">
-                “Work stuff in Chrome Work, design in Arc, everything else asks
-                me”
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-1.5 py-3 text-muted-foreground">
-              <span className="text-lg leading-none">↓</span>
-              <span className="eyebrow !text-muted-foreground">generates</span>
-            </div>
-
-            <div className="space-y-2">
-              {[
-                { pattern: "*.slack.com", target: "Chrome Work" },
-                { pattern: "github.com/*", target: "Chrome Work" },
-                { pattern: "figma.com/*", target: "Arc" },
-                { pattern: "*", target: "show picker" },
-              ].map((rule, i) => (
-                <div
-                  key={rule.pattern}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl border border-black/[0.06] bg-[#f5f5f7] px-4 py-2.5 font-mono text-[13px] transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
-                    renderedAiDemoStep >= i + 2
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-2",
-                  )}
-                >
-                  <span className="text-foreground">{rule.pattern}</span>
-                  <span className="text-muted-foreground/60">→</span>
-                  <span className="text-primary font-medium">
-                    {rule.target}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-6">
-            {/* Step 1 */}
-            <div className="relative">
-              <div className="absolute -left-4 top-6 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex shadow-md">
-                1
-              </div>
-              <Card className="panel-hard rounded-2xl overflow-hidden relative flex flex-col lg:flex-row">
-                <div className="p-6 sm:p-8 flex-1 space-y-4">
-                  <h3 className="text-xl sm:text-2xl font-semibold tracking-tight flex items-center gap-2 text-foreground">
-                    <Terminal className="w-5 h-5 text-primary" />
-                    Run Terminal Command
-                  </h3>
-                  <p className="text-muted-foreground text-sm sm:text-base max-w-md">
-                    This command fetches the full setup prompt and pipes it
-                    straight to your clipboard.
-                  </p>
-
-                  <div className="group/code relative max-w-lg">
-                    <pre className="bg-[#f5f5f7] p-4 rounded-xl font-mono text-[13px] border border-black/[0.06] text-foreground overflow-x-auto">
-                      <code>
-                        Run `curl -s https://chowser.sreerams.in/agentic-setup.md`
-                        to get instructions and follow them.
-                      </code>
-                    </pre>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          "Run `curl -s https://chowser.sreerams.in/agentic-setup.md` to get the detailed Chowser configuration prompt, then follow it to help me set up my browsers.",
-                        );
-                        toast.success("Mini-prompt copied to clipboard");
-                      }}
-                      className="absolute right-2 top-2 opacity-0 group-hover/code:opacity-100 transition-opacity"
-                    >
-                      <Copy className="w-3 h-3 mr-2" />
-                      Copy Prompt
-                    </Button>
-                  </div>
-                </div>
-                {/* AI agent animation */}
-                <div className="hidden lg:flex w-80 bg-[#f5f5f7] border-l border-black/[0.06] relative items-center justify-center p-6 shrink-0">
-                  <div className="w-full h-36 bg-white border border-black/[0.08] rounded-xl overflow-hidden shadow-sm font-mono text-[11px] flex flex-col">
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-primary/5 border-b border-black/[0.06]">
-                      <Sparkles className="w-3 h-3 text-primary" />
-                      <span className="text-muted-foreground font-sans text-[10px] font-medium">
-                        Your AI Agent
-                      </span>
-                    </div>
-                    <div className="p-3 space-y-2 text-foreground/80 flex-1 relative">
-                      <div className="flex items-start gap-2">
-                        <div className="shrink-0 w-4 h-4 rounded bg-primary/10 flex items-center justify-center">
-                          <Bot className="w-3 h-3 text-primary" />
-                        </div>
-                        <div className="relative flex-1 min-w-0">
-                          <div className="flex flex-col gap-1.5">
-                            <span
-                              className={cn(
-                                "overflow-hidden whitespace-normal inline-block text-[10px] leading-relaxed transition-opacity duration-[var(--duration-marketing)] ease-[var(--ease-out)]",
-                                renderedAiDemoStep >= 1
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            >
-                              Run `curl -s https://chowser...`
-                            </span>
-                            <div
-                              className={cn(
-                                "h-px w-full origin-left bg-black/10 transition-transform duration-[var(--duration-marketing)] ease-[var(--ease-in-out)] motion-reduce:transform-none",
-                                renderedAiDemoStep >= 2
-                                  ? "scale-x-100"
-                                  : "scale-x-0",
-                              )}
-                            />
-                            <span
-                              className={cn(
-                                "text-[9px] text-primary/70 italic transition-opacity duration-[var(--duration-marketing)] ease-[var(--ease-out)]",
-                                renderedAiDemoStep >= 2
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            >
-                              Fetching config...
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div
-                        className={cn(
-                          "absolute bottom-3 right-3 transition-[transform,opacity] duration-[var(--duration-ui)] ease-[var(--ease-out)] motion-reduce:transform-none",
-                          renderedAiDemoStep >= 2
-                            ? "opacity-100 translate-y-0"
-                            : "opacity-0 translate-y-2 pointer-events-none",
-                        )}
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse motion-reduce:animate-none" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            {/* Step 2 */}
-            <div className="relative">
-              <div className="absolute -left-4 top-6 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground z-10 hidden md:flex shadow-md">
-                2
-              </div>
-              <Card className="panel-hard rounded-2xl overflow-hidden relative flex flex-col lg:flex-row">
-                <div className="p-6 sm:p-8 flex-1 space-y-4">
-                  <h3 className="text-xl sm:text-2xl font-semibold tracking-tight flex items-center gap-2 text-foreground">
-                    <Wand2 className="w-5 h-5 text-primary" />
-                    Paste to AI Assistant
-                  </h3>
-                  <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-md">
-                    Open your AI assistant and paste the content. The AI will
-                    then:
-                  </p>
-                  <ul className="space-y-3 text-sm text-muted-foreground list-disc list-inside ml-2">
-                    <li>
-                      Scan your{" "}
-                      <span className="text-foreground">
-                        Application Support
-                      </span>{" "}
-                      folders for browsers.
-                    </li>
-                    <li>Discover all available profiles and spaces.</li>
-                    <li>
-                      Generate your{" "}
-                      <span className="text-foreground">
-                        ChowserBrowsers.json
-                      </span>{" "}
-                      configuration.
-                    </li>
-                    <li>
-                      Draft routing rules based on your specific requirements.
-                    </li>
-                  </ul>
-                </div>
-                {/* AI chat animation */}
-                <div className="hidden lg:flex w-[26rem] bg-[#f5f5f7] border-l border-black/[0.06] relative items-center justify-center p-6 shrink-0">
-                  <div className="w-full bg-white border border-black/[0.08] rounded-xl overflow-hidden shadow-sm flex flex-col h-64 relative">
-                    <div className="p-3 bg-primary/5 border-b border-black/[0.06] flex items-center gap-2">
-                      <Wand2 className="w-4 h-4 text-primary" />
-                      <span className="text-xs font-medium text-foreground/80">
-                        Composer
-                      </span>
-                    </div>
-                    <div className="p-4 flex-1 overflow-y-auto space-y-4 text-[11px]">
-                      {/* User message */}
-                      <div
-                        className={cn(
-                          "flex justify-end transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
-                          renderedAiDemoStep >= 3
-                            ? "opacity-100 translate-y-0"
-                            : "opacity-0 translate-y-4",
-                        )}
-                      >
-                        <div className="bg-primary/10 text-foreground px-3 py-2.5 rounded-xl max-w-[85%] rounded-tr-sm border border-primary/15">
-                          <div className="flex items-center gap-1.5 opacity-60 mb-1">
-                            <Terminal className="w-3 h-3" />
-                            <span className="text-[9px] uppercase tracking-wider font-bold">
-                              Pasted Script
-                            </span>
-                          </div>
-                          <div className="text-muted-foreground line-clamp-2 italic">
-                            "You are an expert macOS configuration assistant.
-                            Help me configure..."
-                          </div>
-                        </div>
-                      </div>
-                      {/* AI message */}
-                      <div
-                        className={cn(
-                          "flex justify-start transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
-                          renderedAiDemoStep >= 4
-                            ? "opacity-100 translate-y-0"
-                            : "opacity-0 translate-y-4",
-                        )}
-                      >
-                        <div className="bg-[#f5f5f7] text-foreground px-3 py-3 rounded-xl max-w-[95%] rounded-tl-sm border border-black/[0.06] space-y-3">
-                          <div className="flex items-center gap-2 text-primary">
-                            <Bot className="w-3.5 h-3.5" />
-                            <span className="font-medium text-[10px]">
-                              Analyzing browsers...
-                            </span>
-                            {renderedAiDemoStep === 4 && (
-                              <span className="flex gap-0.5 ml-1">
-                                <span className="w-1 h-1 bg-primary rounded-full animate-bounce motion-reduce:animate-none" />
-                                <span
-                                  className="w-1 h-1 bg-primary rounded-full animate-bounce motion-reduce:animate-none"
-                                  style={{ animationDelay: "150ms" }}
-                                />
-                                <span
-                                  className="w-1 h-1 bg-primary rounded-full animate-bounce motion-reduce:animate-none"
-                                  style={{ animationDelay: "300ms" }}
-                                />
-                              </span>
-                            )}
-                          </div>
-                          <div
-                            aria-hidden={renderedAiDemoStep < 5}
-                            className={cn(
-                              "bg-[#1d1d1f] p-2.5 rounded-lg font-mono text-[9px] text-green-400 overflow-hidden transition-[transform,opacity] duration-[var(--duration-marketing)] ease-[var(--ease-out)] motion-reduce:transform-none",
-                              renderedAiDemoStep >= 5
-                                ? "opacity-100 translate-y-0"
-                                : "opacity-0 translate-y-2 pointer-events-none",
-                            )}
-                          >
-                            <pre>{`{
-  "browsers": [
-    {
-      "name": "Arc",
-      "executable": "...",
-      "profiles": ["Default", "Work"]
-    }
-  ]
-}`}</pre>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </div>
           </div>
         </section>
       </main>

@@ -1,168 +1,99 @@
 #!/usr/bin/env swift
-// Generates a Premium Dark-Theme (Zinc-950) DMG background for Chowser
-// Optimized for Retina displays: logical 660×400, physical 1320×800
+// Generates the DMG window background for Chowser.
+// Logical 660×400 (matches the Finder window bounds in release-macos.yml), rendered @2x.
+// Finder places the icons at (165, 190) and (495, 190) from the top-left and draws
+// their labels itself, so this image only provides the canvas, heading, and arrow.
 
 import Cocoa
 import UniformTypeIdentifiers
 
-// ─────────────────────────────────────────────
-// MARK: – Configuration
-// ─────────────────────────────────────────────
+let logicalW: CGFloat = 660
+let logicalH: CGFloat = 400
+let scale = 2
 
-let appName     = "Chowser"
-let scale       = 2
-let logicalW    = 660
-let logicalH    = 400
-let physicalW   = logicalW * scale
-let physicalH   = logicalH * scale
-let s           = CGFloat(scale)
+// Finder icon centres, converted from Finder's top-left origin to CoreGraphics' bottom-left.
+let iconY = logicalH - 190
+let appX: CGFloat = 165
+let applicationsX: CGFloat = 495
 
-// Colors (Zinc-950 Palette)
-let colorBg         = CGColor(red: 0.02, green: 0.02, blue: 0.02, alpha: 1.0)
-let colorPlate      = CGColor(red: 0.06, green: 0.06, blue: 0.07, alpha: 0.8)
-let colorBorder     = CGColor(gray: 1.0, alpha: 0.08)
-let colorAccent     = CGColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 1.0) // Blue-500
-let colorGlow       = CGColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 0.06)
-let textWhite       = NSColor(white: 0.95, alpha: 1.0)
-let textMuted       = NSColor(white: 0.50, alpha: 1.0)
-
-// ─────────────────────────────────────────────
-// MARK: – Canvas Setup
-// ─────────────────────────────────────────────
-
+let space = CGColorSpace(name: CGColorSpace.sRGB)!
 guard let context = CGContext(
-    data: nil, width: physicalW, height: physicalH,
-    bitsPerComponent: 8, bytesPerRow: 0,
-    space: CGColorSpaceCreateDeviceRGB(),
+    data: nil, width: Int(logicalW) * scale, height: Int(logicalH) * scale,
+    bitsPerComponent: 8, bytesPerRow: 0, space: space,
     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-) else {
-    print("❌ Failed to create context")
-    exit(1)
+) else { exit(1) }
+context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+
+func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
+    CGColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
 }
 
-context.scaleBy(x: s, y: s)
+// Soft light canvas: the app icon is a black squircle, so it needs a light ground to read.
+let canvas = CGGradient(colorsSpace: space,
+                        colors: [rgb(0xFBFBFD), rgb(0xEEF0F5)] as CFArray,
+                        locations: [0, 1])!
+context.drawLinearGradient(canvas, start: CGPoint(x: 0, y: logicalH), end: CGPoint(x: 0, y: 0), options: [])
 
-// ─────────────────────────────────────────────
-// MARK: – Drawing Logic
-// ─────────────────────────────────────────────
-
-func drawBackground() {
-    // 1. Base Dark Fill
-    context.setFillColor(colorBg)
-    context.fill(CGRect(x: 0, y: 0, width: logicalW, height: logicalH))
-    
-    // 2. Subtle Radial Glow (Center)
-    let gradColors = [colorGlow, CGColor(gray: 0, alpha: 0)] as CFArray
-    let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: gradColors, locations: [0.0, 1.0])!
-    context.drawRadialGradient(gradient, 
-                               startCenter: CGPoint(x: logicalW/2, y: logicalH/2), startRadius: 0, 
-                               endCenter: CGPoint(x: logicalW/2, y: logicalH/2), endRadius: 300, 
-                               options: [])
+// Faint halos under each icon so they sit on the canvas rather than float.
+for x in [appX, applicationsX] {
+    let halo = CGGradient(colorsSpace: space,
+                          colors: [rgb(0xFFFFFF, 0.9), rgb(0xFFFFFF, 0)] as CFArray,
+                          locations: [0, 1])!
+    context.drawRadialGradient(halo, startCenter: CGPoint(x: x, y: iconY), startRadius: 0,
+                               endCenter: CGPoint(x: x, y: iconY), endRadius: 95, options: [])
 }
 
-func drawSquirclePlate(at center: CGPoint) {
-    let size: CGFloat = 110
-    let rect = CGRect(x: center.x - size/2, y: center.y - size/2, width: size, height: size)
-    let path = NSBezierPath(roundedRect: rect, xRadius: 28, yRadius: 28).cgPath
-    
-    // Plate Fill
-    context.setFillColor(colorPlate)
-    context.addPath(path)
-    context.fillPath()
-    
-    // Plate Border
-    context.setStrokeColor(colorBorder)
-    context.setLineWidth(1.0)
-    context.addPath(path)
-    context.strokePath()
-}
+// Curved arrow from the app towards Applications.
+let accent = rgb(0x5B6CFF)
+let start = CGPoint(x: appX + 72, y: iconY + 6)
+let end = CGPoint(x: applicationsX - 74, y: iconY + 6)
+let control = CGPoint(x: (start.x + end.x) / 2, y: iconY + 46)
 
-func drawConnectingLine() {
-    let startX: CGFloat = 165 + 60
-    let endX: CGFloat = 495 - 60
-    let y: CGFloat = 190
-    
-    // Path Glow
-    context.setStrokeColor(colorAccent.copy(alpha: 0.1)!)
-    context.setLineWidth(4.0)
-    context.move(to: CGPoint(x: startX, y: y))
-    context.addLine(to: CGPoint(x: endX, y: y))
-    context.strokePath()
-    
-    // Sharp Accent Line
-    context.setStrokeColor(colorAccent)
-    context.setLineWidth(1.5)
-    context.setLineDash(phase: 0, lengths: [4, 4])
-    context.move(to: CGPoint(x: startX, y: y))
-    context.addLine(to: CGPoint(x: endX, y: y))
-    context.strokePath()
-    
-    // Arrowhead
-    context.setLineDash(phase: 0, lengths: [])
-    context.move(to: CGPoint(x: endX - 8, y: y + 5))
-    context.addLine(to: CGPoint(x: endX, y: y))
-    context.addLine(to: CGPoint(x: endX - 8, y: y - 5))
-    context.strokePath()
-}
+context.setLineCap(.round)
+context.setLineJoin(.round)
+context.setStrokeColor(accent)
+context.setLineWidth(2.5)
+context.setLineDash(phase: 0, lengths: [0.1, 7])
+context.move(to: start)
+context.addQuadCurve(to: end, control: control)
+context.strokePath()
 
-func drawText() {
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-    
-    let titleAttrs: [NSAttributedString.Key: Any] = [
-        .font: NSFont.systemFont(ofSize: 22, weight: .bold),
-        .foregroundColor: textWhite,
-        .kern: 0.5
+// Arrowhead aligned with the curve's end tangent.
+let angle = atan2(end.y - control.y, end.x - control.x)
+let head: CGFloat = 10
+context.setLineDash(phase: 0, lengths: [])
+context.setLineWidth(2.5)
+context.move(to: CGPoint(x: end.x - head * cos(angle - .pi / 6), y: end.y - head * sin(angle - .pi / 6)))
+context.addLine(to: end)
+context.addLine(to: CGPoint(x: end.x - head * cos(angle + .pi / 6), y: end.y - head * sin(angle + .pi / 6)))
+context.strokePath()
+
+// Text.
+NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+
+func drawCentered(_ text: String, y: CGFloat, size: CGFloat, weight: NSFont.Weight, color: NSColor, kern: CGFloat = 0) {
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: size, weight: weight),
+        .foregroundColor: color,
+        .kern: kern
     ]
-    
-    let subAttrs: [NSAttributedString.Key: Any] = [
-        .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-        .foregroundColor: textMuted
-    ]
-    
-    // "Install Chowser"
-    let titleStr = "Install \(appName)"
-    let titleSize = titleStr.size(withAttributes: titleAttrs)
-    titleStr.draw(at: CGPoint(x: (CGFloat(logicalW) - titleSize.width) / 2, y: 340), withAttributes: titleAttrs)
-    
-    // Source/Target Labels
-    "\(appName).app".draw(at: CGPoint(x: 165 - 35, y: 110), withAttributes: subAttrs)
-    "Applications".draw(at: CGPoint(x: 495 - 35, y: 110), withAttributes: subAttrs)
-    
-    // Onboarding Instructions
-    let step1Str = "Step 1: Drag to Applications"
-    let step1Size = step1Str.size(withAttributes: subAttrs)
-    step1Str.draw(at: CGPoint(x: 165 - (step1Size.width / 2), y: 80), withAttributes: subAttrs)
-    
-    let step2Str = "Step 2: Right-Click and select 'Open'"
-    let step2Size = step2Str.size(withAttributes: subAttrs)
-    step2Str.draw(at: CGPoint(x: 495 - (step2Size.width / 2), y: 80), withAttributes: subAttrs)
-    
-    NSGraphicsContext.restoreGraphicsState()
+    let width = text.size(withAttributes: attrs).width
+    text.draw(at: CGPoint(x: (logicalW - width) / 2, y: y), withAttributes: attrs)
 }
 
-// ─────────────────────────────────────────────
-// MARK: – Execution
-// ─────────────────────────────────────────────
-
-drawBackground()
-drawConnectingLine()
-drawSquirclePlate(at: CGPoint(x: 165, y: 190))
-drawSquirclePlate(at: CGPoint(x: 495, y: 190))
-drawText()
+drawCentered("Install Chowser", y: 334, size: 21, weight: .semibold,
+             color: NSColor(srgbRed: 0.07, green: 0.08, blue: 0.11, alpha: 1), kern: -0.3)
+drawCentered("Drag Chowser into your Applications folder", y: 312, size: 12.5, weight: .regular,
+             color: NSColor(srgbRed: 0.42, green: 0.44, blue: 0.50, alpha: 1))
+drawCentered("Then open it from Applications and set it as your default browser.", y: 34, size: 11, weight: .regular,
+             color: NSColor(srgbRed: 0.52, green: 0.54, blue: 0.60, alpha: 1))
 
 guard let image = context.makeImage() else { exit(1) }
-
-// Use first command line argument as output path, or default to dmg_background.png
 let outputPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "dmg_background.png"
-let outputURL = URL(fileURLWithPath: outputPath) as CFURL
-
-guard let dest = CGImageDestinationCreateWithURL(outputURL, UTType.png.identifier as CFString, 1, nil) else {
-    print("❌ Failed to create image destination at \(outputPath)")
-    exit(1)
-}
-
+guard let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: outputPath) as CFURL,
+                                                 UTType.png.identifier as CFString, 1, nil) else { exit(1) }
 CGImageDestinationAddImage(dest, image, [kCGImagePropertyDPIWidth: 144, kCGImagePropertyDPIHeight: 144] as CFDictionary)
-CGImageDestinationFinalize(dest)
-
-print("✅ High-end Dark DMG Background generated: \(outputPath)")
+guard CGImageDestinationFinalize(dest) else { exit(1) }
+print("DMG background generated: \(outputPath)")

@@ -2,18 +2,19 @@ import { Github } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLatestRelease } from "@/hooks/use-latest-release";
 
-const APP_STORE_URL = "https://apps.apple.com/in/app/chowser/id6760034779";
 
 export const Navbar = () => {
+    const { dmgUrl } = useLatestRelease();
     return (
-        <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
+        <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-canvas/80 backdrop-blur-xl">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                 <Link to="/" className="flex items-center gap-2 group">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg transform group-hover:scale-105 transition-transform border border-white/10">
+                    <div className="w-8 h-8 rounded-[10px] overflow-hidden">
                         <img src="/icon.png" alt="Chowser Icon" className="w-full h-full object-cover" />
                     </div>
-                    <span className="font-bold text-xl tracking-tight text-foreground">Chowser</span>
+                    <span className="font-display font-semibold text-lg tracking-tight text-foreground">Chowser</span>
                 </Link>
                 <div className="flex items-center gap-1 sm:gap-6">
                     <Link to="/guide" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground hover:text-foreground")}>
@@ -21,9 +22,6 @@ export const Navbar = () => {
                     </Link>
                     <Link to="/rewrites" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden md:inline-flex text-muted-foreground hover:text-foreground")}>
                         Rewrites
-                    </Link>
-                    <Link to="/lab/picker-prototypes" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden lg:inline-flex text-muted-foreground hover:text-foreground")}>
-                        Lab
                     </Link>
                     <a href="/#agentic-setup" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden sm:inline-flex text-muted-foreground hover:text-foreground")}>
                         AI Setup
@@ -38,12 +36,10 @@ export const Navbar = () => {
                         <Github className="w-5 h-5" />
                     </a>
                     <a
-                        href={APP_STORE_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:flex border-primary/20 hover:border-primary/40 bg-primary/5 hover:bg-primary/10")}
+                        href={dmgUrl}
+                        className="hidden sm:inline-flex items-center rounded-full bg-ink text-white px-4 py-1.5 text-sm font-medium hover:bg-route transition-colors"
                     >
-                        App Store
+                        Download
                     </a>
                 </div>
             </div>

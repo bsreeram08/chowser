@@ -21,16 +21,16 @@ const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const STEPS = [
   {
+    icon: Download,
+    title: "Install & onboard",
+    body:
+      "Download the DMG from chowser.sreerams.in (or get Chowser from the Mac App Store), drag it into Applications, and open it. The first-run wizard walks you through making Chowser your default link handler and adding your browsers. Once the menu-bar icon appears, you're set.",
+  },
+  {
     icon: PanelTop,
     title: "Choose App or Menu Bar mode",
     body:
       "Open Settings → General → App Mode. App mode keeps Chowser in the Dock and Cmd-Tab; Menu Bar mode runs without a Dock icon. You can switch later, and Chowser keeps Settings reachable if macOS rejects a transition.",
-  },
-  {
-    icon: Download,
-    title: "Install & onboard",
-    body:
-      "Download Chowser from the App Store and launch it. The first-run wizard walks you through making Chowser your default link handler and adding your browsers. Once the menu-bar icon appears, you're set.",
   },
   {
     icon: Globe,
@@ -169,9 +169,7 @@ export const Guide: React.FC = () => {
           <div className="mt-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <span>Ready to route?</span>
             <a
-              href="https://apps.apple.com/in/app/chowser/id6760034779"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/#download"
               className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
             >
               Get Chowser <ArrowRight className="w-3.5 h-3.5" />

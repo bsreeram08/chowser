@@ -3,7 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { BrowserTileArt, type DemoBrowserKind } from "./Home";
+import { BrowserTileArt, type DemoBrowserKind } from "@/components/BrowserTileArt";
 import { Info, MousePointer2, ArrowRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 

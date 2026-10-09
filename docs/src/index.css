@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/noto-sans";
-@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/bricolage-grotesque";
 @import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
@@ -14,37 +14,40 @@
    code is the only saturated element.
    ───────────────────────────────────────────────────────────── */
 :root {
-  --ink: #1d1d1f;
-  --ink-soft: #6e6e73;
+  --ink: #15161c;
+  --ink-soft: #5f6270;
+  --canvas: #f2f3f7;
+  --line: #e1e3ea;
+  --route: #4338e0;
   --surface: #ffffff;
   --keycap: #f5f5f7;
   --keycap-shadow: #d2d2d7;
-  --signal: #0071e3;
-  --signal-deep: #0059b3;
+  --signal: #4338e0;
+  --signal-deep: #2f25b8;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --duration-press: 160ms;
   --duration-ui: 200ms;
   --duration-marketing: 500ms;
 
-  --background: #fafafa;
-  --foreground: #1d1d1f;
+  --background: #f2f3f7;
+  --foreground: #15161c;
   --card: #ffffff;
   --card-foreground: #1d1d1f;
   --popover: #ffffff;
   --popover-foreground: #1d1d1f;
-  --primary: #0071e3;
+  --primary: #4338e0;
   --primary-foreground: #ffffff;
   --secondary: #f0f0f2;
   --secondary-foreground: #1d1d1f;
   --muted: #f0f0f2;
-  --muted-foreground: #6e6e73;
-  --accent: #0071e3;
+  --muted-foreground: #5f6270;
+  --accent: #4338e0;
   --accent-foreground: #ffffff;
   --destructive: oklch(0.62 0.21 25);
   --border: rgba(0, 0, 0, 0.08);
   --input: rgba(0, 0, 0, 0.12);
-  --ring: #0071e3;
+  --ring: #4338e0;
   --chart-1: oklch(0.62 0.18 250);
   --chart-2: oklch(0.68 0.14 220);
   --chart-3: oklch(0.72 0.12 200);
@@ -53,12 +56,12 @@
   --radius: 0.75rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #1d1d1f;
-  --sidebar-primary: #0071e3;
+  --sidebar-primary: #4338e0;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #0071e3;
+  --sidebar-accent: #4338e0;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(0, 0, 0, 0.08);
-  --sidebar-ring: #0071e3;
+  --sidebar-ring: #4338e0;
 }
 
 /* ── Light-theme utilities ── */
@@ -97,7 +100,14 @@
     box-shadow: 0 12px 34px rgba(20, 30, 60, 0.08);
   }
   .font-display {
-    font-family: 'Space Grotesk Variable', 'Noto Sans Variable', sans-serif;
+    font-family: 'Bricolage Grotesque Variable', 'Noto Sans Variable', sans-serif;
+  }
+  /* Hero routing log: rows arrive, then their destination resolves. One sequence, on load only. */
+  .route-row {
+    animation: route-in 420ms var(--ease-out) both;
+  }
+  .route-dest {
+    animation: route-resolve 360ms var(--ease-out) both;
   }
   .font-mono-key {
     font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
@@ -106,11 +116,15 @@
 
 @theme inline {
   --font-sans: 'Noto Sans Variable', sans-serif;
-  --font-display: 'Space Grotesk Variable', 'Noto Sans Variable', sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Noto Sans Variable', sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --color-signal: var(--signal);
   --color-keycap: var(--keycap);
   --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-canvas: var(--canvas);
+  --color-line: var(--line);
+  --color-route: var(--route);
   --color-ink-raised: var(--ink-raised);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -164,4 +178,11 @@
   html {
     @apply font-sans;
   }
+}
+
+@keyframes route-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@keyframes route-resolve {
+  from { opacity: 0; transform: translateX(-10px); }
 }

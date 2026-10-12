@@ -41,6 +41,11 @@ extension SettingsView {
                     .menuStyle(.borderlessButton)
                     .accessibilityIdentifier("settings.rulesMenuButton")
 
+                    Button("Set Up with AI", systemImage: "sparkles") { AISetup.run() }
+                        .controlSize(.small)
+                        .help("Copy a prompt that lets an AI assistant write your rules")
+                        .accessibilityIdentifier("settings.aiSetupButton")
+
                     Button("Add Rule", systemImage: "plus") {
                         preselectedRuleBrowserIdentity = nil
                         showingAddRuleSheet = true

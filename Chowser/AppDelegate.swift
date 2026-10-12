@@ -799,6 +799,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Separator
         menu.addItem(NSMenuItem.separator())
         
+        let aiSetupItem = NSMenuItem(title: "Set Up with AI…", action: #selector(runAISetup), keyEquivalent: "")
+        aiSetupItem.target = self
+        aiSetupItem.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
+        menu.addItem(aiSetupItem)
+
         // 5. API Server (MCP-like)
         let server = MCPServer.shared
         if server.isRunning {
@@ -850,6 +855,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
     
     // MARK: - Actions
+
+    @objc private func runAISetup() {
+        AISetup.run()
+    }
 
     @objc private func toggleMCPServer() {
         let server = MCPServer.shared

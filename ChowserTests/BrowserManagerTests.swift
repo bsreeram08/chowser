@@ -982,6 +982,21 @@ struct BrowserManagerTests {
         try FileManager.default.removeItem(at: tempURL)
     }
 
+    @Test("First-launch browsers put the current default first and stop at nine")
+    func detectedSetupBrowsersOrderAndCap() {
+        let installed = (1...11).map { index in
+            (name: "Browser \(index)", bundleId: "com.example.b\(index)", profile: index == 5 ? "Profile 1" : nil, iconURL: nil as URL?)
+        }
+
+        let browsers = BrowserManager.detectedSetupBrowsers(installed: installed, currentDefaultBundleID: "com.example.b5")
+
+        #expect(browsers.count == 9)
+        #expect(browsers.first?.bundleId == "com.example.b5")
+        #expect(browsers.first?.profile == "Profile 1")
+        #expect(browsers.map(\.shortcutKey) == (1...9).map(String.init))
+        #expect(browsers.dropFirst().first?.bundleId == "com.example.b1")
+    }
+
     @Test("Browsers and rules are imported from an App Store install's preferences plist")
     @MainActor
     func importFromAppStoreInstallPreferences() throws {

@@ -5,7 +5,6 @@ class DomainFrequencyTracker {
 
     private let userDefaultsKey = "DomainFrequencyStats"
     private let maxEntries = 100
-    private let suggestionThreshold = 30
 
     private var cachedStats: [String: [String: Int]] = [:]
 
@@ -32,21 +31,6 @@ class DomainFrequencyTracker {
                 UserDefaults.standard.set(data, forKey: self.userDefaultsKey)
             }
         }
-    }
-
-    /// Returns a list of domains that have reached the threshold for a specific browser.
-    func getSuggestions() -> [(domain: String, browserBundleID: String)] {
-        var suggestions: [(String, String)] = []
-
-        for (domain, browsers) in cachedStats {
-            for (bundleID, count) in browsers {
-                if count >= suggestionThreshold {
-                    suggestions.append((domain, bundleID))
-                }
-            }
-        }
-
-        return suggestions
     }
 
     /// Returns click counts per browser bundle ID for a given domain.

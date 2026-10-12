@@ -102,13 +102,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if !OnboardingManager.shared.hasCompletedOnboarding {
             // First time launch: show onboarding (includes the App Mode question)
             OnboardingManager.shared.showOnboardingWindow {
-                // Once onboarding is complete, setup the rest of the application
+                // No Settings window afterwards: the menu bar icon and the picker on the
+                // next link are where people meet Chowser.
                 self.setupApplicationState()
-                // Auto-open Settings so new users know where to go
-                // Next runloop turn only: the onboarding window is already gone.
-                DispatchQueue.main.async {
-                    self.openSettings()
-                }
             }
         } else if !BrowserManager.shared.hasBeenAskedAppMode {
             // Existing install, new feature: ask once, standalone, rather than silently
@@ -676,8 +672,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        // 1. Hide if default browser (meaning if we ALREADY are the default, don't show the "Set as Default Browser" option later on, OR do we completely hide the menu? Wait, the prompt says "If chowser is already default browser, don't show in menu bar". I'll assume they mean the "Set as Default Browser" item.)
-        let isDefault = BrowserManager.isDefaultBrowser()
+        // Not the default browser yet: that's the one thing Chowser can't work without,
+        // and people skip onboarding, so it leads the menu until it's done.
+        if !BrowserManager.isDefaultBrowser() {
+            let defaultBrowserItem = NSMenuItem(title: "Make Chowser Your Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
+            defaultBrowserItem.target = self
+            defaultBrowserItem.image = NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: nil)
+            menu.addItem(defaultBrowserItem)
+            menu.addItem(NSMenuItem.separator())
+        }
         
         let recentURLsItem = NSMenuItem(title: "Recent URLs", action: nil, keyEquivalent: "")
         if let icon = NSImage(systemSymbolName: "clock", accessibilityDescription: nil) {
@@ -831,12 +834,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let diagnosticsItem = NSMenuItem(title: "Diagnostics…", action: #selector(openDiagnostics), keyEquivalent: "")
         diagnosticsItem.target = self
         menu.addItem(diagnosticsItem)
-
-        if !isDefault {
-            let defaultBrowserItem = NSMenuItem(title: "Set as Default Browser…", action: #selector(setDefaultBrowser), keyEquivalent: "")
-            defaultBrowserItem.target = self
-            menu.addItem(defaultBrowserItem)
-        }
 
         menu.addItem(NSMenuItem.separator())
 

@@ -52,13 +52,16 @@ final class OnboardingManager {
             return
         }
 
-        let view = OnboardingView(onComplete: { [weak self] selectedMode in
-            guard let self = self else { return }
-            guard self.applySelectedAppMode(selectedMode) else { return }
-            BrowserManager.shared.hasBeenAskedAppMode = true
+        let view = OnboardingView(onComplete: { [weak self] importFromAppStore in
+            guard let self else { return }
             self.markOnboardingComplete()
+            // Close first: macOS can refuse the switch to menu bar mode while this
+            // window is still key, which used to strand new users in App mode.
             self.closeOnboardingWindow()
-            completion()
+            DispatchQueue.main.async {
+                Self.applyFirstLaunchDefaults(importFromAppStore: importFromAppStore)
+                completion()
+            }
         })
 
         // NSHostingView + sizingOptions, not NSHostingController + a hardcoded
@@ -70,7 +73,7 @@ final class OnboardingManager {
         hostingView.sizingOptions = [.preferredContentSize]
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 420),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -149,6 +152,27 @@ final class OnboardingManager {
 
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Everything a skipped onboarding still needs: the App Store settings (if asked),
+    /// the installed browsers, and menu bar mode without asking about it.
+    private static func applyFirstLaunchDefaults(importFromAppStore: Bool) {
+        let manager = BrowserManager.shared
+        if importFromAppStore {
+            do {
+                let summary = try manager.importFromAppStoreInstall()
+                AppLogger.log("Onboarding", "Imported from App Store install: \(summary.browsers.changedCount) browsers, \(summary.rules.changedCount) rules")
+            } catch {
+                AppLogger.error("Onboarding", "App Store import failed: \(error.localizedDescription)")
+            }
+        }
+        manager.adoptInstalledBrowsersIfFreshSetup()
+        // Replaying onboarding from Settings must not change an existing user's mode.
+        guard !manager.hasBeenAskedAppMode else { return }
+        manager.hasBeenAskedAppMode = true
+        if case .failure(let error) = AppDelegate.transitionAppMode(to: .menuBar) {
+            AppLogger.error("Onboarding", error.localizedDescription)
+        }
     }
 
     private func applySelectedAppMode(_ mode: ChowserAppMode) -> Bool {

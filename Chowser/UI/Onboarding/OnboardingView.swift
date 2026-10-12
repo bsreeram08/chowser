@@ -7,84 +7,99 @@
 
 import SwiftUI
 
+/// First launch is one screen: most people skip onboarding, so everything else
+/// (browsers, profiles, App Store settings) is set up automatically and the rest is
+/// taught in context. The only thing that needs the user is the default-browser switch.
 struct OnboardingView: View {
-    let onComplete: (ChowserAppMode) -> Void
-    @State private var currentStep: Int = 0
-    @State private var selectedAppMode = BrowserManager.shared.appMode
-    
-    // Detect if the user has already set it as default
-    @State private var isDefaultBrowser: Bool = BrowserManager.isDefaultBrowser()
-    
+    /// Called with whether to bring over the App Store version's settings.
+    let onComplete: (_ importFromAppStore: Bool) -> Void
+
+    @State private var isDefaultBrowser = BrowserManager.isDefaultBrowser()
+    @State private var hasAppStoreInstall = BrowserManager.hasAppStoreInstallPreferences
+    @State private var importFromAppStore = true
+    @State private var detectedBrowserNames: [String] = []
+
     var body: some View {
-        Group {
-            switch currentStep {
-            case 0:
-                WelcomeStepView(nextAction: goNext)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            case 1:
-                AppModeStepView(manager: BrowserManager.shared) { mode in
-                    selectedAppMode = mode
-                    goNext()
+        VStack(spacing: 20) {
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
+                .resizable()
+                .frame(width: 80, height: 80)
+                .padding(.top, 8)
+
+            VStack(spacing: 8) {
+                Text("Every link, in the right browser")
+                    .font(.system(size: 22, weight: .bold))
+                Text("Chowser opens links in the browser and profile you choose. When it isn't sure, it asks with a quick picker.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                if !detectedBrowserNames.isEmpty {
+                    Label(detectedBrowsersSummary, systemImage: "checkmark.circle.fill")
+                        .symbolRenderingMode(.multicolor)
                 }
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            case 2:
+                if hasAppStoreInstall {
+                    Toggle("Bring over browsers and rules from the App Store version", isOn: $importFromAppStore)
+                        .toggleStyle(.checkbox)
+                        .accessibilityIdentifier("onboarding.importFromAppStore")
+                }
+            }
+            .font(.system(size: 13))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10, style: .continuous))
+
+            VStack(spacing: 8) {
                 if isDefaultBrowser {
-                    Color.clear.onAppear {
-                        DispatchQueue.main.async { goNext() }
-                    }
+                    Button("Done") { onComplete(importFromAppStore && hasAppStoreInstall) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("onboarding.done")
+                    Text("Chowser is already your default browser.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 } else {
-                    DefaultBrowserStepView(nextAction: goNext)
-                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                    Button("Make Chowser my default browser") {
+                        BrowserManager.setAsDefaultBrowser()
+                        onComplete(importFromAppStore && hasAppStoreInstall)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("onboarding.setDefault")
+
+                    Button("Not now") { onComplete(importFromAppStore && hasAppStoreInstall) }
+                        .buttonStyle(.link)
+                        .accessibilityIdentifier("onboarding.notNow")
                 }
-            case 3:
-                BrowsersStepView(nextAction: goNext)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            case 4:
-                AISetupStepView(nextAction: goNext)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            case 5:
-                RulesStepView(nextAction: goNext)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            case 6:
-                FinishStepView(doneAction: { onComplete(selectedAppMode) })
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            default:
-                EmptyView()
             }
+
+            Text("Everything here can be changed later in Settings.")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentStep)
-        .frame(width: 500)
-        // Fixed vertical, flexible horizontal — exactly the picker's own sizing pattern
-        // (ContentView.swift). Height tracks whichever step is showing; the window (via
-        // NSHostingView.sizingOptions = [.preferredContentSize] in OnboardingManager)
-        // resizes to match, so there's no hardcoded window height to get wrong on a
-        // smaller screen.
+        .padding(.horizontal, 32)
+        .padding(.vertical, 24)
+        .frame(width: 440)
         .fixedSize(horizontal: false, vertical: true)
-        .background {
-            // Decoration lives in .background, not as ZStack siblings — background content
-            // is sized to MATCH the view it's attached to, so it can never influence the
-            // intrinsic size calculation above (a `.ignoresSafeArea()` Color as a ZStack
-            // sibling, by contrast, wants to expand to fill all available space, which
-            // breaks fixedSize's "size to content" intent).
-            ZStack {
-                Color(NSColor.windowBackgroundColor)
-                Circle()
-                    .fill(Color.purple.opacity(0.15))
-                    .frame(width: 400, height: 400)
-                    .blur(radius: 60)
-                    .offset(x: -100, y: -100)
-                Circle()
-                    .fill(Color.blue.opacity(0.1))
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 50)
-                    .offset(x: 150, y: 150)
-            }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            detectedBrowserNames = BrowserManager.getInstalledBrowsers().map(\.name)
         }
     }
-    
-    private func goNext() {
-        withAnimation {
-            currentStep += 1
+
+    private var detectedBrowsersSummary: String {
+        let names = detectedBrowserNames
+        switch names.count {
+        case 1: return "Found \(names[0]) on your Mac"
+        case 2: return "Found \(names[0]) and \(names[1]) on your Mac"
+        case 3: return "Found \(names[0]), \(names[1]) and \(names[2]) on your Mac"
+        default: return "Found \(names[0]), \(names[1]) and \(names.count - 2) more on your Mac"
         }
     }
 }

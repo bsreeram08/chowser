@@ -48,6 +48,8 @@ struct ContentView: View {
     @State private var focusObserver: NSObjectProtocol?
     @State private var keyEventMonitor: Any?
     @State private var showingConfigureRule = false
+    @AppStorage("pickerHintOpenCount") private var pickerHintOpenCount = 0
+    private static let pickerHintOpens = 5
     @State private var urlCopied = false
     @State private var privateMode = false
     @State private var isUnshortening = false
@@ -231,7 +233,10 @@ struct ContentView: View {
             }
             .onAppear(perform: handleAppear)
             .onDisappear(perform: handleDisappear)
-            .onChange(of: browserManager.currentURL) {
+            .onChange(of: browserManager.currentURL) { oldURL, newURL in
+                if !isPreview, oldURL == nil, newURL != nil, pickerHintOpenCount <= Self.pickerHintOpens {
+                    pickerHintOpenCount += 1
+                }
                 syncPrivateModeRequest()
                 loadLinkPreview(for: browserManager.currentURL)
                 syncPhoneHandoff()
@@ -1093,7 +1098,9 @@ struct ContentView: View {
     }
 
     private func browserListRow(browser: BrowserConfig) -> some View {
-        let isSelected = keyboardSelectedBrowserId == browser.id
+        // The preselected first browser (what Return opens) isn't drawn: a box around it
+        // on every open reads as a stray focus ring. Selection shows once the user moves it.
+        let isSelected = keyboardSelectedBrowserId == browser.id && selectionSource != .programmatic
         let isHovered = hoveredBrowserId == browser.id
         let isSuggested = suggestedBrowserBundleId == browser.bundleId
 
@@ -1179,7 +1186,9 @@ struct ContentView: View {
     }
 
     private func browserIconButton(browser: BrowserConfig) -> some View {
-        let isSelected = keyboardSelectedBrowserId == browser.id
+        // The preselected first browser (what Return opens) isn't drawn: a box around it
+        // on every open reads as a stray focus ring. Selection shows once the user moves it.
+        let isSelected = keyboardSelectedBrowserId == browser.id && selectionSource != .programmatic
         let isHovered = hoveredBrowserId == browser.id
         let isSuggested = suggestedBrowserBundleId == browser.bundleId
         let iconDimensions = pickerIconDimensions
@@ -1278,24 +1287,18 @@ struct ContentView: View {
         let highlightColor = isSelected
             ? (effectivePrivateMode ? Color.purple.opacity(0.3) : Color.primary.opacity(0.12))
             : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
-        let selectionStrokeColor = isSelected
-            ? (effectivePrivateMode ? Color.purple.opacity(0.5) : Color.primary.opacity(0.08))
+        // Outline only for Increase Contrast; otherwise a soft fill is enough.
+        let selectionStrokeColor = isSelected && contrast == .increased
+            ? (effectivePrivateMode ? Color.purple : Color.primary.opacity(0.6))
             : Color.clear
 
         ZStack {
-            if isSelected || isHovered {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(highlightColor)
-                    .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
-                    .pickerInlineCard()
-            } else {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.clear)
-                    .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
-            }
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(highlightColor)
+                .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(selectionStrokeColor, lineWidth: contrast == .increased && isSelected ? 2 : 1)
+                .strokeBorder(selectionStrokeColor, lineWidth: 2)
                 .frame(width: iconDimensions.hitArea, height: iconDimensions.hitArea)
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -1312,6 +1315,15 @@ struct ContentView: View {
     /// actions) still exist — they're just tucked behind the info popover now, on demand.
     private var shortcutsInfoRow: some View {
         HStack {
+            // Taught in context for the first few opens instead of in onboarding,
+            // which most people skip. The row already exists, so the panel doesn't grow.
+            if !isPreview && pickerHintOpenCount <= Self.pickerHintOpens {
+                Text("Press 1–9 to open, P for private, R to save as a rule")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("picker.firstUseHint")
+            }
             Spacer()
             Button(action: { showingShortcutsInfo.toggle() }) {
                 Image(systemName: "questionmark.circle")

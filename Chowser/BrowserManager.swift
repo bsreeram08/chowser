@@ -657,6 +657,43 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         [BrowserConfig(name: "Safari", bundleId: "com.apple.Safari", shortcutKey: "1")]
     }
 
+    /// First-launch browser list from what's installed. The user's current default browser
+    /// goes first so it gets shortcut 1; shortcuts only go to 9, so the list stops there.
+    static func detectedSetupBrowsers(
+        installed: [(name: String, bundleId: String, profile: String?, iconURL: URL?)],
+        currentDefaultBundleID: String?
+    ) -> [BrowserConfig] {
+        let ordered = installed.enumerated().sorted { a, b in
+            let aIsDefault = a.element.bundleId == currentDefaultBundleID
+            let bIsDefault = b.element.bundleId == currentDefaultBundleID
+            if aIsDefault != bIsDefault { return aIsDefault }
+            return a.offset < b.offset
+        }.map(\.element)
+        return ordered.prefix(9).enumerated().map { index, entry in
+            BrowserConfig(name: entry.name, bundleId: entry.bundleId, shortcutKey: String(index + 1), profile: entry.profile)
+        }
+    }
+
+    /// Replaces the Safari-only placeholder with the installed browsers. No-op once the
+    /// user (or an import) has set up anything else.
+    func adoptInstalledBrowsersIfFreshSetup() {
+        guard configuredBrowsers.map(\.identity) == Self.freshSetupBrowsers().map(\.identity) else { return }
+        let detected = Self.detectedSetupBrowsers(
+            installed: Self.getInstalledBrowsers(),
+            currentDefaultBundleID: Self.currentDefaultBrowserBundleID()
+        )
+        if !detected.isEmpty { configuredBrowsers = detected }
+    }
+
+    /// The app macOS currently opens web links with, unless that's already Chowser.
+    static func currentDefaultBrowserBundleID() -> String? {
+        guard let probe = URL(string: "https://example.com"),
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: probe),
+              let bundleID = Bundle(url: appURL)?.bundleIdentifier,
+              bundleID != Bundle.main.bundleIdentifier else { return nil }
+        return bundleID
+    }
+
     static var supportsApplicationLaunchArgumentsInCurrentBuild: Bool {
         #if APP_STORE
         false

@@ -7,7 +7,7 @@ extension SettingsView {
 
         return SettingsDetailScaffold(
             title: "Apps",
-            subtitle: "Review native deep links and hide non-browser URL handlers.",
+            subtitle: "Review native deep links.",
             systemImage: "app.badge",
             actions: {
                 Button("Refresh Signed Directory", systemImage: "arrow.clockwise") {
@@ -77,44 +77,6 @@ extension SettingsView {
                                     .disabled(isRefreshingNativeAppDirectory)
                             }
                         }
-                    }
-
-                    SettingsGroup("Hidden Apps", subtitle: "Bundle IDs in this list are excluded from browser discovery.") {
-                        if browserManager.hiddenBundleIDs.isEmpty {
-                            SettingsRow(title: "No hidden apps", subtitle: "All discovered URL handlers are currently eligible.") {
-                                EmptyView()
-                            }
-                        } else {
-                            ForEach(Array(browserManager.hiddenBundleIDs.sorted()), id: \.self) { bundleId in
-                                SettingsHiddenAppRow(bundleId: bundleId) {
-                                    browserManager.removeHiddenBundleID(bundleId)
-                                }
-                                if bundleId != browserManager.hiddenBundleIDs.sorted().last {
-                                    SettingsDivider()
-                                }
-                            }
-                        }
-                    }
-
-                    SettingsGroup("Add Bundle ID", subtitle: "Use this when an app registers as a browser but should stay hidden.") {
-                        HStack(spacing: 10) {
-                            TextField("com.example.app", text: $newHiddenBundleId)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 12, design: .monospaced))
-
-                            Button("Hide") {
-                                addHiddenBundleIDFromField()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                            Button("Reset Defaults") {
-                                browserManager.resetHiddenBundleIDs()
-                            }
-                            .controlSize(.small)
-                        }
-                        .padding(14)
                     }
                 }
             }
@@ -433,13 +395,6 @@ extension SettingsView {
     }
     #endif
 
-    private func addHiddenBundleIDFromField() {
-        let trimmed = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        browserManager.addHiddenBundleID(trimmed)
-        newHiddenBundleId = ""
-    }
-
     @MainActor
     private func transitionAppMode(to mode: ChowserAppMode) {
         guard case .failure(let error) = AppDelegate.transitionAppMode(to: mode) else { return }
@@ -541,36 +496,6 @@ private struct NativeAppConsentRow: View {
         return hosts
     }
 
-}
-
-private struct SettingsHiddenAppRow: View {
-    let bundleId: String
-    let onRemove: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "eye.slash")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-
-            Text(bundleId)
-                .font(.system(size: 11, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer()
-
-            Button("Show", systemImage: "eye") {
-                onRemove()
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .help("Show this app in the browser list")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
 }
 
 struct MCPServerSettingsRow: View {

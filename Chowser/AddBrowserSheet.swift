@@ -2,66 +2,257 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+/// "Add Browsers" sheet: every installed browser/profile Chowser can detect, with a
+/// checkbox each. Already-configured entries stay visible (checked, disabled) so the list
+/// reads as "what's on this Mac" rather than shifting as you add things. Apps on the
+/// hidden list are excluded. "Other App…" switches to the manual/custom-app form.
 struct AddBrowserSheet: View {
     var manager: BrowserManager
     @Binding var isPresented: Bool
-
-    enum SheetTab: String, CaseIterable {
-        case installed = "Installed Apps"
-        case custom = "Custom App"
-    }
+    /// Called with the browsers that were added (in order) right before the sheet closes.
+    var onAdded: ([BrowserConfig]) -> Void = { _ in }
 
     typealias BrowserEntry = (name: String, bundleId: String, profile: String?, iconURL: URL?)
 
-    @State private var activeTab: SheetTab = .installed
-    @State private var availableBrowsers: [BrowserEntry] = []
-    @State private var allBrowsersIncludingHidden: [BrowserEntry] = []
-    @State private var hoveredIdentity: String?
-    @State private var searchText = ""
-    @State private var showHiddenApps = false
+    /// One display row. Icons are resolved once per refresh, never inside `body`.
+    struct Row: Identifiable {
+        let id: String
+        let name: String
+        let bundleId: String
+        let profile: String?
+        let detail: String
+        let icon: NSImage?
+        let isAlreadyAdded: Bool
+    }
+
+    private enum Mode {
+        case installed
+        case otherApp
+    }
+
+    @State private var mode: Mode = .installed
+    @State private var rows: [Row] = []
+    @State private var selectedIDs: Set<String> = []
+    @State private var hasLoaded = false
     @State private var profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
 
-    private var filteredBrowsers: [BrowserEntry] {
-        let configuredIdentities = Set(manager.configuredBrowsers.map { "\($0.bundleId)|\($0.profile ?? "")" })
-        let source = showHiddenApps ? allBrowsersIncludingHidden : availableBrowsers
-        let candidates = Self.browserCandidates(
-            for: source,
-            configuredIdentities: configuredIdentities,
-            supportsLaunchArguments: BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
-        )
-        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return candidates }
-        return candidates.filter {
-            $0.name.localizedStandardContains(trimmedQuery) ||
-            $0.bundleId.localizedStandardContains(trimmedQuery)
+    var body: some View {
+        Group {
+            switch mode {
+            case .installed:
+                installedContent
+            case .otherApp:
+                CustomAppForm(
+                    manager: manager,
+                    onBack: { mode = .installed },
+                    onAdded: finish(with:)
+                )
+            }
+        }
+        .frame(width: 480, height: 520)
+        .onAppear {
+            guard !hasLoaded else { return }
+            hasLoaded = true
+            refreshInstalledBrowsers()
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.addSheet.root")
+    }
+
+    // MARK: - Installed browsers
+
+    private var installedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Add Browsers")
+                    .font(.headline)
+                Text("Chowser found these browsers and profiles on your Mac. Choose the ones to add.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding([.horizontal, .top], 20)
+            .padding(.bottom, 12)
+
+            if profileAccessStatus.needsRecovery {
+                profileAccessBanner
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+            }
+
+            if rows.isEmpty {
+                emptyState
+            } else {
+                List {
+                    ForEach(rows) { row in
+                        Toggle(isOn: selectionBinding(for: row)) {
+                            AddBrowserOptionLabel(row: row)
+                        }
+                        .toggleStyle(.checkbox)
+                        .disabled(row.isAlreadyAdded)
+                        .contextMenu {
+                            Button("Hide This App from Chowser") {
+                                hide(row.bundleId)
+                            }
+                        }
+                        .accessibilityIdentifier("settings.addSheet.option")
+                        .accessibilityLabel(row.isAlreadyAdded ? "\(row.name), already added" : row.name)
+                    }
+                }
+                .listStyle(.bordered(alternatesRowBackgrounds: false))
+                .padding(.horizontal, 20)
+                .accessibilityIdentifier("settings.addSheet.list")
+            }
+
+            Divider()
+                .padding(.top, 12)
+
+            HStack {
+                Button("Other App…") {
+                    mode = .otherApp
+                }
+                .help("Choose any app, or enter a bundle ID manually")
+                .accessibilityIdentifier("settings.addSheet.otherAppButton")
+
+                Spacer()
+
+                Button("Cancel", role: .cancel) {
+                    isPresented = false
+                }
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("settings.addSheet.cancelButton")
+
+                Button(addButtonTitle) {
+                    addSelected()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(selectedIDs.isEmpty)
+                .accessibilityIdentifier("settings.addSheet.addButton")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
         }
     }
 
+    private var emptyState: some View {
+        VStack(spacing: 6) {
+            Spacer()
+            Text("No browsers found")
+                .font(.headline)
+            Text("Use Other App… to add any app that can open links.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+    }
+
+    private var addButtonTitle: String {
+        switch selectedIDs.count {
+        case 0: return "Add Browsers"
+        case 1: return "Add 1 Browser"
+        default: return "Add \(selectedIDs.count) Browsers"
+        }
+    }
+
+    private func selectionBinding(for row: Row) -> Binding<Bool> {
+        Binding(
+            get: { row.isAlreadyAdded || selectedIDs.contains(row.id) },
+            set: { isOn in
+                guard !row.isAlreadyAdded else { return }
+                if isOn {
+                    selectedIDs.insert(row.id)
+                } else {
+                    selectedIDs.remove(row.id)
+                }
+            }
+        )
+    }
+
+    private func addSelected() {
+        let requests = rows
+            .filter { selectedIDs.contains($0.id) && !$0.isAlreadyAdded }
+            .map { BrowserManager.BrowserAddRequest(name: $0.name, bundleId: $0.bundleId, profile: $0.profile) }
+        let added = manager.addBrowsers(requests)
+        finish(with: added)
+    }
+
+    private func finish(with added: [BrowserConfig]) {
+        onAdded(added)
+        isPresented = false
+    }
+
+    private func hide(_ bundleId: String) {
+        manager.addHiddenBundleID(bundleId)
+        refreshInstalledBrowsers()
+    }
+
+    private func refreshInstalledBrowsers() {
+        BrowserProfileDetector.clearCache()
+        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
+
+        let configuredIdentities = Set(manager.configuredBrowsers.map(\.identity))
+        rows = Self.sheetRows(
+            for: BrowserManager.getInstalledBrowsers(),
+            configuredIdentities: configuredIdentities,
+            supportsLaunchArguments: BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+        ).map { entry in
+            let identity = "\(entry.bundleId)|\(entry.profile ?? "")"
+            let appName = AppMetadataCache.shared.displayName(for: entry.bundleId) ?? entry.bundleId
+            return Row(
+                id: identity,
+                name: entry.name,
+                bundleId: entry.bundleId,
+                profile: entry.profile,
+                detail: entry.profile.map { "\(appName) · \($0)" } ?? appName,
+                icon: BrowserManager.icon(forBrowserBundleID: entry.bundleId, fallbackURL: entry.iconURL),
+                isAlreadyAdded: configuredIdentities.contains(identity)
+            )
+        }
+        let addable = Set(rows.filter { !$0.isAlreadyAdded }.map(\.id))
+        selectedIDs.formIntersection(addable)
+    }
+
+    // MARK: - Candidate shaping (unit-tested)
+
+    /// Installed entries to offer, including ones that are already configured (the sheet
+    /// shows those checked and disabled). Builds that can't pass launch arguments (App
+    /// Store) collapse profile variants into one plain entry per app, because a profile
+    /// can't be opened there.
+    static func sheetRows(
+        for source: [BrowserEntry],
+        configuredIdentities: Set<String>,
+        supportsLaunchArguments: Bool
+    ) -> [BrowserEntry] {
+        guard !supportsLaunchArguments else { return source }
+
+        var seenBundleIDs: Set<String> = []
+        var entries: [BrowserEntry] = []
+        for entry in source {
+            guard seenBundleIDs.insert(entry.bundleId).inserted else { continue }
+            entries.append((
+                name: plainBrowserName(from: entry),
+                bundleId: entry.bundleId,
+                profile: nil,
+                iconURL: entry.iconURL
+            ))
+        }
+        return entries
+    }
+
+    /// Entries that are not configured yet (the addable subset of `sheetRows`).
     static func browserCandidates(
         for source: [BrowserEntry],
         configuredIdentities: Set<String>,
         supportsLaunchArguments: Bool
     ) -> [BrowserEntry] {
-        guard !supportsLaunchArguments else {
-            return source.filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
-        }
-
-        var seenBundleIDs: Set<String> = []
-        var candidates: [BrowserEntry] = []
-
-        for entry in source {
-            guard seenBundleIDs.insert(entry.bundleId).inserted else { continue }
-            let plainEntry: BrowserEntry = (
-                name: plainBrowserName(from: entry),
-                bundleId: entry.bundleId,
-                profile: nil,
-                iconURL: entry.iconURL
-            )
-            guard !configuredIdentities.contains("\(plainEntry.bundleId)|") else { continue }
-            candidates.append(plainEntry)
-        }
-
-        return candidates
+        sheetRows(
+            for: source,
+            configuredIdentities: configuredIdentities,
+            supportsLaunchArguments: supportsLaunchArguments
+        ).filter { !configuredIdentities.contains("\($0.bundleId)|\($0.profile ?? "")") }
     }
 
     private static func plainBrowserName(from entry: BrowserEntry) -> String {
@@ -72,139 +263,18 @@ struct AddBrowserSheet: View {
         return String(entry.name[..<dash.lowerBound])
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Add Browser")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                Spacer()
-                Button(action: { isPresented = false }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close")
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+    // MARK: - Profile access (App Store sandbox)
 
-            // Tab switcher
-            Picker("", selection: $activeTab) {
-                ForEach(SheetTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10)
+    private var profileAccessBanner: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "folder.badge.questionmark")
+                .foregroundStyle(.secondary)
 
-            Divider()
-
-            // Content
-            switch activeTab {
-            case .installed:
-                installedAppsContent
-            case .custom:
-                CustomAppForm(manager: manager, isPresented: $isPresented)
-            }
-        }
-        .frame(width: 440, height: 520)
-        .onAppear {
-            refreshInstalledBrowsers()
-        }
-        .accessibilityIdentifier("settings.addSheet.root")
-    }
-
-    // MARK: - Installed Apps Tab
-
-    @ViewBuilder
-    private var installedAppsContent: some View {
-        VStack(spacing: 0) {
-            if profileAccessStatus.needsRecovery {
-                addSheetProfileAccessBanner
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
-            }
-
-            // Search + hidden toggle
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.tertiary)
-                TextField("Search installed browsers", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .accessibilityIdentifier("settings.addSheet.searchField")
-
-                Toggle("Show hidden", isOn: $showHiddenApps)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .font(.system(size: 10))
-                    .accessibilityIdentifier("settings.addSheet.showHiddenToggle")
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.quaternary.opacity(0.12))
-            )
-            .padding(12)
-
-            if filteredBrowsers.isEmpty && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.green)
-                    Text("All installed browsers are configured")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                    Text("Use the \"Custom App\" tab to add any other app.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredBrowsers.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.quaternary)
-                    Text("No matching browsers")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 4) {
-                        let items = filteredBrowsers
-                        ForEach(items.indices, id: \.self) { index in
-                            let entry = items[index]
-                            let isHidden = manager.hiddenBundleIDs.contains(entry.bundleId)
-                            browserOption(entry: entry, isHidden: isHidden)
-                                .id("\(entry.bundleId)|\(entry.profile ?? "")")
-                        }
-                    }
-                    .padding(12)
-                }
-            }
-        }
-    }
-
-
-    private var addSheetProfileAccessBanner: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.blue)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild ? "Find browser profiles" : "Profile names are informational")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(addSheetProfileAccessMessage)
-                    .font(.system(size: 10))
+                    .font(.callout.weight(.semibold))
+                Text(profileAccessMessage)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -212,23 +282,16 @@ struct AddBrowserSheet: View {
             Spacer(minLength: 8)
 
             Button("Allow Access…") {
-                grantProfileAccessFromAddSheet()
+                grantProfileAccess()
             }
             .controlSize(.small)
             .accessibilityIdentifier("settings.addSheet.profileAccess.grantButton")
         }
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.blue.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(Color.blue.opacity(0.16))
-        )
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private var addSheetProfileAccessMessage: String {
+    private var profileAccessMessage: String {
         switch profileAccessStatus {
         case .missing:
             if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
@@ -245,238 +308,175 @@ struct AddBrowserSheet: View {
     }
 
     @MainActor
-    private func grantProfileAccessFromAddSheet() {
+    private func grantProfileAccess() {
         _ = SandboxBookmarkManager.shared.requestApplicationSupportAccess()
         refreshInstalledBrowsers()
     }
+}
 
-    private func refreshInstalledBrowsers() {
-        BrowserProfileDetector.clearCache()
-        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
-        availableBrowsers = BrowserManager.getInstalledBrowsers()
-        allBrowsersIncludingHidden = BrowserManager.getInstalledBrowsers(includeHidden: true)
-    }
+private struct AddBrowserOptionLabel: View {
+    let row: AddBrowserSheet.Row
 
-    private func browserOption(entry: (name: String, bundleId: String, profile: String?, iconURL: URL?), isHidden: Bool = false) -> some View {
-        let identifier = "\(entry.bundleId)|\(entry.profile ?? "")"
-        let isHovered = hoveredIdentity == identifier
-
-        return HStack(spacing: 0) {
-            Button(action: {
-                manager.addBrowser(
-                    name: entry.name,
-                    bundleId: entry.bundleId,
-                    shortcutKey: manager.nextAvailableShortcutKey(),
-                    profile: entry.profile
-                )
-                isPresented = false
-            }) {
-                HStack(spacing: 12) {
-                    if let icon = BrowserManager.icon(forBrowserBundleID: entry.bundleId, fallbackURL: entry.iconURL) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Image(systemName: "globe")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 32, height: 32)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.name)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(isHidden ? .secondary : .primary)
-
-                        if let profile = entry.profile {
-                            Text("\(entry.bundleId) (\(profile))")
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        } else {
-                            Text(entry.bundleId)
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.blue)
-                        .opacity(isHovered ? 1.0 : 0.5)
+    var body: some View {
+        HStack(spacing: 10) {
+            Group {
+                if let icon = row.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                } else {
+                    Image(systemName: "globe")
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .frame(width: 24, height: 24)
+            .accessibilityHidden(true)
 
-            if showHiddenApps {
-                Button {
-                    if isHidden {
-                        manager.removeHiddenBundleID(entry.bundleId)
-                    } else {
-                        manager.addHiddenBundleID(entry.bundleId)
-                    }
-                    refreshInstalledBrowsers()
-                } label: {
-                    Image(systemName: isHidden ? "eye.slash" : "eye")
-                        .font(.system(size: 11))
-                        .foregroundStyle(isHidden ? .orange : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(isHidden ? "Unhide from browser list" : "Hide from browser list")
-                .padding(.trailing, 8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.name)
+                    .lineLimit(1)
+                Text(row.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: 8)
+
+            if row.isAlreadyAdded {
+                Text("Already added")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isHovered ? .white.opacity(0.08) : .clear)
-        )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.12)) {
-                hoveredIdentity = hovering ? identifier : nil
-            }
-        }
-        .accessibilityIdentifier("settings.addSheet.option")
-        .accessibilityLabel("Add \(entry.name)")
-        .accessibilityHint("Adds \(entry.name) to the browser picker")
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 }
 
-// MARK: - Custom App Form
+// MARK: - Other App (custom app form)
 
+/// Manual path for apps Chowser doesn't detect as browsers: pick an app bundle with
+/// NSOpenPanel (auto-fills name + bundle ID) or type the bundle ID.
 struct CustomAppForm: View {
     var manager: BrowserManager
-    @Binding var isPresented: Bool
+    var onBack: () -> Void
+    var onAdded: ([BrowserConfig]) -> Void
 
     @State private var customName = ""
     @State private var customBundleId = ""
     @State private var customArgs = ""
-    @State private var pickedAppIcon: NSImage? = nil
+    @State private var pickedAppIcon: NSImage?
+    @State private var errorMessage: String?
 
-    private var canAdd: Bool {
-        !customName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !customBundleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    private var trimmedName: String { customName.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedBundleId: String { customBundleId.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var canAdd: Bool { !trimmedName.isEmpty && !trimmedBundleId.isEmpty }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Add Other App")
+                    .font(.headline)
+                Text("Add any app that can open links, even if Chowser doesn't list it as a browser.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding([.horizontal, .top], 20)
 
-                // App picker row
-                HStack(spacing: 12) {
-                    Group {
-                        if let icon = pickedAppIcon {
-                            Image(nsImage: icon)
-                                .resizable()
-                                .interpolation(.high)
-                                .frame(width: 36, height: 36)
-                        } else {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.quaternary.opacity(0.2))
-                                .frame(width: 36, height: 36)
-                                .overlay(
-                                    Image(systemName: "app.dashed")
-                                        .font(.system(size: 18))
-                                        .foregroundStyle(.quaternary)
-                                )
+            Form {
+                Section {
+                    LabeledContent("App") {
+                        HStack(spacing: 8) {
+                            if let pickedAppIcon {
+                                Image(nsImage: pickedAppIcon)
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .frame(width: 20, height: 20)
+                                    .accessibilityHidden(true)
+                            }
+                            Button("Choose App…") {
+                                pickApp()
+                            }
+                            .accessibilityIdentifier("settings.addSheet.custom.pickAppButton")
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Button("Choose App…") {
-                            pickApp()
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .accessibilityIdentifier("settings.addSheet.custom.pickAppButton")
-
-                        Text("Auto-fills name and bundle ID from the app bundle.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-
-                Divider()
-
-                // Name field
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Display Name")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("e.g. Arc, Kagi, MyApp", text: $customName)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
+                    TextField("Name", text: $customName, prompt: Text("e.g. Arc"))
                         .accessibilityIdentifier("settings.addSheet.custom.nameField")
-                }
 
-                // Bundle ID field
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Bundle ID")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("com.example.MyApp", text: $customBundleId)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
+                    TextField("Bundle ID", text: $customBundleId, prompt: Text("com.example.MyApp"))
+                        .font(.body.monospaced())
                         .accessibilityIdentifier("settings.addSheet.custom.bundleIdField")
-                    Text("Run in Terminal: mdls -name kMDItemCFBundleIdentifier /Applications/MyApp.app")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                } footer: {
+                    Text("Choosing an app fills in the name and bundle ID.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
-                // Custom args field
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Custom Launch Arguments")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("Optional — e.g. --profile-directory={profile} {url}", text: $customArgs)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
+                Section {
+                    TextField("Launch arguments", text: $customArgs, prompt: Text("Optional"))
+                        .font(.body.monospaced())
                         .disabled(!BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild)
                         .accessibilityIdentifier("settings.addSheet.custom.argsField")
+                } footer: {
                     Text(BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
-                         ? "Placeholders: {url}, {profile}. If omitted, URL is appended at the end."
-                         : "Custom launch arguments are unavailable in App Store builds because macOS ignores them from sandboxed apps.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                         ? "Placeholders: {url}, {profile}. If {url} is omitted, the link is appended at the end."
+                         : "Launch arguments are unavailable in App Store builds because macOS ignores them from sandboxed apps.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(20)
-        }
+            .formStyle(.grouped)
 
-        Divider()
-
-        // Footer
-        HStack {
-            Button("Cancel") { isPresented = false }
-                .buttonStyle(.bordered)
-
-            Spacer()
-
-            Button("Add App") {
-                let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
-                let bundleId = customBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
-                let args = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
-                    ? customArgs.trimmingCharacters(in: .whitespacesAndNewlines)
-                    : ""
-
-                manager.addBrowser(name: name, bundleId: bundleId)
-                if !args.isEmpty, let id = manager.configuredBrowsers.last(where: { $0.bundleId == bundleId })?.id {
-                    manager.updateBrowserCustomArguments(id: id, to: args)
-                }
-                isPresented = false
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20)
+                    .accessibilityIdentifier("settings.addSheet.custom.error")
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canAdd)
-            .accessibilityIdentifier("settings.addSheet.custom.addButton")
-            .keyboardShortcut(.defaultAction)
+
+            Divider()
+
+            HStack {
+                Button("Back") {
+                    onBack()
+                }
+                .accessibilityIdentifier("settings.addSheet.custom.backButton")
+
+                Spacer()
+
+                Button("Add App") {
+                    addApp()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canAdd)
+                .accessibilityIdentifier("settings.addSheet.custom.addButton")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+    }
+
+    private func addApp() {
+        let added = manager.addBrowsers([
+            BrowserManager.BrowserAddRequest(name: trimmedName, bundleId: trimmedBundleId, profile: nil)
+        ])
+        guard let browser = added.first else {
+            errorMessage = "\(trimmedName) is already in your browser list."
+            return
+        }
+
+        let args = BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild
+            ? customArgs.trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+        if !args.isEmpty {
+            manager.updateBrowserCustomArguments(id: browser.id, to: args)
+        }
+        onAdded(added)
     }
 
     private func pickApp() {
@@ -487,44 +487,14 @@ struct CustomAppForm: View {
         panel.canChooseDirectories = false
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url, let bundle = Bundle(url: url) else { return }
 
-        if let bundle = Bundle(url: url) {
-            let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
-                ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
-                ?? url.deletingPathExtension().lastPathComponent
-            if customName.isEmpty { customName = name }
-            customBundleId = bundle.bundleIdentifier ?? customBundleId
-            pickedAppIcon = NSWorkspace.shared.icon(forFile: url.path)
-        }
-    }
-}
-
-// MARK: - Plain Disclosure Style (used elsewhere)
-
-struct PlainDisclosureStyle: DisclosureGroupStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    configuration.isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    configuration.label
-                    Spacer()
-                    Image(systemName: configuration.isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .padding(.trailing, 16)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if configuration.isExpanded {
-                configuration.content
-            }
-        }
+        let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+            ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+            ?? url.deletingPathExtension().lastPathComponent
+        if trimmedName.isEmpty { customName = name }
+        customBundleId = bundle.bundleIdentifier ?? customBundleId
+        pickedAppIcon = NSWorkspace.shared.icon(forFile: url.path)
+        errorMessage = nil
     }
 }

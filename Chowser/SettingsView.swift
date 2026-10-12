@@ -9,17 +9,13 @@ struct SettingsView: View {
     @State var appStoreUpdateProvider = AppStoreUpdateProvider.shared
     #endif
 
-    @State var showingAddSheet = false
     @State var showingAddRuleSheet = false
     @State var currentPrefillURL: URL?
     @State var selectedSection: SettingsSection = .browsers
     @State var showingResetConfirmation = false
-    @State var browserSearchText = ""
     @State var ruleSearchText = ""
     @State var rewriteSearchText = ""
-    @State var newHiddenBundleId = ""
     @State var newShortenerHost = ""
-    @State var browserToEdit: BrowserConfig?
     @State var selectedRuleId: UUID?
     @State var preselectedRuleBrowserIdentity: String?
     @State var showingRuleMergeReview = false
@@ -69,7 +65,7 @@ struct SettingsView: View {
             case .rewrites: return "URL transformations"
             case .behavior: return "Fallback & privacy"
             case .appearance: return "Picker look"
-            case .apps: return "Native links & hidden handlers"
+            case .apps: return "Native links"
             case .general: return "Startup & maintenance"
             }
         }
@@ -95,9 +91,6 @@ struct SettingsView: View {
             settingsDetail
         }
         .frame(minWidth: 860, idealWidth: 980, maxWidth: .infinity, minHeight: 560, idealHeight: 660, maxHeight: .infinity)
-        .sheet(isPresented: $showingAddSheet) {
-            AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
-        }
         .sheet(isPresented: $showingAddRuleSheet) {
             AddRuleSheet(
                 manager: browserManager,
@@ -119,16 +112,6 @@ struct SettingsView: View {
                 isPresented: Binding(
                     get: { rewriteCatalogSheet != nil },
                     set: { if !$0 { rewriteCatalogSheet = nil } }
-                )
-            )
-        }
-        .sheet(item: $browserToEdit) { browser in
-            EditBrowserSheet(
-                browser: browser,
-                manager: browserManager,
-                isPresented: Binding(
-                    get: { browserToEdit != nil },
-                    set: { if !$0 { browserToEdit = nil } }
                 )
             )
         }
@@ -321,7 +304,7 @@ struct SettingsView: View {
         case .rewrites:
             return browserManager.rewriteRules.filter(\.isEnabled).count
         case .apps:
-            return browserManager.nativeAppApprovals.count + browserManager.hiddenBundleIDs.count
+            return browserManager.nativeAppApprovals.count
         case .behavior, .appearance, .general:
             return 0
         }

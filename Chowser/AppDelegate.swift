@@ -953,14 +953,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // This is the same pattern as the picker panel and avoids SwiftUI scene
         // lifecycle problems (auto-opening on activation, sendAction responder issues).
         let hostingController = NSHostingController(rootView: SettingsView())
+        // The window owns its size (980×660, user-resizable). Letting SwiftUI drive it
+        // from the content's ideal/min size made pages with lists overflow the window.
+        hostingController.sizingOptions = []
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Chowser Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         let settingsContentSize = AppEnvironment.shouldUseNarrowSettingsWindow
             ? NSSize(width: 860, height: 560)
-            : NSSize(width: 980, height: 660)
+            : NSSize(width: 1100, height: 680)
         window.setContentSize(settingsContentSize)
-        window.minSize = NSSize(width: 860, height: 560)
+        // Wide enough for the sidebar, a table and the inspector side by side.
+        window.minSize = NSSize(width: 980, height: 560)
         window.center()
         window.isReleasedWhenClosed = false
 

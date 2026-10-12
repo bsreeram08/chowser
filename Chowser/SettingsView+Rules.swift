@@ -83,7 +83,7 @@ struct RulesSettingsPage: View {
         )
         .inspector(isPresented: inspectorPresented) {
             inspectorContent
-                .inspectorColumnWidth(min: 280, ideal: 310, max: 420)
+                .inspectorColumnWidth(min: 260, ideal: 290, max: 420)
         }
         .onAppear(perform: consumeCreateRequest)
         .onChange(of: createRequested) { consumeCreateRequest() }
@@ -109,11 +109,13 @@ struct RulesSettingsPage: View {
             .accessibilityLabel("Rule Actions")
             .accessibilityIdentifier("settings.rulesMenuButton")
 
-            Button("Set Up with AI", systemImage: "sparkles") { AISetup.run() }
+            // With the inspector open there isn't room for labels; icons keep the
+            // buttons whole instead of truncating them to "Set U…".
+            compactLabel(Button("Set Up with AI", systemImage: "sparkles") { AISetup.run() })
                 .help("Copy a prompt that lets an AI assistant write your rules")
                 .accessibilityIdentifier("settings.aiSetupButton")
 
-            Button("Test a Link", systemImage: "checkmark.circle") { showingTester.toggle() }
+            compactLabel(Button("Test a Link", systemImage: "checkmark.circle") { showingTester.toggle() })
                 .help("Check which rule a link matches")
                 .accessibilityIdentifier("settings.rules.testButton")
                 .popover(isPresented: $showingTester, arrowEdge: .bottom) {
@@ -126,6 +128,15 @@ struct RulesSettingsPage: View {
                 .accessibilityIdentifier("settings.addRuleButton")
         }
         .controlSize(.regular)
+    }
+
+    @ViewBuilder
+    private func compactLabel(_ button: some View) -> some View {
+        if inspectorPresented.wrappedValue {
+            button.labelStyle(.iconOnly)
+        } else {
+            button
+        }
     }
 
     // MARK: Content
@@ -146,7 +157,7 @@ struct RulesSettingsPage: View {
             Text("Rules are checked top to bottom; the first match wins. Drag a rule to change its priority.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                
         }
         .padding(20)
     }
@@ -208,7 +219,7 @@ struct RulesSettingsPage: View {
                     Label("The fallback browser isn’t available, so Chowser shows the picker until you choose another.", systemImage: "exclamationmark.triangle")
                         .font(.callout)
                         .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
+                        
                         .accessibilityIdentifier("settings.rules.fallbackBrowserMissingNote")
                 }
             }
@@ -315,7 +326,7 @@ struct RulesSettingsPage: View {
                 model.move(ids: ids, toDisplayIndex: index)
             }
         }
-        .tableStyle(.bordered(alternatesRowBackgrounds: true))
+        .tableStyle(.bordered(alternatesRowBackgrounds: false))
         .contextMenu(forSelectionType: UUID.self) { ids in
             if let id = ids.first {
                 Button("Duplicate") { manager.duplicateRoutingRule(id: id) }
@@ -638,7 +649,7 @@ private struct RuleInspector: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text("These changes aren’t saved until the error is fixed.")
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            
                         Spacer()
                         Button("Revert") { model.revert(ruleID) }
                             .help("Discard these changes and go back to the last saved version")
@@ -724,7 +735,7 @@ private struct RuleInspector: View {
         Label(message, systemImage: "exclamationmark.triangle.fill")
             .font(.callout)
             .foregroundStyle(.red)
-            .fixedSize(horizontal: false, vertical: true)
+            
             .accessibilityIdentifier(identifier)
     }
 
@@ -732,7 +743,7 @@ private struct RuleInspector: View {
         Text(text)
             .font(.callout)
             .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            
     }
 }
 

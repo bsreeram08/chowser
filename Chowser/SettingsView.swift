@@ -95,7 +95,7 @@ struct SettingsView: View {
         } detail: {
             settingsDetail
         }
-        .frame(minWidth: 860, idealWidth: 980, maxWidth: .infinity, minHeight: 560, idealHeight: 660, maxHeight: .infinity)
+        .frame(minWidth: 860, idealWidth: 1100, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
         .sheet(isPresented: $showingRuleMergeReview) {
             RuleMergeReviewSheet(manager: browserManager, isPresented: $showingRuleMergeReview)
         }

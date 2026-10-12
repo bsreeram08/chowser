@@ -156,8 +156,7 @@ struct BrowsersSettingsPage: View {
                 Text("This is the order browsers appear in the picker. Drag to reorder; double-click a name to rename it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
+                    
                 if let status {
                     statusLine(status)
                 }
@@ -195,7 +194,7 @@ struct BrowsersSettingsPage: View {
                     BrowserTableHeader()
                 }
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .listStyle(.inset(alternatesRowBackgrounds: false))
             .scrollContentBackground(.hidden)
             .contextMenu(forSelectionType: UUID.self) { ids in
                 if let id = ids.first {
@@ -370,8 +369,9 @@ struct BrowsersSettingsPage: View {
                         }
                     }
                 }
-                .frame(maxHeight: 160)
-                .fixedSize(horizontal: false, vertical: true)
+                // Explicit height: fixedSize on a ScrollView reports its whole content as
+                // the page's minimum height, which pushed Settings past the window edges.
+                .frame(height: min(CGFloat(apps.count) * 34, 160))
                 .background(Color(nsColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(
@@ -384,8 +384,7 @@ struct BrowsersSettingsPage: View {
             Text("Hidden apps can open links, but Chowser doesn't offer them in Add Browsers or use them as the fallback browser.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
+                
             HStack(spacing: 8) {
                 TextField("Bundle ID", text: $newHiddenBundleId, prompt: Text("com.example.app"))
                     .textFieldStyle(.roundedBorder)
@@ -736,8 +735,7 @@ private struct BrowserInspector: View {
                 Text(profileHint(appName: appName, optionCount: profileOptions.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                                }
 
             Section(isExpanded: $showsAdvanced) {
                     TextField("Launch arguments", text: $customArguments, prompt: Text("--profile-directory={profile}"))
@@ -755,8 +753,7 @@ private struct BrowserInspector: View {
                     Text(argumentsHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-            } header: {
+                                    } header: {
                 Text("Advanced")
                     .accessibilityIdentifier("settings.browserInspector.advancedDisclosure")
             }
@@ -766,8 +763,7 @@ private struct BrowserInspector: View {
                     Text("\(ruleCount) \(ruleCount == 1 ? "rule uses" : "rules use") this browser. Undo brings them back if you remove it.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("settings.browserInspector.ruleUsageNote")
+                                                .accessibilityIdentifier("settings.browserInspector.ruleUsageNote")
                 }
 
                 Button("Remove Browser", role: .destructive, action: onRemove)
@@ -900,8 +896,7 @@ private struct ProfileAccessBanner: View {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                                }
 
             Spacer(minLength: 12)
 

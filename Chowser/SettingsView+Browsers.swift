@@ -322,16 +322,34 @@ struct BrowsersSettingsPage: View {
         var id: String { bundleId }
     }
 
+    /// A row that opens a sheet rather than an inline disclosure: expanding content
+    /// under the flexible-height list made AppKit's constraint pass loop and crash.
     private var hiddenAppsSection: some View {
         let hiddenIDs = browserManager.hiddenBundleIDs
-        return DisclosureGroup(isExpanded: $showsHiddenApps) {
-            hiddenAppsContent(hiddenIDs: hiddenIDs)
-                .padding(.top, 6)
-        } label: {
-            // Identifier on the label, not the group: a group-level identifier would
-            // override the identifiers of every control inside the expanded content.
-            Text("Hidden apps (\(hiddenIDs.count))")
+        return HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Hidden apps (\(hiddenIDs.count))")
+                Text("Apps that can open links but aren't offered as browsers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Manage…") { showsHiddenApps = true }
                 .accessibilityIdentifier("settings.hiddenApps.disclosure")
+        }
+        .sheet(isPresented: $showsHiddenApps) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Hidden Apps")
+                    .font(.headline)
+                hiddenAppsContent(hiddenIDs: browserManager.hiddenBundleIDs)
+                HStack {
+                    Spacer()
+                    Button("Done") { showsHiddenApps = false }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 480)
         }
     }
 
@@ -371,7 +389,7 @@ struct BrowsersSettingsPage: View {
                 }
                 // Explicit height: fixedSize on a ScrollView reports its whole content as
                 // the page's minimum height, which pushed Settings past the window edges.
-                .frame(height: min(CGFloat(apps.count) * 34, 160))
+                .frame(height: 220)
                 .background(Color(nsColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(

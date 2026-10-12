@@ -5,18 +5,12 @@ extension SettingsView {
     var behaviorSection: some View {
         SettingsDetailScaffold(
             title: "Behavior",
-            subtitle: "Fallback routing and privacy controls for network-backed lookups.",
+            subtitle: "Privacy controls for network-backed lookups and tracking cleanup.",
             systemImage: "arrow.triangle.branch",
             content: {
                 VStack(alignment: .leading, spacing: 16) {
                     if !browserManager.hasSeenNetworkPrivacyUpgradeNotice {
                         networkPrivacyUpgradeNote
-                    }
-
-                    fallbackGroup
-
-                    if fallbackBrowserMissing {
-                        fallbackBrowserMissingNote
                     }
 
                     networkLookupsGroup
@@ -53,88 +47,6 @@ extension SettingsView {
         .padding(12)
         .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityIdentifier("settings.behavior.networkPrivacyUpgradeNote")
-    }
-
-    // MARK: - Fallback routing
-
-    private var fallbackGroup: some View {
-        SettingsGroup("Fallback Routing", subtitle: "What happens when a link matches no routing rule.") {
-            SettingsRow(title: "When no rule matches") {
-                Picker("", selection: fallbackModeBinding) {
-                    Text("Show Picker").tag(BrowserFallbackPolicy.Mode.picker)
-                    Text("Open in Browser/Profile").tag(BrowserFallbackPolicy.Mode.browser)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 300)
-                .accessibilityIdentifier("settings.behavior.fallbackModePicker")
-            }
-
-            SettingsDivider()
-
-            SettingsRow(
-                title: "Browser/Profile",
-                subtitle: browserManager.configuredBrowsers.isEmpty ? "Add a browser to enable fallback" : nil
-            ) {
-                Picker("", selection: fallbackBrowserBinding) {
-                    Text("Choose Browser").tag(UUID?.none)
-                    ForEach(browserManager.configuredBrowsers) { browser in
-                        Text(fallbackBrowserDisplayName(browser)).tag(Optional(browser.id))
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(maxWidth: 240)
-                .disabled(browserManager.configuredBrowsers.isEmpty || browserManager.fallbackPolicy.mode != .browser)
-                .accessibilityIdentifier("settings.behavior.fallbackBrowserPicker")
-            }
-        }
-    }
-
-    private var fallbackModeBinding: Binding<BrowserFallbackPolicy.Mode> {
-        Binding(
-            get: { browserManager.fallbackPolicy.mode },
-            set: { browserManager.fallbackPolicy.mode = $0 }
-        )
-    }
-
-    private var fallbackBrowserBinding: Binding<UUID?> {
-        Binding(
-            get: { browserManager.fallbackPolicy.browserID },
-            set: { newID in
-                browserManager.fallbackPolicy.browserID = newID
-                browserManager.fallbackPolicy.profile = browserManager.configuredBrowsers.first(where: { $0.id == newID })?.profile
-            }
-        )
-    }
-
-    private func fallbackBrowserDisplayName(_ browser: BrowserConfig) -> String {
-        if let profile = browser.profile {
-            return "\(browser.name) (\(profile))"
-        }
-        return browser.name
-    }
-
-    /// True when the persisted fallback browser was deleted or hidden since it was chosen
-    /// (FR-003). Routing already falls back to the picker at runtime; this just surfaces
-    /// that silent revert in Settings instead of leaving no trace.
-    private var fallbackBrowserMissing: Bool {
-        guard browserManager.fallbackPolicy.mode == .browser,
-              let browserID = browserManager.fallbackPolicy.browserID else {
-            return false
-        }
-        guard let browser = browserManager.configuredBrowsers.first(where: { $0.id == browserID }) else {
-            return true
-        }
-        return browserManager.hiddenBundleIDs.contains(browser.bundleId)
-    }
-
-    private var fallbackBrowserMissingNote: some View {
-        Label("The browser chosen for fallback is no longer available. Chowser shows the picker until you choose another.", systemImage: "exclamationmark.triangle")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.orange)
-            .padding(.horizontal, 4)
-            .accessibilityIdentifier("settings.behavior.fallbackBrowserMissingNote")
     }
 
     // MARK: - Network lookups

@@ -196,22 +196,16 @@ final class ChowserUITests: XCTestCase {
         XCTAssertTrue(preview.isHittable, "The compact preview should remain visible while narrow controls scroll.")
     }
 
-    func testFallbackBrowserPickerHasExplicitEmptySelection() throws {
-        let behaviorButton = app.buttons["settings.sidebar.behavior"]
-        XCTAssertTrue(behaviorButton.waitForExistence(timeout: 5))
-        behaviorButton.click()
+    func testFallbackPickerLivesOnRulesPageAndDefaultsToPicker() throws {
+        let ui = ChowserAppDriver(app: app)
+        ui.openSettings()
+        ui.openRulesSection()
 
-        let fallbackModePicker = app.descendants(matching: .any)
-            .matching(identifier: "settings.behavior.fallbackModePicker")
+        let fallbackPicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.rules.fallbackPicker")
             .firstMatch
-        XCTAssertTrue(fallbackModePicker.waitForExistence(timeout: 5))
-        fallbackModePicker.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).click()
-
-        let browserPicker = app.descendants(matching: .any)
-            .matching(identifier: "settings.behavior.fallbackBrowserPicker")
-            .firstMatch
-        XCTAssertTrue(browserPicker.waitForExistence(timeout: 5))
-        XCTAssertEqual(browserPicker.value as? String, "Choose Browser")
+        XCTAssertTrue(fallbackPicker.waitForExistence(timeout: 5))
+        XCTAssertEqual(fallbackPicker.value as? String, "Show the picker")
     }
 
     func testRadialPickerUsesCursorAsCenterAndDirectionSelectsBrowser() throws {
@@ -702,17 +696,12 @@ final class ChowserUITests: XCTestCase {
         ui.openRulesSection()
         ui.openAddRuleSheet()
 
-        // Verify the browser picker is present in the add-rule sheet
-        let browserPicker = app.descendants(matching: .any).matching(identifier: "settings.addRule.browserPicker").firstMatch
-        XCTAssertTrue(browserPicker.waitForExistence(timeout: 5), "Browser picker should be present in add-rule sheet.")
+        // The inspector for the new rule shows its browser picker.
+        let browserPicker = app.descendants(matching: .any).matching(identifier: "settings.rule.browserPicker").firstMatch
+        XCTAssertTrue(browserPicker.waitForExistence(timeout: 5), "Browser picker should be present in the rule inspector.")
 
-        // Fill the rule and submit
         ui.addRule(hostPattern: "test.example.com")
         ui.assertRuleCreated()
-
-        // Verify the rule's browser picker in the rules list
-        let ruleBrowserPicker = app.descendants(matching: .any).matching(identifier: "settings.rule.browserPicker").firstMatch
-        XCTAssertTrue(ruleBrowserPicker.waitForExistence(timeout: 5), "Rule should have a browser picker.")
     }
 
     private func triggerOpenURLInChowser(_ urlString: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -789,20 +778,12 @@ private struct ChowserAppDriver {
         app.buttons["settings.addRuleButton"]
     }
 
-    var addRuleSheetRoot: XCUIElement {
-        app.descendants(matching: .any).matching(identifier: "settings.addRule.root").firstMatch
+    var ruleInspectorHostField: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "settings.rule.hostField").firstMatch
     }
 
-    var addRuleConfirmButton: XCUIElement {
-        app.buttons["settings.addRule.confirmButton"]
-    }
-
-    var addRuleQuickFillButton: XCUIElement {
-        app.buttons["settings.addRule.fillTestHostButton"]
-    }
-
-    var ruleHostFields: XCUIElementQuery {
-        app.descendants(matching: .any).matching(identifier: "settings.rule.hostField")
+    var rulesTable: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "settings.rules.table").firstMatch
     }
 
     var firstBrowserNameValue: String {
@@ -880,39 +861,30 @@ private struct ChowserAppDriver {
         confirmButton.click()
     }
 
+    /// Adds a rule inline: the "+" button inserts a row and focuses the inspector's
+    /// "Link matches" field (there is no add-rule sheet anymore).
     func openAddRuleSheet() {
         XCTAssertTrue(addRuleButton.waitForExistence(timeout: 5), "Add rule button not found.")
         addRuleButton.click()
-        XCTAssertTrue(addRuleSheetRoot.waitForExistence(timeout: 5), "Add rule sheet should open.")
+        XCTAssertTrue(ruleInspectorHostField.waitForExistence(timeout: 5), "Rule inspector should open for the new rule.")
     }
 
     func addRule(hostPattern: String) {
-        // Fill the rule name field
-        let nameField = app.descendants(matching: .textField).matching(identifier: "settings.addRule.nameField").firstMatch
-        if nameField.waitForExistence(timeout: 3) {
-            nameField.click()
-            nameField.typeText("TestRule")
-        }
-
-        // Fill the host pattern field
-        let hostField = resolvedAddRuleHostField()
-        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Host pattern field not found.")
+        let hostField = ruleInspectorHostField
+        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Link matches field not found.")
         hostField.click()
         hostField.typeText(hostPattern)
-
-        // The "Add Rule" button has .keyboardShortcut(.defaultAction),
-        // so pressing Return triggers it. XCUI can't reliably read isEnabled
-        // on .defaultAction buttons, so we use the keyboard shortcut instead.
-        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        // Rules save as soon as they validate; Return ends editing.
         app.typeKey(.return, modifierFlags: [])
-
-        let predicate = NSPredicate(format: "exists == false")
-        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: addRuleSheetRoot)
-        _ = XCTWaiter.wait(for: [expectation], timeout: 5)
     }
 
     func assertRuleCreated(file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(ruleHostFields.firstMatch.waitForExistence(timeout: 5), "Expected at least one routing rule row.", file: file, line: line)
+        XCTAssertTrue(rulesTable.waitForExistence(timeout: 5), "Rules table should exist.", file: file, line: line)
+        let error = app.descendants(matching: .any).matching(identifier: "settings.rule.hostError").firstMatch
+        XCTAssertFalse(error.exists, "The new rule should be valid.", file: file, line: line)
+        let predicate = NSPredicate(format: "count > 0")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: rulesTable.tableRows)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, "Expected at least one routing rule row.", file: file, line: line)
     }
 
     private func clickSidebarItem(identifier: String) {
@@ -929,20 +901,5 @@ private struct ChowserAppDriver {
         }
 
         XCTFail("Sidebar item \(identifier) not found.")
-    }
-
-    private func resolvedAddRuleHostField() -> XCUIElement {
-        let identifierMatch = app.descendants(matching: .any).matching(identifier: "settings.addRule.hostField").firstMatch
-        if identifierMatch.waitForExistence(timeout: 1) {
-            return identifierMatch
-        }
-
-        let textFields = addRuleSheetRoot.descendants(matching: .textField)
-        let secondField = textFields.element(boundBy: 1)
-        if secondField.waitForExistence(timeout: 1) {
-            return secondField
-        }
-
-        return textFields.firstMatch
     }
 }

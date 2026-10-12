@@ -10,6 +10,9 @@ struct SettingsView: View {
     #endif
 
     @State var showingAddSheet = false
+    /// Request flag for creating a rule from elsewhere in the app (e.g. the menu's
+    /// "Create Rule for Link"). The Rules page consumes it by inserting a new rule
+    /// into its table + inspector; there is no separate add-rule sheet.
     @State var showingAddRuleSheet = false
     @State var currentPrefillURL: URL?
     @State var selectedSection: SettingsSection = .browsers
@@ -21,6 +24,9 @@ struct SettingsView: View {
     @State var newShortenerHost = ""
     @State var browserToEdit: BrowserConfig?
     @State var selectedRuleId: UUID?
+    /// Rules page editing state (selection, unsaved drafts). Owned here so drafts
+    /// survive switching sidebar sections.
+    @State var rulesEditor = RulesEditorModel(manager: BrowserManager.shared)
     @State var preselectedRuleBrowserIdentity: String?
     @State var showingRuleMergeReview = false
     @State var showingAddRewriteSheet = false
@@ -97,14 +103,6 @@ struct SettingsView: View {
         .frame(minWidth: 860, idealWidth: 980, maxWidth: .infinity, minHeight: 560, idealHeight: 660, maxHeight: .infinity)
         .sheet(isPresented: $showingAddSheet) {
             AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet)
-        }
-        .sheet(isPresented: $showingAddRuleSheet) {
-            AddRuleSheet(
-                manager: browserManager,
-                isPresented: $showingAddRuleSheet,
-                prefillURL: currentPrefillURL,
-                preselectedBrowserIdentity: preselectedRuleBrowserIdentity
-            )
         }
         .sheet(isPresented: $showingRuleMergeReview) {
             RuleMergeReviewSheet(manager: browserManager, isPresented: $showingRuleMergeReview)

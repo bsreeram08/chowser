@@ -1333,6 +1333,89 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         return result
     }
 
+    // MARK: Routing Rules — Settings editor support
+
+    /// An enabled stored rule that the router can't use as written (for example its
+    /// browser was removed). Surfaced by the Settings rule tester as "skipped".
+    struct RoutingRuleIssue: Equatable {
+        let index: Int
+        let rule: BrowserRoutingRule
+        let error: RoutingRuleValidationError
+    }
+
+    /// Runs the exact validation/normalization used when saving a rule, without
+    /// mutating anything. The Settings editor uses this to show inline errors for a
+    /// draft while keeping the last valid version in the store.
+    func validateRoutingRule(_ rule: BrowserRoutingRule) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        validatedRoutingRule(rule)
+    }
+
+    /// Store index for a new rule inserted directly after `id`, or at the end when
+    /// `id` is nil or no longer exists.
+    func routingRuleInsertionIndex(after id: UUID?) -> Int {
+        guard let id, let index = routingRules.firstIndex(where: { $0.id == id }) else {
+            return routingRules.count
+        }
+        return index + 1
+    }
+
+    /// Validates and inserts a rule at `index` (clamped to the valid range). Invalid
+    /// rules are never inserted; the failure is returned to the caller instead.
+    @discardableResult
+    func insertRoutingRule(_ rule: BrowserRoutingRule, at index: Int) -> Result<BrowserRoutingRule, RoutingRuleValidationError> {
+        let result = validatedRoutingRule(rule)
+        if case .success(let normalizedRule) = result {
+            let clamped = min(max(index, 0), routingRules.count)
+            routingRules.insert(normalizedRule, at: clamped)
+        }
+        return result
+    }
+
+    /// Removes a rule and, when an undo manager is supplied, registers an undo that
+    /// puts it back at the same index (Edit ▸ Undo / Command-Z). Returns the removed
+    /// rule's former index, or nil when no rule has that ID.
+    @discardableResult
+    func deleteRoutingRule(id: UUID, undoManager: UndoManager?) -> Int? {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return nil }
+        let removed = routingRules.remove(at: index)
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { manager in
+                MainActor.assumeIsolated {
+                    manager.restoreRoutingRule(removed, at: index, undoManager: undoManager)
+                }
+            }
+            undoManager.setActionName("Delete Rule")
+        }
+        return index
+    }
+
+    /// Re-inserts a previously stored rule at `index` (clamped). The rule already passed
+    /// validation when it was stored, so it is restored verbatim — even if, say, its
+    /// browser has since been removed — rather than being silently dropped. Registers
+    /// the matching redo (delete) when an undo manager is supplied.
+    func restoreRoutingRule(_ rule: BrowserRoutingRule, at index: Int, undoManager: UndoManager?) {
+        guard !routingRules.contains(where: { $0.id == rule.id }) else { return }
+        let clamped = min(max(index, 0), routingRules.count)
+        routingRules.insert(rule, at: clamped)
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { manager in
+                MainActor.assumeIsolated {
+                    _ = manager.deleteRoutingRule(id: rule.id, undoManager: undoManager)
+                }
+            }
+            undoManager.setActionName("Delete Rule")
+        }
+    }
+
+    /// Enabled stored rules that fail current validation, in priority order. The router
+    /// skips these (a missing browser can never be launched; an invalid pattern can't match).
+    func routingRuleIssues() -> [RoutingRuleIssue] {
+        routingRules.enumerated().compactMap { index, rule in
+            guard rule.isEnabled, case .failure(let error) = validatedRoutingRule(rule) else { return nil }
+            return RoutingRuleIssue(index: index, rule: rule, error: error)
+        }
+    }
+
     /// Source app is an explicit parameter (mirrors `RewritePipeline.apply`) rather than
     /// always reading the ambient `currentSourceAppBundleId`, which is only set during a
     /// live URL open and `defer`-cleared immediately after — a tester/preview call site

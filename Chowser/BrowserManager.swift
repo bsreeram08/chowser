@@ -951,6 +951,116 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         configuredBrowsers.removeAll { $0.id == id }
     }
 
+    // MARK: - Settings: multi-add and undoable removal
+
+    /// One installed browser/profile the user picked in the Add Browsers sheet.
+    struct BrowserAddRequest: Hashable {
+        let name: String
+        let bundleId: String
+        let profile: String?
+    }
+
+    /// Everything needed to put a removed browser back exactly where it was.
+    struct RemovedBrowserSnapshot: Equatable {
+        let browser: BrowserConfig
+        let index: Int
+    }
+
+    /// Adds several browsers in one mutation (one save, one re-render). Each new browser
+    /// gets the next free shortcut 1-9 in request order; entries whose bundle ID + profile
+    /// are already configured (or repeated in `requests`) are skipped. Returns the
+    /// browsers that were actually added, in order.
+    @discardableResult
+    func addBrowsers(_ requests: [BrowserAddRequest]) -> [BrowserConfig] {
+        var updated = configuredBrowsers
+        var added: [BrowserConfig] = []
+
+        for request in requests {
+            let name = request.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let bundleId = request.bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !bundleId.isEmpty else { continue }
+
+            let profile = Self.normalizedProfileForCurrentBuild(request.profile)
+            guard !updated.contains(where: { $0.bundleId == bundleId && $0.profile == profile }) else {
+                continue
+            }
+
+            let browser = BrowserConfig(
+                name: name,
+                bundleId: bundleId,
+                shortcutKey: nextAvailableShortcutKey(excluding: updated),
+                profile: profile
+            )
+            updated.append(browser)
+            added.append(browser)
+        }
+
+        if !added.isEmpty {
+            configuredBrowsers = updated
+        }
+        return added
+    }
+
+    /// Removes a browser immediately and, when an undo manager is supplied, registers an
+    /// undo action ("Undo Remove Browser") that restores it at the same position with the
+    /// same shortcut. Routing rules reference bundle ID + profile, so they work again as
+    /// soon as the browser is restored. Redo is registered automatically by the restore.
+    @discardableResult
+    func removeBrowser(id: UUID, undoManager: UndoManager?) -> RemovedBrowserSnapshot? {
+        guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return nil }
+
+        let snapshot = RemovedBrowserSnapshot(browser: configuredBrowsers[index], index: index)
+        configuredBrowsers.remove(at: index)
+
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { manager in
+                MainActor.assumeIsolated {
+                    manager.restoreBrowser(snapshot, undoManager: undoManager)
+                }
+            }
+            undoManager.setActionName("Remove Browser")
+        }
+        return snapshot
+    }
+
+    /// Re-inserts a removed browser at its original index (clamped to the current list).
+    /// Keeps its shortcut unless another browser took that key in the meantime, in which
+    /// case it gets the next free one. No-op if the same browser (by id or by bundle ID +
+    /// profile) has been added again since. Returns true when the browser was restored.
+    @discardableResult
+    func restoreBrowser(_ snapshot: RemovedBrowserSnapshot, undoManager: UndoManager? = nil) -> Bool {
+        let original = snapshot.browser
+        guard !configuredBrowsers.contains(where: { $0.id == original.id || $0.identity == original.identity }) else {
+            return false
+        }
+
+        var restored = original
+        if configuredBrowsers.contains(where: { $0.shortcutKey == restored.shortcutKey }) {
+            restored.shortcutKey = nextAvailableShortcutKey()
+        }
+
+        var updated = configuredBrowsers
+        updated.insert(restored, at: min(max(snapshot.index, 0), updated.count))
+        configuredBrowsers = updated
+
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { manager in
+                MainActor.assumeIsolated {
+                    _ = manager.removeBrowser(id: restored.id, undoManager: undoManager)
+                }
+            }
+            undoManager.setActionName("Remove Browser")
+        }
+        return true
+    }
+
+    /// Number of routing rules (enabled or not) that open links in this browser.
+    func routingRuleCount(forBrowser browser: BrowserConfig) -> Int {
+        routingRules.reduce(0) { count, rule in
+            rule.browserBundleId == browser.bundleId && rule.profile == browser.profile ? count + 1 : count
+        }
+    }
+
     func removeBrowsers(at offsets: IndexSet) {
         configuredBrowsers.remove(atOffsets: offsets)
     }
@@ -1008,18 +1118,28 @@ struct BrowserFallbackPolicy: Codable, Equatable {
         configuredBrowsers.first(where: { $0.id == id })?.shortcutKey ?? "1"
     }
 
-    func updateShortcutKey(id: UUID, to newShortcut: String) {
-        guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return }
-        guard let normalized = normalizedShortcut(newShortcut) else { return }
+    /// Assigns `newShortcut` to the browser. Shortcuts stay unique: if another browser
+    /// already owns the key, the two browsers swap keys. Returns the browser (with its new
+    /// key) that gave up the shortcut so callers can tell the user about the swap, or nil
+    /// when no swap happened.
+    @discardableResult
+    func updateShortcutKey(id: UUID, to newShortcut: String) -> BrowserConfig? {
+        guard let index = configuredBrowsers.firstIndex(where: { $0.id == id }) else { return nil }
+        guard let normalized = normalizedShortcut(newShortcut) else { return nil }
+        guard configuredBrowsers[index].shortcutKey != normalized else { return nil }
 
-        // Keep shortcuts unique by swapping the existing owner with the current browser.
-        if let existingIndex = configuredBrowsers.firstIndex(where: {
+        var updated = configuredBrowsers
+        var swapped: BrowserConfig?
+        if let existingIndex = updated.firstIndex(where: {
             $0.shortcutKey == normalized && $0.id != id
         }) {
-            configuredBrowsers[existingIndex].shortcutKey = configuredBrowsers[index].shortcutKey
+            updated[existingIndex].shortcutKey = updated[index].shortcutKey
+            swapped = updated[existingIndex]
         }
 
-        configuredBrowsers[index].shortcutKey = normalized
+        updated[index].shortcutKey = normalized
+        configuredBrowsers = updated
+        return swapped
     }
 
     func nextAvailableShortcutKey() -> String {
@@ -2132,11 +2252,13 @@ struct BrowserFallbackPolicy: Codable, Equatable {
     }
 
     static func icon(forBrowserBundleID bundleId: String, fallbackURL: URL? = nil) -> NSImage? {
-        if let fallbackURL {
-            return NSWorkspace.shared.icon(forFile: fallbackURL.path)
+        // Prefer the process-lifetime cache; only hit NSWorkspace for the fallback URL when
+        // Launch Services can't resolve the bundle ID (e.g. an app outside /Applications).
+        if let cached = AppMetadataCache.shared.icon(for: bundleId) {
+            return cached
         }
-
-        return AppMetadataCache.shared.icon(for: bundleId)
+        guard let fallbackURL else { return nil }
+        return NSWorkspace.shared.icon(forFile: fallbackURL.path)
     }
 
     static func currentAppIcon() -> NSImage {

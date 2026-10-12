@@ -470,14 +470,16 @@ final class ChowserUITests: XCTestCase {
         ui.openSettings()
         ui.assertSettingsVisible()
 
-        if ui.browserDeleteButtons.count < 2 {
+        if ui.browserRows.count < 2 {
             ui.openAddBrowserSheet()
             ui.addFirstBrowserOption()
         }
 
-        XCTAssertGreaterThanOrEqual(ui.browserDeleteButtons.count, 2, "Need at least two rows to verify deletion.")
+        XCTAssertGreaterThanOrEqual(ui.browserRows.count, 2, "Need at least two rows to verify deletion.")
 
-        ui.browserDeleteButtons.element(boundBy: 1).click()
+        ui.browserRows.element(boundBy: 1).click()
+        XCTAssertTrue(ui.browserRemoveButton.waitForExistence(timeout: 5), "Remove button not found.")
+        ui.browserRemoveButton.click()
         ui.assertSettingsVisible()
     }
 
@@ -489,13 +491,13 @@ final class ChowserUITests: XCTestCase {
 
         ui.openAddBrowserSheet()
         ui.addFirstBrowserOption()
-        XCTAssertGreaterThanOrEqual(ui.browserDeleteButtons.count, 2, "Add browser should increase browser list size.")
+        XCTAssertGreaterThanOrEqual(ui.browserRows.count, 2, "Add browser should increase browser list size.")
 
         ui.openGeneralSection()
         ui.resetToFreshSetup()
         ui.openBrowsersSection()
 
-        XCTAssertEqual(ui.browserDeleteButtons.count, 1, "Fresh setup should restore one default browser.")
+        XCTAssertEqual(ui.browserRows.count, 1, "Fresh setup should restore one default browser.")
         XCTAssertTrue(ui.firstBrowserNameValue.localizedCaseInsensitiveContains("Safari"))
     }
 
@@ -596,13 +598,13 @@ final class ChowserUITests: XCTestCase {
         ui.openAddBrowserSheet()
 
         // Count browsers before adding
-        let beforeCount = ui.browserDeleteButtons.count
+        let beforeCount = ui.browserRows.count
 
         // Add the first available browser option
         ui.addFirstBrowserOption()
 
         // Browser list should grow by 1
-        let afterCount = ui.browserDeleteButtons.count
+        let afterCount = ui.browserRows.count
         XCTAssertEqual(afterCount, beforeCount + 1, "Adding a browser should increase the browser list count.")
     }
 
@@ -687,7 +689,7 @@ final class ChowserUITests: XCTestCase {
         ui.assertSettingsVisible()
 
         // Ensure multiple browsers are configured
-        if ui.browserDeleteButtons.count < 2 {
+        if ui.browserRows.count < 2 {
             ui.openAddBrowserSheet()
             ui.addFirstBrowserOption()
         }
@@ -735,8 +737,14 @@ private struct ChowserAppDriver {
     }
     var settingsAddBrowserButton: XCUIElement { app.buttons["settings.addBrowserButton"] }
 
-    var browserDeleteButtons: XCUIElementQuery {
-        app.buttons.matching(identifier: "settings.browser.deleteButton")
+    /// One name label per row of the browsers list (in picker order).
+    var browserRows: XCUIElementQuery {
+        app.staticTexts.matching(identifier: "settings.browser.name")
+    }
+
+    /// The table footer's "-" button; removes the selected browser.
+    var browserRemoveButton: XCUIElement {
+        app.buttons["settings.browser.removeButton"]
     }
 
     var addSheetRoot: XCUIElement {
@@ -747,8 +755,8 @@ private struct ChowserAppDriver {
         app.staticTexts["picker.lastOpenedBrowser"]
     }
 
-    var browserNameFields: XCUIElementQuery {
-        app.textFields.matching(identifier: "settings.browser.nameField")
+    var addSheetConfirmButton: XCUIElement {
+        app.buttons["settings.addSheet.addButton"]
     }
 
     var firstPickerBrowserRow: XCUIElement {
@@ -787,8 +795,10 @@ private struct ChowserAppDriver {
     }
 
     var firstBrowserNameValue: String {
-        guard browserNameFields.count > 0 else { return "" }
-        return browserNameFields.element(boundBy: 0).value as? String ?? ""
+        guard browserRows.count > 0 else { return "" }
+        let label = browserRows.element(boundBy: 0)
+        if let value = label.value as? String, !value.isEmpty { return value }
+        return label.label
     }
 
     func assertPickerVisible(file: StaticString = #filePath, line: UInt = #line) {
@@ -842,9 +852,15 @@ private struct ChowserAppDriver {
     }
 
     func addFirstBrowserOption() {
-        let firstOption = app.descendants(matching: .any).matching(identifier: "settings.addSheet.option").firstMatch
-        XCTAssertTrue(firstOption.waitForExistence(timeout: 5), "No available browser option found.")
+        // Already-added browsers are listed too (checked + disabled); pick the first addable one.
+        let options = app.descendants(matching: .any).matching(identifier: "settings.addSheet.option")
+        XCTAssertTrue(options.firstMatch.waitForExistence(timeout: 5), "No browser option found.")
+        let firstOption = options.matching(NSPredicate(format: "isEnabled == true")).firstMatch
+        XCTAssertTrue(firstOption.exists, "No addable browser option found.")
         firstOption.click()
+
+        XCTAssertTrue(addSheetConfirmButton.waitForExistence(timeout: 5), "Add Browsers button not found.")
+        addSheetConfirmButton.click()
 
         let predicate = NSPredicate(format: "exists == false")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: addSheetRoot)

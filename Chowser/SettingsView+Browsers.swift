@@ -3,236 +3,13 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension SettingsView {
-    var hasBrowserSearchQuery: Bool {
-        !browserSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var filteredBrowsers: [BrowserConfig] {
-        guard hasBrowserSearchQuery else {
-            return browserManager.configuredBrowsers
-        }
-
-        let query = browserSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return browserManager.configuredBrowsers.filter {
-            $0.name.localizedStandardContains(query)
-                || $0.bundleId.localizedStandardContains(query)
-                || ($0.profile?.localizedStandardContains(query) ?? false)
-        }
-    }
-
     var browsersSection: some View {
-        SettingsDetailScaffold(
-            title: "Browsers",
-            subtitle: "Choose the browsers and profiles that appear in the picker.",
-            systemImage: "globe",
-            actions: {
-                HStack(spacing: 8) {
-                    Menu {
-                        Button(action: exportBrowsers) {
-                            Label("Export Browsers…", systemImage: "square.and.arrow.up")
-                        }
-                        .disabled(browserManager.configuredBrowsers.isEmpty)
-                        .accessibilityIdentifier("settings.exportBrowsersButton")
-
-                        Button(action: importBrowsers) {
-                            Label("Import Browsers…", systemImage: "square.and.arrow.down")
-                        }
-                        .accessibilityIdentifier("settings.importBrowsersButton")
-                    } label: {
-                        Label("Browser Actions", systemImage: "ellipsis.circle")
-                            .labelStyle(.iconOnly)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .accessibilityIdentifier("settings.browsersMenuButton")
-
-                    Button("Add Browser", systemImage: "plus") {
-                        showingAddSheet = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .keyboardShortcut("n", modifiers: .command)
-                    .accessibilityIdentifier("settings.addBrowserButton")
-                }
-            },
-            content: {
-                VStack(alignment: .leading, spacing: 14) {
-                    if profileAccessStatus.needsRecovery {
-                        profileAccessBanner
-                    }
-
-                    HStack(spacing: 12) {
-                        sectionSearchField(
-                            placeholder: "Filter browsers by name, bundle ID, or profile",
-                            text: $browserSearchText,
-                            accessibilityIdentifier: "settings.browser.searchField"
-                        )
-
-                        Text("\(browserManager.configuredBrowsers.count) configured")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-
-                    browserListContent
-                }
-            }
+        BrowsersSettingsPage(
+            browserManager: browserManager,
+            profileAccessStatus: $profileAccessStatus,
+            onExport: exportBrowsers,
+            onImport: importBrowsers
         )
-    }
-
-    @ViewBuilder
-    private var browserListContent: some View {
-        if browserManager.configuredBrowsers.isEmpty {
-            SettingsEmptyContent(
-                systemImage: "globe",
-                title: "No browsers configured",
-                message: "Restore the default Safari setup or add an app manually.",
-                actionTitle: "Restore Default Browser"
-            ) {
-                browserManager.restoreDefaultBrowserList()
-            }
-            .accessibilityIdentifier("settings.restoreDefaultButton")
-        } else if filteredBrowsers.isEmpty {
-            SettingsEmptyContent(
-                systemImage: "magnifyingglass",
-                title: "No matching browsers",
-                message: "Clear the filter to show all configured browsers."
-            )
-        } else {
-            // Plain VStack of rows (not a List): a List nested in this NavigationSplitView
-            // detail mis-lays-out until a window resize. Scaffold supplies the ScrollView.
-            VStack(spacing: 0) {
-                ForEach(Array(filteredBrowsers.enumerated()), id: \.element.id) { index, browser in
-                    browserRow(for: browser, hasSearchQuery: hasBrowserSearchQuery)
-                    if index < filteredBrowsers.count - 1 {
-                        SettingsDivider()
-                    }
-                }
-            }
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(.separator.opacity(0.35), lineWidth: 1)
-            )
-            .accessibilityIdentifier("settings.browserList")
-        }
-    }
-
-    private var profileAccessBanner: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: profileAccessIconName)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(profileAccessIconColor)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(profileAccessTitle)
-                    .font(.system(size: 12, weight: .semibold))
-                Text(profileAccessMessage)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 12)
-
-            Button("Allow Access…") {
-                grantProfileAccessFromSettings()
-            }
-            .controlSize(.small)
-            .accessibilityIdentifier("settings.profileAccess.grantButton")
-
-            if profileAccessStatus.hasStoredBookmark {
-                Button("Reset") {
-                    resetProfileAccessFromSettings()
-                }
-                .controlSize(.small)
-                .accessibilityIdentifier("settings.profileAccess.resetButton")
-            }
-        }
-        .padding(12)
-        .background(profileAccessIconColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(profileAccessIconColor.opacity(0.18), lineWidth: 1)
-        )
-        .accessibilityIdentifier("settings.profileAccess.banner")
-    }
-
-    private var profileAccessIconName: String {
-        switch profileAccessStatus {
-        case .missing:
-            return "folder.badge.questionmark"
-        case .stale, .invalid:
-            return "exclamationmark.triangle"
-        case .granted:
-            return "checkmark.shield"
-        }
-    }
-
-    private var profileAccessIconColor: Color {
-        switch profileAccessStatus {
-        case .missing:
-            return .blue
-        case .stale, .invalid:
-            return .orange
-        case .granted:
-            return .green
-        }
-    }
-
-    private var profileAccessTitle: String {
-        switch profileAccessStatus {
-        case .missing:
-            return "Browser profile access is optional"
-        case .stale:
-            return "Browser profile access needs renewal"
-        case .invalid:
-            return "Browser profile access needs repair"
-        case .granted:
-            return "Browser profile access enabled"
-        }
-    }
-
-    private var profileAccessMessage: String {
-        switch profileAccessStatus {
-        case .missing:
-            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
-                return "Allow read-only access to ~/Library/Application Support to discover Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles."
-            }
-            return "App Store builds can list profile names after access, but macOS sandboxing opens only the selected browser app."
-        case .stale:
-            return "The saved Application Support permission is stale. Grant access again to refresh browser profile discovery."
-        case .invalid:
-            return "The saved Application Support permission could not be opened. Reset it or grant access again."
-        case .granted:
-            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
-                return "Chowser can read browser profile names from Application Support."
-            }
-            return "Chowser can read browser profile names, but App Store builds cannot pass profile/private launch arguments to browsers."
-        }
-    }
-
-    @MainActor
-    private func grantProfileAccessFromSettings() {
-        _ = SandboxBookmarkManager.shared.requestApplicationSupportAccess()
-        BrowserProfileDetector.clearCache()
-        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
-    }
-
-    private func resetProfileAccessFromSettings() {
-        SandboxBookmarkManager.shared.clearGrant()
-        BrowserProfileDetector.clearCache()
-        profileAccessStatus = SandboxBookmarkManager.shared.grantStatus
-    }
-
-    func removeFilteredBrowsers(at offsets: IndexSet) {
-        let idsToRemove = offsets.compactMap { offset in
-            filteredBrowsers.indices.contains(offset) ? filteredBrowsers[offset].id : nil
-        }
-
-        for id in idsToRemove {
-            browserManager.removeBrowser(id: id)
-        }
     }
 
     func exportBrowsers() {
@@ -269,249 +46,931 @@ extension SettingsView {
             presentSettingsMessage("Import failed", "Could not import browsers.\n\n\(error.localizedDescription)")
         }
     }
+}
 
-    private func browserRow(for browser: BrowserConfig, hasSearchQuery: Bool) -> some View {
-        let currentIndex = browserManager.configuredBrowsers.firstIndex(where: { $0.id == browser.id }) ?? 0
-        let canMoveUp = currentIndex > 0
-        let canMoveDown = currentIndex < browserManager.configuredBrowsers.count - 1
+// MARK: - Page
 
-        return SettingsBrowserRow(
-            browser: browser,
-            currentShortcut: browserManager.shortcutKey(for: browser.id),
-            shortcutOptions: shortcutOptions,
-            hasSearchQuery: hasSearchQuery,
-            canMoveUp: canMoveUp,
-            canMoveDown: canMoveDown,
-            onRename: { newName in
-                browserManager.updateBrowserName(id: browser.id, to: newName)
-            },
-            onUpdateShortcut: { newShortcut in
-                browserManager.updateShortcutKey(id: browser.id, to: newShortcut)
-            },
-            onMoveUp: {
-                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: currentIndex - 1)
-            },
-            onMoveDown: {
-                browserManager.moveBrowsers(from: IndexSet(integer: currentIndex), to: currentIndex + 2)
-            },
-            onEdit: {
-                browserToEdit = browser
-            },
-            onDelete: {
-                browserManager.removeBrowser(id: browser.id)
+/// The Browsers settings page: a reorderable list in picker order, an inspector for the
+/// selected browser, the Add Browsers sheet, undoable removal, and hidden apps.
+///
+/// Reordering uses `List` + `ForEach.onMove` rather than `Table`: on macOS 14 table rows
+/// have no `onMove`, only drag/drop-payload reordering, while `List.onMove` gives the
+/// native drag-to-reorder insertion line with no custom transfer types.
+struct BrowsersSettingsPage: View {
+    let browserManager: BrowserManager
+    @Binding var profileAccessStatus: SandboxBookmarkManager.GrantStatus
+    let onExport: () -> Void
+    let onImport: () -> Void
+
+    @Environment(\.undoManager) private var undoManager
+
+    @State private var selection: UUID?
+    @State private var renamingID: UUID?
+    @State private var showingAddSheet = false
+    @State private var status: StatusMessage?
+    @State private var showsHiddenApps = false
+    @State private var newHiddenBundleId = ""
+
+    /// One-line feedback under the list (shortcut swaps, removals, additions).
+    struct StatusMessage: Equatable {
+        let text: String
+        /// Set when the message is about a removal that Undo can reverse.
+        var removedBrowserID: UUID?
+        var removedBrowserName: String?
+    }
+
+    private var browsers: [BrowserConfig] { browserManager.configuredBrowsers }
+
+    var body: some View {
+        let browsers = self.browsers
+        let selectedBrowser = selection.flatMap { id in browsers.first { $0.id == id } }
+
+        SettingsDetailScaffold(
+            title: "Browsers",
+            subtitle: "Choose the browsers and profiles that appear in the picker.",
+            systemImage: "globe",
+            scrollsContent: false,
+            actions: { actionsMenu },
+            content: {
+                HStack(spacing: 0) {
+                    mainColumn(browsers: browsers)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                    if let selectedBrowser {
+                        Divider()
+                        BrowserInspector(
+                            browser: selectedBrowser,
+                            manager: browserManager,
+                            ruleCount: browserManager.routingRuleCount(forBrowser: selectedBrowser),
+                            profileAccessNeedsRecovery: profileAccessStatus.needsRecovery,
+                            onRemove: { remove(selectedBrowser.id) }
+                        )
+                        .id(selectedBrowser.id)
+                        .frame(width: 300)
+                        .frame(maxHeight: .infinity)
+                    }
+                }
             }
         )
-    }
-}
-
-private struct BrowserListHeader: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("Browser")
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Shortcut")
-                .frame(width: 92, alignment: .leading)
-            Text("Order")
-                .frame(width: 84, alignment: .leading)
-            Text("Actions")
-                .frame(width: 112, alignment: .trailing)
+        .sheet(isPresented: $showingAddSheet) {
+            AddBrowserSheet(manager: browserManager, isPresented: $showingAddSheet) { added in
+                handleAdded(added)
+            }
         }
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+    }
+
+    // MARK: Toolbar menu
+
+    private var actionsMenu: some View {
+        Menu {
+            Button("Import Browsers…", systemImage: "square.and.arrow.down", action: onImport)
+                .accessibilityIdentifier("settings.importBrowsersButton")
+
+            Button("Export Browsers…", systemImage: "square.and.arrow.up", action: onExport)
+                .disabled(browserManager.configuredBrowsers.isEmpty)
+                .accessibilityIdentifier("settings.exportBrowsersButton")
+        } label: {
+            Label("More", systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Import or export browsers")
+        .accessibilityLabel("More browser actions")
+        .accessibilityIdentifier("settings.browsersMenuButton")
+    }
+
+    // MARK: Main column
+
+    private func mainColumn(browsers: [BrowserConfig]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if profileAccessStatus.needsRecovery {
+                ProfileAccessBanner(status: $profileAccessStatus)
+            }
+
+            browserTable(browsers: browsers)
+                .frame(minHeight: 180, maxHeight: .infinity)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("This is the order browsers appear in the picker. Drag to reorder; double-click a name to rename it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let status {
+                    statusLine(status)
+                }
+            }
+
+            hiddenAppsSection
+        }
+        .padding(20)
+    }
+
+    private func browserTable(browsers: [BrowserConfig]) -> some View {
+        VStack(spacing: 0) {
+            List(selection: $selection) {
+                Section {
+                    ForEach(browsers) { browser in
+                        BrowserTableRow(
+                            browser: browser,
+                            isRenaming: renamingID == browser.id,
+                            onRename: { newName in
+                                browserManager.updateBrowserName(id: browser.id, to: newName)
+                            },
+                            onEndRename: {
+                                if renamingID == browser.id { renamingID = nil }
+                            },
+                            onSelectShortcut: { key in
+                                setShortcut(key, for: browser)
+                            }
+                        )
+                        .tag(browser.id)
+                    }
+                    .onMove { offsets, destination in
+                        browserManager.moveBrowsers(from: offsets, to: destination)
+                    }
+                } header: {
+                    BrowserTableHeader()
+                }
+            }
+            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .scrollContentBackground(.hidden)
+            .contextMenu(forSelectionType: UUID.self) { ids in
+                if let id = ids.first {
+                    Button("Rename") { renamingID = id }
+                    Divider()
+                    Button("Remove Browser") { remove(id) }
+                }
+            } primaryAction: { ids in
+                // Double-click or Return renames inline.
+                guard let id = ids.first else { return }
+                selection = id
+                renamingID = id
+            }
+            .onDeleteCommand {
+                guard renamingID == nil, let selection else { return }
+                remove(selection)
+            }
+            .overlay {
+                if browsers.isEmpty {
+                    emptyListContent
+                }
+            }
+            .accessibilityLabel("Browsers, in picker order")
+            .accessibilityIdentifier("settings.browserTable")
+
+            Divider()
+
+            tableFooter
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.separator)
+        )
+    }
+
+    private var emptyListContent: some View {
+        VStack(spacing: 8) {
+            Text("No browsers")
+                .font(.headline)
+            Text("Add browsers with the + button, or restore the default Safari setup.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Restore Default Browser") {
+                browserManager.restoreDefaultBrowserList()
+            }
+            .accessibilityIdentifier("settings.restoreDefaultButton")
+        }
+        .padding()
+    }
+
+    private var tableFooter: some View {
+        HStack(spacing: 0) {
+            Button {
+                showingAddSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 24, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .keyboardShortcut("n", modifiers: .command)
+            .help("Add browsers")
+            .accessibilityLabel("Add Browsers")
+            .accessibilityIdentifier("settings.addBrowserButton")
+
+            Divider()
+                .frame(height: 14)
+
+            Button {
+                if let selection { remove(selection) }
+            } label: {
+                Image(systemName: "minus")
+                    .frame(width: 24, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .disabled(selection == nil)
+            .help("Remove the selected browser")
+            .accessibilityLabel("Remove Browser")
+            .accessibilityIdentifier("settings.browser.removeButton")
+
+            Spacer()
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+    }
+
+    private func statusLine(_ status: StatusMessage) -> some View {
+        // After Undo (button or Edit > Undo) the removed browser is back; say so instead
+        // of leaving a stale "Removed" line.
+        let isRestored = status.removedBrowserID.map { id in browsers.contains { $0.id == id } } ?? false
+        let text = isRestored ? "Restored \(status.removedBrowserName ?? "browser")." : status.text
+
+        return HStack(spacing: 6) {
+            Text(text)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.browser.statusText")
+
+            if canUndoRemoval(status) {
+                Button("Undo") {
+                    undoManager?.undo()
+                }
+                .buttonStyle(.link)
+                .accessibilityIdentifier("settings.browser.undoRemoveButton")
+            }
+        }
+        .font(.caption)
+    }
+
+    private func canUndoRemoval(_ status: StatusMessage) -> Bool {
+        guard let removedID = status.removedBrowserID, let undoManager else { return false }
+        return undoManager.canUndo
+            && undoManager.undoActionName == "Remove Browser"
+            && !browsers.contains { $0.id == removedID }
+    }
+
+    // MARK: Hidden apps
+
+    private struct HiddenApp: Identifiable {
+        let bundleId: String
+        let name: String?
+        let icon: NSImage?
+        var id: String { bundleId }
+    }
+
+    private var hiddenAppsSection: some View {
+        let hiddenIDs = browserManager.hiddenBundleIDs
+        return DisclosureGroup(isExpanded: $showsHiddenApps) {
+            hiddenAppsContent(hiddenIDs: hiddenIDs)
+                .padding(.top, 6)
+        } label: {
+            // Identifier on the label, not the group: a group-level identifier would
+            // override the identifiers of every control inside the expanded content.
+            Text("Hidden apps (\(hiddenIDs.count))")
+                .accessibilityIdentifier("settings.hiddenApps.disclosure")
+        }
+    }
+
+    private func hiddenAppsContent(hiddenIDs: Set<String>) -> some View {
+        // Resolved once per render of the expanded group; AppMetadataCache memoises the
+        // Launch Services lookups.
+        let apps = hiddenIDs.sorted().map { bundleId in
+            HiddenApp(
+                bundleId: bundleId,
+                name: AppMetadataCache.shared.displayName(for: bundleId),
+                icon: AppMetadataCache.shared.icon(for: bundleId)
+            )
+        }
+        let trimmedNewID = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            if apps.isEmpty {
+                Text("No hidden apps.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(apps) { app in
+                            HiddenAppRow(
+                                bundleId: app.bundleId,
+                                name: app.name,
+                                icon: app.icon
+                            ) {
+                                browserManager.removeHiddenBundleID(app.bundleId)
+                            }
+                            if app.id != apps.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 160)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(.separator)
+                )
+                .accessibilityIdentifier("settings.hiddenApps.list")
+            }
+
+            Text("Hidden apps can open links, but Chowser doesn't offer them in Add Browsers or use them as the fallback browser.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                TextField("Bundle ID", text: $newHiddenBundleId, prompt: Text("com.example.app"))
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                    .onSubmit(hideNewBundleID)
+                    .accessibilityLabel("Bundle ID to hide")
+                    .accessibilityIdentifier("settings.hiddenApps.bundleIdField")
+
+                Button("Hide App", action: hideNewBundleID)
+                    .disabled(trimmedNewID.isEmpty)
+                    .accessibilityIdentifier("settings.hiddenApps.hideButton")
+
+                Button("Restore Defaults") {
+                    browserManager.resetHiddenBundleIDs()
+                }
+                .help("Reset the hidden list to Chowser's built-in media players")
+                .accessibilityIdentifier("settings.hiddenApps.resetButton")
+            }
+        }
+    }
+
+    private func hideNewBundleID() {
+        let trimmed = newHiddenBundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        browserManager.addHiddenBundleID(trimmed)
+        newHiddenBundleId = ""
+    }
+
+    // MARK: Actions
+
+    private func setShortcut(_ key: String, for browser: BrowserConfig) {
+        guard key != browser.shortcutKey else { return }
+        if let swapped = browserManager.updateShortcutKey(id: browser.id, to: key) {
+            announce(StatusMessage(
+                text: "\(browser.name) now uses \(key). \(swapped.name) moved to \(swapped.shortcutKey)."
+            ))
+        }
+    }
+
+    private func remove(_ id: UUID) {
+        guard let index = browsers.firstIndex(where: { $0.id == id }) else { return }
+        renamingID = nil
+
+        guard let snapshot = browserManager.removeBrowser(id: id, undoManager: undoManager) else { return }
+
+        // Keep keyboard flow: select the row that slid into the removed one's place.
+        let remaining = browserManager.configuredBrowsers
+        if selection == id {
+            selection = remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
+        }
+
+        let ruleCount = browserManager.routingRuleCount(forBrowser: snapshot.browser)
+        let rulesNote = ruleCount == 0
+            ? ""
+            : " \(ruleCount) \(ruleCount == 1 ? "rule" : "rules") for it won't match until you undo."
+        announce(StatusMessage(
+            text: "Removed \(snapshot.browser.name).\(rulesNote)",
+            removedBrowserID: snapshot.browser.id,
+            removedBrowserName: snapshot.browser.name
+        ))
+    }
+
+    private func handleAdded(_ added: [BrowserConfig]) {
+        guard let last = added.last else { return }
+        selection = last.id
+        let text = added.count == 1
+            ? "Added \(last.name) with shortcut \(last.shortcutKey)."
+            : "Added \(added.count) browsers."
+        announce(StatusMessage(text: text))
+    }
+
+    private func announce(_ message: StatusMessage) {
+        status = message
+        AccessibilityNotification.Announcement(message.text).post()
     }
 }
 
-private struct SettingsBrowserRow: View {
-    let browser: BrowserConfig
-    let currentShortcut: String
-    let shortcutOptions: [String]
-    let hasSearchQuery: Bool
-    let canMoveUp: Bool
-    let canMoveDown: Bool
-    let onRename: (String) -> Void
-    let onUpdateShortcut: (String) -> Void
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
+// MARK: - Table pieces
 
-    @State private var editingName: String
-    @FocusState private var isNameFocused: Bool
+private enum BrowserTableMetrics {
+    static let iconSize: CGFloat = 20
+    static let profileWidth: CGFloat = 120
+    static let shortcutWidth: CGFloat = 64
+    static let spacing: CGFloat = 8
+}
 
-    init(
-        browser: BrowserConfig,
-        currentShortcut: String,
-        shortcutOptions: [String],
-        hasSearchQuery: Bool,
-        canMoveUp: Bool,
-        canMoveDown: Bool,
-        onRename: @escaping (String) -> Void,
-        onUpdateShortcut: @escaping (String) -> Void,
-        onMoveUp: @escaping () -> Void,
-        onMoveDown: @escaping () -> Void,
-        onEdit: @escaping () -> Void,
-        onDelete: @escaping () -> Void
-    ) {
-        self.browser = browser
-        self.currentShortcut = currentShortcut
-        self.shortcutOptions = shortcutOptions
-        self.hasSearchQuery = hasSearchQuery
-        self.canMoveUp = canMoveUp
-        self.canMoveDown = canMoveDown
-        self.onRename = onRename
-        self.onUpdateShortcut = onUpdateShortcut
-        self.onMoveUp = onMoveUp
-        self.onMoveDown = onMoveDown
-        self.onEdit = onEdit
-        self.onDelete = onDelete
-        self._editingName = State(initialValue: browser.name)
+private struct BrowserTableHeader: View {
+    var body: some View {
+        HStack(spacing: BrowserTableMetrics.spacing) {
+            Color.clear
+                .frame(width: BrowserTableMetrics.iconSize, height: 1)
+            Text("Name")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Profile")
+                .frame(width: BrowserTableMetrics.profileWidth, alignment: .leading)
+            Text("Shortcut")
+                .frame(width: BrowserTableMetrics.shortcutWidth, alignment: .leading)
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
     }
+}
+
+private struct BrowserTableRow: View {
+    let browser: BrowserConfig
+    let isRenaming: Bool
+    let onRename: (String) -> Void
+    let onEndRename: () -> Void
+    let onSelectShortcut: (String) -> Void
+
+    private static let shortcutKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
     var body: some View {
-        HStack(spacing: 12) {
-            browserIdentityView
-                .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: BrowserTableMetrics.spacing) {
+            BrowserAppIcon(bundleId: browser.bundleId, size: BrowserTableMetrics.iconSize)
 
-            Picker("Shortcut", selection: Binding(get: { currentShortcut }, set: onUpdateShortcut)) {
-                ForEach(shortcutOptions, id: \.self) { key in
+            Group {
+                if isRenaming {
+                    InlineRenameField(name: browser.name, onCommit: onRename, onEnd: onEndRename)
+                } else {
+                    Text(browser.name)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityIdentifier("settings.browser.name")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(browser.profile ?? "—")
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(width: BrowserTableMetrics.profileWidth, alignment: .leading)
+                .accessibilityLabel(browser.profile.map { "Profile \($0)" } ?? "No profile")
+
+            Picker("Shortcut", selection: Binding(get: { browser.shortcutKey }, set: onSelectShortcut)) {
+                ForEach(Self.shortcutKeys, id: \.self) { key in
                     Text(key).tag(key)
                 }
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .frame(width: 92, alignment: .leading)
+            .controlSize(.small)
+            .fixedSize()
+            .frame(width: BrowserTableMetrics.shortcutWidth, alignment: .leading)
+            .accessibilityLabel("Shortcut for \(browser.name)")
             .accessibilityIdentifier("settings.browser.shortcutPicker")
-            .accessibilityLabel("Shortcut key for \(browser.name)")
-
-            HStack(spacing: 4) {
-                Button("Move Up", systemImage: "arrow.up") {
-                    onMoveUp()
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .disabled(hasSearchQuery || !canMoveUp)
-                .help(hasSearchQuery ? "Clear search before reordering" : "Move up")
-
-                Button("Move Down", systemImage: "arrow.down") {
-                    onMoveDown()
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .disabled(hasSearchQuery || !canMoveDown)
-                .help(hasSearchQuery ? "Clear search before reordering" : "Move down")
-            }
-            .frame(width: 84, alignment: .leading)
-
-            HStack(spacing: 6) {
-                Button("Edit") {
-                    onEdit()
-                }
-                .controlSize(.small)
-                .accessibilityIdentifier("settings.browser.editButton")
-                .accessibilityLabel("Edit \(browser.name)")
-
-                Button(role: .destructive) {
-                    onDelete()
-                } label: {
-                    Text("Remove")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityIdentifier("settings.browser.deleteButton")
-                .accessibilityLabel("Remove \(browser.name)")
-            }
-            .frame(width: 112, alignment: .trailing)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-        .onChange(of: browser.name) { _, newValue in
-            guard !isNameFocused else { return }
-            editingName = newValue
-        }
-        .onChange(of: isNameFocused) { _, focused in
-            guard !focused else { return }
-            commitName()
-        }
-        .contextMenu {
-            Button("Edit Browser…", action: onEdit)
-            Divider()
-            Button("Move Up", action: onMoveUp)
-                .disabled(hasSearchQuery || !canMoveUp)
-            Button("Move Down", action: onMoveDown)
-                .disabled(hasSearchQuery || !canMoveDown)
-            Divider()
-            Button("Remove Browser", role: .destructive, action: onDelete)
-        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.browser.row")
+    }
+}
+
+/// Inline name editor shown in place of the name label. Commits on Return or when focus
+/// leaves; Escape cancels.
+private struct InlineRenameField: View {
+    let onCommit: (String) -> Void
+    let onEnd: () -> Void
+
+    @State private var text: String
+    @State private var original: String
+    @State private var didFinish = false
+    @FocusState private var isFocused: Bool
+
+    init(name: String, onCommit: @escaping (String) -> Void, onEnd: @escaping () -> Void) {
+        self.onCommit = onCommit
+        self.onEnd = onEnd
+        _text = State(initialValue: name)
+        _original = State(initialValue: name)
     }
 
-    private var browserIdentityView: some View {
-        HStack(spacing: 12) {
-            if let icon = AppMetadataCache.shared.icon(for: browser.bundleId) {
+    var body: some View {
+        TextField("Name", text: $text)
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
+            .focused($isFocused)
+            .onSubmit { finish(commit: true) }
+            .onExitCommand { finish(commit: false) }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { finish(commit: true) }
+            }
+            .onAppear {
+                // Focus after the row swaps in the field; same-pass focus is dropped in Lists.
+                DispatchQueue.main.async { isFocused = true }
+            }
+            .accessibilityLabel("Browser name")
+            .accessibilityIdentifier("settings.browser.nameField")
+    }
+
+    private func finish(commit: Bool) {
+        guard !didFinish else { return }
+        didFinish = true
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if commit, !trimmed.isEmpty, trimmed != original {
+            onCommit(trimmed)
+        }
+        onEnd()
+    }
+}
+
+/// App icon from the process-lifetime cache, with a monochrome fallback glyph.
+struct BrowserAppIcon: View {
+    let bundleId: String
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let icon = AppMetadataCache.shared.icon(for: bundleId) {
                 Image(nsImage: icon)
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: 30, height: 30)
             } else {
                 Image(systemName: "globe")
-                    .font(.system(size: 17))
+                    .resizable()
+                    .scaledToFit()
+                    .padding(size * 0.15)
                     .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 30)
             }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
 
-            VStack(alignment: .leading, spacing: 3) {
-                TextField("Browser name", text: $editingName)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, weight: .semibold))
-                    .focused($isNameFocused)
-                    .onSubmit(commitName)
-                    .accessibilityIdentifier("settings.browser.nameField")
+private struct HiddenAppRow: View {
+    let bundleId: String
+    let name: String?
+    let icon: NSImage?
+    let onUnhide: () -> Void
 
-                HStack(spacing: 6) {
-                    Text(browser.bundleId)
-                        .font(.system(size: 10, design: .monospaced))
+    var body: some View {
+        HStack(spacing: 10) {
+            Group {
+                if let icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                } else {
+                    Image(systemName: "app.dashed")
+                        .resizable()
+                        .scaledToFit()
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    if let engine = BrowserManager.browserEngineLabel(forBundleID: browser.bundleId) {
-                        Text(engine)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.secondary.opacity(0.12), in: Capsule())
-                    }
-
-                    if let profile = browser.profile {
-                        Text(profile)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.secondary.opacity(0.12), in: Capsule())
-                    }
-
-                    if let args = browser.customArguments, !args.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .help("Has custom launch arguments")
-                    }
                 }
             }
+            .frame(width: 20, height: 20)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name ?? bundleId)
+                    .lineLimit(1)
+                if name != nil {
+                    Text(bundleId)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Button("Unhide", action: onUnhide)
+                .controlSize(.small)
+                .help("Offer this app in Add Browsers again")
+                .accessibilityLabel("Unhide \(name ?? bundleId)")
+                .accessibilityIdentifier("settings.hiddenApps.showButton")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Inspector
+
+private struct BrowserInspector: View {
+    let browser: BrowserConfig
+    let manager: BrowserManager
+    let ruleCount: Int
+    let profileAccessNeedsRecovery: Bool
+    let onRemove: () -> Void
+
+    private enum Field: Hashable {
+        case name, customArguments, privateArguments
+    }
+
+    @State private var name: String
+    @State private var customArguments: String
+    @State private var privateArguments: String
+    @State private var detectedProfiles: [BrowserProfile] = []
+    @State private var showsAdvanced: Bool
+    @FocusState private var focusedField: Field?
+
+    init(
+        browser: BrowserConfig,
+        manager: BrowserManager,
+        ruleCount: Int,
+        profileAccessNeedsRecovery: Bool,
+        onRemove: @escaping () -> Void
+    ) {
+        self.browser = browser
+        self.manager = manager
+        self.ruleCount = ruleCount
+        self.profileAccessNeedsRecovery = profileAccessNeedsRecovery
+        self.onRemove = onRemove
+        _name = State(initialValue: browser.name)
+        _customArguments = State(initialValue: browser.customArguments ?? "")
+        _privateArguments = State(initialValue: browser.privateArguments ?? "")
+        _showsAdvanced = State(initialValue: false)
+    }
+
+    private var appName: String {
+        AppMetadataCache.shared.displayName(for: browser.bundleId) ?? browser.bundleId
+    }
+
+    var body: some View {
+        let appName = self.appName
+        let profileOptions = self.profileOptions
+
+        Form {
+            Section {
+                TextField("Name", text: $name)
+                    .focused($focusedField, equals: .name)
+                    .onSubmit(commitName)
+                    .accessibilityIdentifier("settings.browserInspector.nameField")
+
+                LabeledContent("Browser app") {
+                    HStack(spacing: 6) {
+                        BrowserAppIcon(bundleId: browser.bundleId, size: 16)
+                        Text(appName)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .help(browser.bundleId)
+                }
+                .accessibilityIdentifier("settings.browserInspector.appLabel")
+
+                Picker("Profile", selection: profileBinding) {
+                    Text("No specific profile").tag(String?.none)
+                    ForEach(profileOptions, id: \.id) { option in
+                        Text(option.label).tag(Optional(option.id))
+                    }
+                }
+                .disabled(profileOptions.isEmpty && browser.profile == nil)
+                .accessibilityIdentifier("settings.browserInspector.profilePicker")
+            } footer: {
+                Text(profileHint(appName: appName, optionCount: profileOptions.count))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section(isExpanded: $showsAdvanced) {
+                    TextField("Launch arguments", text: $customArguments, prompt: Text("--profile-directory={profile}"))
+                        .font(.body.monospaced())
+                        .focused($focusedField, equals: .customArguments)
+                        .onSubmit(commitCustomArguments)
+                        .accessibilityIdentifier("settings.browserInspector.argsField")
+
+                    TextField("Private window arguments", text: $privateArguments, prompt: Text("--incognito"))
+                        .font(.body.monospaced())
+                        .focused($focusedField, equals: .privateArguments)
+                        .onSubmit(commitPrivateArguments)
+                        .accessibilityIdentifier("settings.browserInspector.privateArgsField")
+
+                    Text(argumentsHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Advanced")
+                    .accessibilityIdentifier("settings.browserInspector.advancedDisclosure")
+            }
+
+            Section {
+                if ruleCount > 0 {
+                    Text("\(ruleCount) \(ruleCount == 1 ? "rule uses" : "rules use") this browser. Undo brings them back if you remove it.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.browserInspector.ruleUsageNote")
+                }
+
+                Button("Remove Browser", role: .destructive, action: onRemove)
+                    .accessibilityIdentifier("settings.browserInspector.removeButton")
+            }
+        }
+        .formStyle(.grouped)
+        .task(id: browser.bundleId) {
+            detectedProfiles = BrowserProfileDetector.detectProfiles(for: browser.bundleId)
+        }
+        .onChange(of: focusedField) { oldField, _ in
+            commit(oldField)
+        }
+        .onChange(of: browser.name) { _, newValue in
+            // Inline renames in the table update the model while the inspector is open.
+            guard focusedField != .name else { return }
+            name = newValue
+        }
+        .onDisappear {
+            commit(.name)
+            commit(.customArguments)
+            commit(.privateArguments)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.browserInspector")
+    }
+
+    // MARK: Profile
+
+    private struct ProfileOption {
+        let id: String
+        let label: String
+    }
+
+    /// Detected profiles for this app, minus ones another configured entry already uses
+    /// (bundle ID + profile must stay unique). Keeps the current value even if it wasn't
+    /// detected (typed manually, imported, or no profile access).
+    private var profileOptions: [ProfileOption] {
+        let takenByOthers = Set(manager.configuredBrowsers.compactMap { other -> String? in
+            guard other.id != browser.id, other.bundleId == browser.bundleId else { return nil }
+            return other.profile
+        })
+
+        var options = detectedProfiles
+            .filter { !takenByOthers.contains($0.id) }
+            .map { ProfileOption(id: $0.id, label: $0.name == $0.id ? $0.name : "\($0.name) (\($0.id))") }
+
+        if let current = browser.profile, !options.contains(where: { $0.id == current }) {
+            options.insert(ProfileOption(id: current, label: current), at: 0)
+        }
+        return options
+    }
+
+    private var profileBinding: Binding<String?> {
+        Binding(
+            get: { browser.profile },
+            set: { manager.updateBrowserProfile(id: browser.id, to: $0 ?? "") }
+        )
+    }
+
+    private func profileHint(appName: String, optionCount: Int) -> String {
+        if !BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+            return "App Store builds can't open a specific profile, so links open in \(appName)'s last-used window. The setting is kept for the direct-download version."
+        }
+        if detectedProfiles.isEmpty {
+            if profileAccessNeedsRecovery {
+                return "Allow profile access to look for \(appName) profiles."
+            }
+            return "No profiles found for \(appName). Links open in its last-used window."
+        }
+        let count = detectedProfiles.count
+        return "\(count) \(count == 1 ? "profile" : "profiles") found in \(appName) on this Mac."
+    }
+
+    private var argumentsHint: String {
+        if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+            return "Extra flags passed when Chowser opens this browser. Placeholders: {profile}, {url}; if {url} is omitted the link is appended. Private window arguments are used in private mode."
+        }
+        return "Saved for the direct-download version. macOS may ignore launch arguments from the sandboxed App Store build."
+    }
+
+    // MARK: Commit
+
+    private func commit(_ field: Field?) {
+        switch field {
+        case .name: commitName()
+        case .customArguments: commitCustomArguments()
+        case .privateArguments: commitPrivateArguments()
+        case nil: break
         }
     }
 
     private func commitName() {
-        let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            editingName = browser.name
+            name = browser.name
             return
         }
-
         guard trimmed != browser.name else { return }
-        onRename(trimmed)
+        manager.updateBrowserName(id: browser.id, to: trimmed)
+    }
+
+    private func commitCustomArguments() {
+        let trimmed = customArguments.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != (browser.customArguments ?? "") else { return }
+        manager.updateBrowserCustomArguments(id: browser.id, to: trimmed)
+    }
+
+    private func commitPrivateArguments() {
+        let trimmed = privateArguments.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != (browser.privateArguments ?? "") else { return }
+        manager.updateBrowserPrivateArguments(id: browser.id, to: trimmed)
+    }
+}
+
+// MARK: - Profile access banner (App Store sandbox)
+
+private struct ProfileAccessBanner: View {
+    @Binding var status: SandboxBookmarkManager.GrantStatus
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: iconName)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Allow Access…") {
+                grantAccess()
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier("settings.profileAccess.grantButton")
+
+            if status.hasStoredBookmark {
+                Button("Reset") {
+                    resetAccess()
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.profileAccess.resetButton")
+            }
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.profileAccess.banner")
+    }
+
+    private var iconName: String {
+        switch status {
+        case .missing: return "folder.badge.questionmark"
+        case .stale, .invalid: return "exclamationmark.triangle"
+        case .granted: return "checkmark.shield"
+        }
+    }
+
+    private var title: String {
+        switch status {
+        case .missing: return "Browser profile access is optional"
+        case .stale: return "Browser profile access needs renewal"
+        case .invalid: return "Browser profile access needs repair"
+        case .granted: return "Browser profile access enabled"
+        }
+    }
+
+    private var message: String {
+        switch status {
+        case .missing:
+            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                return "Allow read-only access to ~/Library/Application Support to discover Chrome, Brave, Edge, Vivaldi, Firefox, and Zen profiles."
+            }
+            return "App Store builds can list profile names after access, but macOS sandboxing opens only the selected browser app."
+        case .stale:
+            return "The saved Application Support permission is stale. Grant access again to refresh browser profile discovery."
+        case .invalid:
+            return "The saved Application Support permission could not be opened. Reset it or grant access again."
+        case .granted:
+            if BrowserManager.supportsApplicationLaunchArgumentsInCurrentBuild {
+                return "Chowser can read browser profile names from Application Support."
+            }
+            return "Chowser can read browser profile names, but App Store builds cannot pass profile/private launch arguments to browsers."
+        }
+    }
+
+    @MainActor
+    private func grantAccess() {
+        _ = SandboxBookmarkManager.shared.requestApplicationSupportAccess()
+        BrowserProfileDetector.clearCache()
+        status = SandboxBookmarkManager.shared.grantStatus
+    }
+
+    private func resetAccess() {
+        SandboxBookmarkManager.shared.clearGrant()
+        BrowserProfileDetector.clearCache()
+        status = SandboxBookmarkManager.shared.grantStatus
     }
 }
